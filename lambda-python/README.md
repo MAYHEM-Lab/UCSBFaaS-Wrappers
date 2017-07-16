@@ -1,4 +1,5 @@
 # SpotTemplate
+This code is for an AWS Lambda function in Python3 that can handle different triggers (logs them) and invokes another lambda function if an ARN for the function is passed in via the "functionName" key in the payload to invoke.
 
 Setup the project (first time only)
 ```
@@ -31,10 +32,13 @@ aws lambda create-function --region us-west-2 --function-name SpotTemplatePy --z
 
 Run it:
 ```
+#logs event (with no function to invoke)
 aws lambda invoke --invocation-type Event --function-name SpotTemplatePy --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI"}' outputfile
+#logs event and invoke function passed in
+aws lambda invoke --invocation-type Event --function-name SpotTemplatePy --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","functionName":"arn:aws:lambda:us-west-2:443592014519:function:VALIDFNAME"}' outputfile
 ```
 
-This function can handle triggers from 
+This function will not invoke itself (if its own ARN is passed in), will not do anything if no ARN is passed in, and can handle (log) triggers from 
    1) DynamoDB
    2) S3
    3) Other functions: e.g. from lambda-java for example: `aws lambda invoke --invocation-type Event --function-name FnInvoker --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","functionName":"arn:aws:lambda:us-west-2:XXXACCTXXX:function:SpotTemplatePy"}' outputfile`
