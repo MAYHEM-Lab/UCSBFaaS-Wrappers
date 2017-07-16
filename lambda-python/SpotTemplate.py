@@ -68,9 +68,8 @@ def invokeCLI(event,context,logger):
             #msg = {k: event[k] for k in event if k not in ('functionName', 'msg')}
             msg = {}
             msg['msg'] = 'from {} at {}'.format(me,str(now))
-            msg['eventSource'] = 'int:invokeCLI'
+            msg['eventSource'] = 'int:invokeCLI:{}'.format(me)
             msg['requestId'] = reqID
-            msg['eventSource'] = me
 	    #do not set functionName as you risk getting into an infinite loop!
             payload=json.dumps(msg)
             logger.info('SpotTemplatePy.handler sending payload to {}: {}'.format(fn,msg))

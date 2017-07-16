@@ -9,7 +9,6 @@ import com.amazonaws.services.lambda.runtime.*;
 import com.amazonaws.services.lambda.model.*;
 
 public class FnInvoker {
-    private final static String STOPMSG = "RECURSING";
 
     ///////////////////  handler (entry point): handleRequest /////////////////
     public static JSONObject handleRequest(JSONObject event, Context context) {
@@ -61,11 +60,10 @@ public class FnInvoker {
 	        //setup function to call, 
 	        JSONObject obj = new JSONObject();
 	        //these are key/value pairs expected by SpotTemplate (else ignored)
-	        obj.put("eventSource","int:invokeCLI"); //calling invoke
+	        obj.put("eventSource","int:invokeCLI:"+arn); //calling invoke
 	        //record this function's (the caller's) info
 	        obj.put("requestId",thisReqID); 
 	        obj.put("accountId",accountID);
-	        obj.put("eventSource",arn); 
 	        //do not set functionName as you risk getting into an infinite loop!
 	        if (testCase != null){
 	            obj.put("testCase",testCase); 

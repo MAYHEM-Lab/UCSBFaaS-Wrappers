@@ -12,10 +12,11 @@ def handleRequest(event, context):
     logger = logging.getLogger()
     ERR = False
     entry = 0 #all ints in Python3 are longs
-    serialized = jsonpickle.encode(event)
-    logger.info('SpotWrapPython::handleRequest: event: {}'.format(json.loads(serialized)))
-    serialized = jsonpickle.encode(context)
-    logger.info('SpotWrapPython::handleRequest: context: {}'.format(json.loads(serialized)))
+    #for debugging
+    #serialized = jsonpickle.encode(event)
+    #logger.info('SpotWrapPython::handleRequest: event: {}'.format(json.loads(serialized)))
+    #serialized = jsonpickle.encode(context)
+    #logger.info('SpotWrapPython::handleRequest: context: {}'.format(json.loads(serialized)))
 
     errorstr = "SpotWrapPython"
     makeRecord(context,event,0,errorstr)
@@ -190,7 +191,7 @@ def makeRecord(context,event,duration,errorstr):
             eventSource = 'unknown_source:{}'.format(functionName)
     #else: #event is None
 
-    if eventSource == 'unknown':
+    if eventSource == 'unset':
         #if functionName is "unset" then context is null!
         eventSource = 'unknown_source:{}'.format(functionName)
 
