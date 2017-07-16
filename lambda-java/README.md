@@ -22,10 +22,10 @@ Ensure that it has a primary key called "requestID" with type String and sort ke
 * Invoke the function  
 ```
 #call arn passed in (replace XXXARNXXX with full arn of any aws lambda function)  
-#ensure that it doesn't call this function (causing infinite loop)#call self once recursively
+#ensure that it doesn't call this function (causing infinite loop)
 aws lambda invoke --invocation-type Event --function-name FnInvoker --region us-west-2 --profile cjk1 --payload '{"functionName":"XXXARNXXX","eventSource":"ext:invokeCLI"}' outputfile      
 
-#call self recursively once
+#call self recursively once (flags are in place to stop recursion)
 aws lambda invoke --invocation-type Event --function-name FnInvoker --region us-west-2 --profile cjk1 --payload '{"eventSource":"ext:invokeCLI"}' outputfile      
 
 #call nothing (passed in same arn)
