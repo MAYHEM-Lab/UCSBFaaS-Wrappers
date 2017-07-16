@@ -28,7 +28,7 @@ aws lambda invoke --invocation-type Event --function-name SpotTemplate --region 
 * This function can also handle being invoked (and will log any such event details) from the following triggers
    DynamoDB
    S3
-   lambda function invocation (try using FnInvoker below)
+   lambda function invocation (try using FnInvoker below via `aws lambda invoke --invocation-type Event --function-name FnInvoker --region us-west-2 --profile cjk1 --payload '{"eventSource":"ext:invokeCLI","functionName":"arn:aws:lambda:us-west-2:443592014519:function:SpotTemplate"}' outputfile`)
    
 
 
