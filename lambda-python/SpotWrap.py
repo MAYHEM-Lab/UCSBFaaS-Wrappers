@@ -185,14 +185,12 @@ def makeRecord(context,event,duration,errorstr):
             else:
                 eventOp = event['eventSource']
             
-        logger.info('SpotWrapPython::handleRequest: here flag is: {}'.format(flag))
 
         if flag == UNKNOWN:
             eventSource = 'unknown_source:{}'.format(functionName)
     #else: #event is None
 
-    logger.info('SpotWrapPython::handleRequest: here eventSource is: {}'.format(eventSource))
-    if eventSource == 'unset':
+    if eventSource == 'unknown':
         #if functionName is "unset" then context is null!
         eventSource = 'unknown_source:{}'.format(functionName)
 

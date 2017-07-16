@@ -37,55 +37,26 @@ public class FnInvoker {
         logger.log("FnInvoker: req:" + thisReqID+" fname:"+thisFname+" arn:"+arn+" acct:"+accountID);
 
         JSONObject responseJson = new JSONObject();
-	try{
-	    //initialization
-            JSONObject req = event;
-            logger.log("FnInvoker: " + req);
-	    boolean recursive = false; //set up to recurse once
-	    boolean skipInvoke = false; //if recursing or error, don't call invoke
-	    String fnToCall = null; //the arn of the function to call
+	String fnToCall = (String)event.get("functionName");
+	if (fnToCall != null && !fnToCall.equals(arn) && fnToCall.startsWith("arn:aws:lambda:")) {
+	    try{
+	        //initialization
+                logger.log("FnInvoker: " + event);
+	        boolean recursive = false; //set up to recurse once
+	        boolean skipInvoke = false; //if recursing or error, don't call invoke
 
-	    //parse request
-	    String testCase = (String)req.get("testCase"); //ok if null, checked later
-	    String msg = (String)req.get("msg");
-	    if (msg == null) {
-		msg = "";
-	    }
-            logger.log("INFO: msg passed in: "+msg);
-	    String fname = (String)req.get("functionName");
-	    if (fname == null) {
-		fname = "";
-	    }
-
-	    long now = System.currentTimeMillis();
-	    String nows = "callerts:"+Long.toString(now);
-	    msg += ":"+nows; //add caller timestamp to msg
-	    if (msg.indexOf(STOPMSG) != -1) {
-		//we are in recursion, so stop
-		skipInvoke = true;
-                logger.log("INFO: skipping invocation, in recursive call: "+msg);
-	    }
-	    String val = (String)req.get("functionName");
-	    if (val == null) {
-	        //no valid function passed in, call this function recursively once
-		fnToCall = arn;
-		msg = STOPMSG+":1";
-                logger.log("INFO: setting up to call myself recursively "+msg+" fn: "+arn);
-	    } else if (val.equals(arn)) {
-	        //A valid function was passed in but with this function's arn,
-		//so we are in recursion. Do not continue invocation in this case.
-		//This case also disallows anyone invoking this function directly
-		//and sending in this function's arn (forcing recursion: is not allowed
-		//to ensure safety of recursive execution)
-		skipInvoke = true;
-                logger.log("INFO: skipping invocation (function passed in has same arn)");
-	    } else if (val.startsWith("arn:aws:lambda")) {//assume its OK and callit
-		fnToCall = val;
-	    }
-	    if (fnToCall == null) skipInvoke = true; //safety check
-
-	    //invoke the lambda function
-	    if (!skipInvoke) {
+	        //parse event
+	        String testCase = (String)event.get("testCase"); //ok if null, checked later
+	        String msg = (String)event.get("msg");
+	        if (msg == null) {
+		    msg = "NoInputMsg";
+	        }
+                logger.log("INFO: msg passed in: "+msg);
+    
+	        long now = System.currentTimeMillis();
+	        String nows = "callerts:"+Long.toString(now);
+	        msg += ":"+nows; //add caller timestamp to msg
+	        //invoke the lambda function
                 logger.log("INFO: implementing invocation msg: "+msg+" calling: "+fnToCall);
 	        //setup function to call, 
 	        JSONObject obj = new JSONObject();
@@ -94,31 +65,30 @@ public class FnInvoker {
 	        //record this function's (the caller's) info
 	        obj.put("requestId",thisReqID); 
 	        obj.put("accountId",accountID);
-	        obj.put("functionName",arn); 
-	        if (msg != null){
-	            obj.put("msg",msg); 
-	        }
+	        obj.put("eventSource",arn); 
+	        //do not set functionName as you risk getting into an infinite loop!
 	        if (testCase != null){
 	            obj.put("testCase",testCase); 
 	        }
-
                 AWSLambdaAsync lam = AWSLambdaAsyncClientBuilder.defaultClient();
                 InvokeRequest request = new InvokeRequest().withFunctionName(fnToCall).withPayload(obj.toString());
                 InvokeResult invoke = lam.invoke(request);
                 context.getLogger().log("invoke result: " + fnToCall + ": " + request + ": " +invoke.toString() +": "+ obj.toString());
-	    }
-
+	        
+                responseJson.put("statusCode", "200");
+    
+            } catch(Exception e) {
+                responseJson.put("statusCode", "400");
+                responseJson.put("exception", e);
+	        StringWriter sw = new StringWriter();
+	        PrintWriter pw = new PrintWriter(sw);
+	        e.printStackTrace(pw);
+	        logger.log("stack trace: "+sw.toString());
+            }
+        } else {
             responseJson.put("statusCode", "200");
-
-        } catch(Exception e) {
-            responseJson.put("statusCode", "400");
-            responseJson.put("exception", e);
-	    StringWriter sw = new StringWriter();
-	    PrintWriter pw = new PrintWriter(sw);
-	    e.printStackTrace(pw);
-	    logger.log("stack trace: "+sw.toString());
+            responseJson.put("msg", "NoFunctionPassedIn");
         }
-
 	//prepare response 
 	long now = System.currentTimeMillis();
         JSONObject headerJson = new JSONObject();
