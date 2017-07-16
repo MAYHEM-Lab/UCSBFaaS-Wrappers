@@ -15,6 +15,9 @@ In all of the code/steps below:
    3) change awsprofile1 to your AIM profile that has lambda admin access
    4) change XXX and YYY to your full path to the zip file you create in the step below
 
+Make a table if you haven't yet in AWS DynamoDB called `spotFnTable`  
+Ensure that it has a primary key called "requestID" with type String and sort key called "start" with type String
+
 Build the project (update HOMEDIR as appropriate)
 ```
 cd UCSBFaaS-Wrappers/lambda-python
