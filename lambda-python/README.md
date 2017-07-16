@@ -37,4 +37,4 @@ aws lambda invoke --invocation-type Event --function-name SpotTemplatePy --regio
 This function can handle triggers from 
    1) DynamoDB
    2) S3
-   3) Other functions: e.g. from lambda-java `aws lambda invoke --invocation-type Event --function-name FnInvoker --region us-west-2 --profile cjk1 --payload '{"eventSource":"ext:invokeCLI","functionName":"arn:aws:lambda:us-west-2:XXXACCTXXX:function:SpotTemplatePy"}' outputfile`
+   3) Other functions: e.g. from lambda-java for example: `aws lambda invoke --invocation-type Event --function-name FnInvoker --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","functionName":"arn:aws:lambda:us-west-2:XXXACCTXXX:function:SpotTemplatePy"}' outputfile`
