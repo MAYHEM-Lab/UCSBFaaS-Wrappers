@@ -45,3 +45,8 @@ This function will not invoke itself (if its own ARN is passed in), will not do 
    1) DynamoDB
    2) S3
    3) Other functions: e.g. from lambda-java for example: `aws lambda invoke --invocation-type Event --function-name FnInvoker --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","functionName":"arn:aws:lambda:us-west-2:XXXACCTXXX:function:SpotTemplatePy"}' outputfile`
+   
+# dbMod.py function: DBMod
+Perform the same setup as for SpotTemplatePy above and create your lambda wrapped with SpotWrap:
+```aws lambda create-function --region us-west-2 --function-name DBModPy --zip-file fileb:///Users/ckrintz/dbzip.zip --role arn:aws:iam::XXXACCTXXX:role/basiclambda --handler SpotWrap.handleRequest --runtime python3.6 --profile awsprofile1 --timeout 30 --memory-size 128
+```
