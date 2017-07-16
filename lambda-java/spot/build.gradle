@@ -1,0 +1,29 @@
+apply plugin: 'java'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile (
+        'com.amazonaws:aws-lambda-java-core:1.1.0',
+        'com.amazonaws:aws-lambda-java-events:1.1.0',
+        'com.amazonaws:aws-java-sdk-lambda:1.11.151',
+        'com.amazonaws:aws-xray-recorder-sdk-core:1.1.1',
+        'com.amazonaws:aws-xray-recorder-sdk-aws-sdk:1.1.1',
+        'com.amazonaws:aws-xray-recorder-sdk-aws-sdk-instrumentor:1.1.1',
+        'com.amazonaws:aws-xray-recorder-sdk-apache-http:1.1.1',
+    )
+    compile('com.googlecode.json-simple:json-simple:1.1')
+    compile('com.amazonaws:aws-java-sdk-dynamodb')
+}
+
+task buildZip(type: Zip) {
+    from compileJava
+    from processResources              
+    into('lib') {
+        from configurations.runtime
+    }           
+}
+
+build.dependsOn buildZip
