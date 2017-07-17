@@ -26,6 +26,8 @@ def handler(event, context):
                 logger.info('SpotTemplatePy::handler: S3 triggered')
             elif eventSource.startswith('aws:dynamodb'):
                 logger.info('SpotTemplatePy::handler: dynamoDB triggered')
+            elif eventSource.startswith('aws:sns'):
+                logger.info('SpotTemplatePy::handler: SNS triggered')
             else:
                 logger.info('SpotTemplatePy::handler: unknown Records trigger')
         elif 'invokeCLI' in eventSource:
