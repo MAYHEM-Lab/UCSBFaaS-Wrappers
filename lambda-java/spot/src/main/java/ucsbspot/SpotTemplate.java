@@ -327,20 +327,13 @@ public class SpotTemplate
         responseBody.put("message", msg);
         responseBody.put("testCase", testCase);
         responseBody.put("functionName", functionName);
-	logger.log("processEvent: reqID: "+thisReq+" responseBody="+responseBody.toString());
-
-        //not needed with SpotWrap: log function in database (dynamodb table) if needed
-	//get database handle - table must already exist
-	//AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard().build();
-	//DynamoDB dynamoDB = new DynamoDB(client);
-	//Table table = dynamoDB.getTable("spotFunctionTable");
-	//write to table (see Record.java)
+	//logger.log("processEvent: reqID: "+thisReq+" responseBody="+responseBody.toString());
 
 	//prepare response for synchronous calls to invoke
 	String body = responseBody.toString();
         responseJson.put("statusCode", "200");
         responseJson.put("body", body);
-	logger.log("processEvent: returning: "+body);
+	//logger.log("processEvent: returning: "+body);
 	return responseJson;
     }
     

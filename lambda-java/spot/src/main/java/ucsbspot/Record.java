@@ -76,7 +76,7 @@ public class Record {
 			        //default
 		                flag = 0; //error unknown eventSource
 		                if (logger != null) {
-	                            logger.log("processEvent: unknown Records/eventSource="+esObj);
+	                            logger.log("SpotWrap::makeRecord: unknown Records/eventSource="+esObj);
 				}
 		            }
 		        }
@@ -94,7 +94,7 @@ public class Record {
 		            //default
 		            flag = 0; //error unknown eventSource
 		            if (logger != null) {
-	                        logger.log("processEvent: unknown eventSource="+((String)test));
+	                        logger.log("SpotWrap::makeRecord: unknown eventSource="+((String)test));
 		            }
 	 	        }
 		    } 

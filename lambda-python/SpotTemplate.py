@@ -41,7 +41,7 @@ def handler(event, context):
     invdelta = inv-start
     invms = int(invdelta.total_seconds() * 1000)
     retn += ':SpotTemplatePy:setup:{}:invoke:{}'.format(ms,invms)
-    logger.info('invokeCLI return: {}'.format(retn))
+    #logger.info('invokeCLI return: {}'.format(retn))
     return retn
 
 def invokeCLI(event,context,logger):
