@@ -46,7 +46,7 @@ This function will not invoke itself (if its own ARN is passed in), will not do 
    2) S3
    3) Other functions: e.g. from lambda-java for example: `aws lambda invoke --invocation-type Event --function-name FnInvoker --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","functionName":"arn:aws:lambda:us-west-2:XXXACCTXXX:function:SpotTemplatePy"}' outputfile`
    
-# dbMod.py function: DBMod
+# dbMod.py function: DBModPy
 Build the project 
 ```
 cd UCSBFaaS-Wrappers/lambda-python/dbMod
@@ -74,7 +74,7 @@ aws lambda invoke --invocation-type Event --function-name DBModPy --region us-we
 ```
 The function assumes a DynamoDB table in the same region that is called triggerTable.  Link this table (as a trigger) to a different lambda function (e.g. SpotTemplate.{py,java}) to have SpotWrap capture the dependency across services.
 
-# s3mod S3Mod function
+# s3mod function S3ModPy
 Build the project 
 ```
 cd UCSBFaaS-Wrappers/lambda-python/s3Mod
