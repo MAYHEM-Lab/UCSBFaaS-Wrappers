@@ -48,5 +48,13 @@ This function will not invoke itself (if its own ARN is passed in), will not do 
    
 # dbMod.py function: DBMod
 Perform the same setup as for SpotTemplatePy above and create your lambda wrapped with SpotWrap:
-```aws lambda create-function --region us-west-2 --function-name DBModPy --zip-file fileb:///Users/ckrintz/dbzip.zip --role arn:aws:iam::XXXACCTXXX:role/basiclambda --handler SpotWrap.handleRequest --runtime python3.6 --profile awsprofile1 --timeout 30 --memory-size 128
 ```
+aws lambda create-function --region us-west-2 --function-name DBModPy --zip-file fileb:///XXX/YYY/UCSBFaaS-Wrappers/lambda-python/dbMod/dbmod.zip --role arn:aws:iam::XXXACCTXXX:role/basiclambda --handler SpotWrap.handleRequest --runtime python3.6 --profile awsprofile1 --timeout 30 --memory-size 128  
+#or update it:  
+aws lambda update-function-code --region us-west-2 --function-name DBModPy --zip-file fileb:///XXX/YYY/RESEARCH/lambda/UCSBFaaS-Wrappers/lambda-python/dbMod/dbmod.zip --profile awsprofile1
+```
+Run it via the following ("mykey" must be a new key to the table for the trigger to work, if trigger was created as an insert/update trigger):
+```
+aws lambda invoke --invocation-type Event --function-name DBModPy --region us-west-2 --profile cjk1 --payload '{"eventSource":"ext:invokeCLI","mykey":"newkey2","myval":"100"}' outputfile
+```
+The function assumes a DynamoDB table in the same region that is called triggerTable.  Link this table (as a trigger) to a different lambda function (e.g. SpotTemplate.{py,java}) to have SpotWrap capture the dependency across services.
