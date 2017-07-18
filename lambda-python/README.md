@@ -31,7 +31,7 @@ cd ../../../..  #return back to lambda-python dir
 Create the AWS Lambda (note handler format (single period) is different from that for a Java AWS Lambda)
 ```
 aws lambda create-function --region us-west-2 --function-name SpotTemplatePy --zip-file fileb:///XXX/YYY//UCSBFaaS-Wrappers/lambda-python/spotzip.zip --role arn:aws:iam::XXXACCTXXX:role/basiclambda --handler SpotWrap.handleRequest --runtime python3.6 --profile awsprofile1 --timeout 30 --memory-size 128
-# or update
+# or update (ensure that handler is set to SpotWrap.handleRequest)
 aws lambda update-function-code --region us-west-2 --function-name SpotTemplatePy --zip-file fileb:///XXX/YYY/UCSBFaaS-Wrappers/lambda-python/spotzip.zip --profile awsprofile1
 ```
 
@@ -67,7 +67,7 @@ cd ../../../..  #return back to lambda-python dir
 Perform the same setup as for SpotTemplatePy above and create your lambda wrapped with SpotWrap:
 ```
 aws lambda create-function --region us-west-2 --function-name DBModPy --zip-file fileb:///XXX/YYY/UCSBFaaS-Wrappers/lambda-python/dbMod/dbmod.zip --role arn:aws:iam::XXXACCTXXX:role/basiclambda --handler SpotWrap.handleRequest --runtime python3.6 --profile awsprofile1 --timeout 30 --memory-size 128  
-#or update it:  
+# or update (ensure that handler is set to SpotWrap.handleRequest)
 aws lambda update-function-code --region us-west-2 --function-name DBModPy --zip-file fileb:///XXX/YYY/RESEARCH/lambda/UCSBFaaS-Wrappers/lambda-python/dbMod/dbmod.zip --profile awsprofile1
 ```
 Run it via the following ("mykey" must be a new key to the table for the trigger to work, if trigger was created as an insert/update trigger):
@@ -95,7 +95,7 @@ cd ../../../..  #return back to lambda-python dir
 Perform the same setup as for SpotTemplatePy above and create your lambda wrapped with SpotWrap:
 ```
 aws lambda create-function --region us-west-2 --function-name S3ModPy --zip-file fileb:///XXX/YYY/UCSBFaaS-Wrappers/lambda-python/s3Mod/s3mod.zip --profile awsprofile1 --timeout 30 --memory-size 128 --role arn:aws:iam::XXXACCTXXX:role/basiclambda --handler SpotWrap.handleRequest --runtime python3.6
-# or update:
+# or update (ensure that handler is set to SpotWrap.handleRequest)
 aws lambda update-function-code --region us-west-2 --function-name S3ModPy --zip-file fileb:///XXX/YYY/UCSBFaaS-Wrappers/lambda-python/s3Mod/s3mod.zip --profile awsprofile1
 ```
 
