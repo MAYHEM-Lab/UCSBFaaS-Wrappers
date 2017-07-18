@@ -17,7 +17,8 @@ public class Record {
     private static final short APIGW = 1; //API Gateway
     private static final short DYNDB = 2; //DynamoDB
     private static final short S3 = 3; //Simple Storage Service (S3)
-    private static final short INVCLI = 4; //invoke via aws API (command line) external to or within a function
+    private static final short SNS = 4; //Simple Notification Service (SNS)
+    private static final short INVCLI = 5; //invoke via aws API (command line) external to or within a function
 
     public static void makeRecord(Context context, JSONObject event, 
         long duration, String errorstr) { //if event != null this is a start event, else its an end event
@@ -66,7 +67,40 @@ public class Record {
 		        //check eventSource for either aws:s3 or aws:dynamodb
 		        String esObj = (String)testobj.get("eventSource");
 		        if (esObj == null) {
-		            flag = 0; //error unknown entry, expecting Record with eventSource key
+                            esObj = (String)testobj.get("EventSource"); //aws:sns
+		            if (esObj != null) {
+  				//double check
+				if (esObj.startsWith("aws:sns")){
+				    flag = SNS;
+                                    esObj = (String)testobj.get("EventSubscriptionArn"); 
+				    if (esObj != null) {
+					eventSource = esObj;
+				    }
+				    JSONObject snsobj = (JSONObject)testobj.get("Sns");
+				    if (snsobj != null) {
+                                        esObj = (String)snsobj.get("Type"); 
+				        if (esObj != null) {
+					    eventOp = esObj;
+				        }
+                                        esObj = (String)snsobj.get("MessageId"); 
+				        if (esObj != null) {
+					    caller = esObj;
+				        }
+                                        esObj = (String)snsobj.get("Subject"); 
+				        if (esObj != null) {
+					    msg = esObj;
+				        }
+                                        esObj = (String)snsobj.get("Message"); 
+				        if (esObj != null) {
+					    msg += ":"+esObj;
+				        }
+				    }
+				} else{
+				    flag = 0; //error unknown entry
+				}
+		            } else {
+		                flag = 0; //error unknown entry, expecting Record with eventSource key
+			    }
 		        } else {
 			    if (esObj.equals("aws:s3")) {
 			        flag = S3;
@@ -76,7 +110,7 @@ public class Record {
 			        //default
 		                flag = 0; //error unknown eventSource
 		                if (logger != null) {
-	                            logger.log("processEvent: unknown Records/eventSource="+esObj);
+	                            logger.log("SpotWrap::makeRecord: unknown Records/eventSource="+esObj);
 				}
 		            }
 		        }
@@ -94,7 +128,7 @@ public class Record {
 		            //default
 		            flag = 0; //error unknown eventSource
 		            if (logger != null) {
-	                        logger.log("processEvent: unknown eventSource="+((String)test));
+	                        logger.log("SpotWrap::makeRecord: unknown eventSource="+((String)test));
 		            }
 	 	        }
 		    } 
@@ -153,9 +187,9 @@ public class Record {
 	        } else if (flag == DYNDB) { //unused sourceIP
                     JSONArray recs = (JSONArray)event.get("Records");
 		    JSONObject obj = (JSONObject)recs.get(0);
-	            eventSource = (String)obj.get("eventSource");
 	            caller = (String)obj.get("eventID");
 		    String ev = (String)obj.get("eventName");
+		    eventOp = ev;
     
 		    /* all have SequenceNumber
 		       options are MODIFY -> "NewImage":{"name":{"S":"zoe"},"age":{"N":"10"}}
@@ -165,35 +199,41 @@ public class Record {
 		    */
 		    JSONObject ddbobj = (JSONObject)obj.get("dynamodb");
 		    String mod = "";
-		    if (ev.equals("MODIFY")) {
-		        JSONObject ddbop = (JSONObject)ddbobj.get("NewImage");
-		        mod = ddbop.toJSONString();
-		        ddbop = (JSONObject)ddbobj.get("OldImage");
-		        mod = mod+":"+ddbop.toJSONString();
-		    } else if (ev.equals("INSERT")) {
-		        JSONObject ddbop = (JSONObject)ddbobj.get("NewImage");
-		        mod = ddbop.toJSONString();
-		    } else if (ev.equals("REMOVE")) {
-		        JSONObject ddbop = (JSONObject)ddbobj.get("OldImage");
-		        mod = mod+":"+ddbop.toJSONString();
+		    JSONObject ddbop = (JSONObject)ddbobj.get("NewImage");
+                    if (ddbop != null) {
+		        mod += "New:"+ddbop.toJSONString();
+                    }
+		    ddbop = (JSONObject)ddbobj.get("OldImage");
+                    if (ddbop != null) {
+		        mod += "Old:"+ddbop.toJSONString();
+                    }
+		    msg = mod;
+		    String tmpstr = (String)ddbobj.get("SequenceNumber");
+		    if (tmpstr != null) {
+		        caller += ":"+tmpstr;
 		    }
-		    msg = ev+":"+(String)ddbobj.get("SequenceNumber")+":OP:"+mod;
     
 		    String arntmp = (String)obj.get("eventSourceARN");
-		    arntok = arntmp.split(":");
-		    String reg = arntok[3];
-		    if (!reg.equals(region)) {
-		        region += ":"+reg;
-	            }
-		    String actID = arntok[4];
-		    if (!actID.equals(accountID)) {
-		        accountID += ":"+actID;
-	            }
-		    String rest = "";
-		    for (int i = 5; i < arntok.length; i++){
-		        rest += arntok[i];
+		    if (arntmp != null) {
+		        eventSource = arntmp;
+		        arntok = arntmp.split(":");
+		        String reg = arntok[3];
+                        if (region.equals("unset")) {
+                            region = reg;
+			} else {
+		            if (!reg.equals(region)) {
+		                region += ":"+reg;
+	                    }
+			}
+		        String actID = arntok[4];
+                        if (accountID.equals("unset")) {
+                            accountID = actID;
+			} else {
+		            if (!actID.equals(accountID)) {
+		                accountID += ":"+actID;
+	                    }
+			}
 		    }
-		    eventOp = rest;
 	        } else if (flag == S3) { 
                     JSONArray recs = (JSONArray)event.get("Records");
 		    JSONObject obj = (JSONObject)recs.get(0);

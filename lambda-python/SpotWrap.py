@@ -168,36 +168,33 @@ def makeRecord(context,event,duration,errorstr):
             elif eventSource.startswith('aws:dynamodb'):
                 flag = DYNDB
                 caller = obj['eventID']
+                eventSource = obj['eventSource']
                 ev = obj['eventName']
+                eventOp = ev
                 ddbobj = obj['dynamodb']
                 mod = ''
-                if ev == 'MODIFY':
-                    mod = ddbobj['NewImage']
-                    mod += ':{}'.format(ddbobj['OldImage'])
-                elif ev == 'INSERT':
-                    mod += ':{}'.format(ddbobj['NewImage'])
-                elif ev == 'REMOVE':
-                    mod += ':{}'.format(ddbobj['OldImage'])
-                msg = '{}:OP:{}'.format(ev,mod)
+                if 'NewImage' in ddbobj:
+                    mod += 'New:{}'.format(str(ddbobj['NewImage']))
+                if 'OldImage' in ddbobj:
+                    mod += ':Old:{}'.format(str(ddbobj['OldImage']))
+                msg = mod
+                logger.info('SpotWrapPython::handleRequest: ddbobj {}'.format(str(ddbobj)))
                 if 'SequenceNumber' in ddbobj:
-                    caller += ':'.format(ddbobj['SequenceNumber'])
-                arn = obj['eventSourceARN']
-                eventSource = arn
-                arns = arn.split(":")
-                acct = arns[4]
-                if accountID == 'unset':
-                    accountID = acct
-                elif acct != accountID:
-                    accountID +=':{}'.format(acct)
-                reg = arns[3]
-                if region == 'unset':
-                    region = reg
-                elif reg != region:              
-                    region += ':{}'.format(reg)
-                rest = ''
-                for i in range(5,len(arns)):
-                    rest+=':{}'.format(arns[i])
-                eventOp = rest
+                    caller += ':{}'.format(ddbobj['SequenceNumber'])
+                if 'eventSourceARN' in obj:
+                    arn = obj['eventSourceARN']
+                    eventSource = arn
+                    arns = arn.split(":")
+                    acct = arns[4]
+                    if accountID == 'unset':
+                        accountID = acct
+                    elif acct != accountID:
+                        accountID +=':{}'.format(acct)
+                    reg = arns[3]
+                    if region == 'unset':
+                        region = reg
+                    elif reg != region:              
+                        region += ':{}'.format(reg)
             else:
                 flag = UNKNOWN
         elif eventSource.startswith('ext:invokeCLI'):
@@ -234,6 +231,10 @@ def makeRecord(context,event,duration,errorstr):
 
     dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
     table = dynamodb.Table('spotFnTable')
+    if event:
+        start = 'true' #must match Java's SpotWrap
+    else:
+        start = 'false'
     table.put_item( Item={
         'requestID': requestID,
         'ts': int(round(datetime.now().timestamp())),
@@ -246,7 +247,7 @@ def makeRecord(context,event,duration,errorstr):
         'sourceIP': 'unknown',
         'message': msg,
         'duration': int(round(duration)),
-        'start': str(event != None),
+        'start': start,
         'error': errorstr,
         }
     )

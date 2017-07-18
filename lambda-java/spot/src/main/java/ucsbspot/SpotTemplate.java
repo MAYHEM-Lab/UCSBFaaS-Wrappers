@@ -30,7 +30,8 @@ public class SpotTemplate
     private static final short APIGW = 1; //API Gateway
     private static final short DYNDB = 2; //DynamoDB
     private static final short S3 = 3; //Simple Storage Service (S3)
-    private static final short INVCLI = 4; //invoke via aws API (command line) external to or within a function
+    private static final short SNS = 4; //Simple Notification Service (SNS)
+    private static final short INVCLI = 5; //invoke via aws API (command line) external to or within a function
 
     ///////////////////  handler (entry point): handleRequest /////////////////
     //without SpotWrap:
@@ -133,7 +134,17 @@ public class SpotTemplate
 		    //check eventSource for either aws:s3 or aws:dynamodb
 		    String esObj = (String)testobj.get("eventSource");
 		    if (esObj == null) {
-		        flag = 0; //error unknown entry, expecting Record with eventSource key
+                        esObj = (String)testobj.get("EventSource"); //aws:sns
+		        if (esObj != null) {
+  				//double check
+				if (esObj.startsWith("aws:sns")){
+				    flag = SNS;
+			        } else{
+			            flag = 0; //error unknown entry
+				}
+			} else{
+		            flag = 0; //error unknown entry, expecting Record with eventSource key
+			}
 		    } else {
 			if (esObj.equals("aws:s3")) {
 			    flag = S3;
@@ -305,6 +316,34 @@ public class SpotTemplate
 		} else {
 		    msg = "Error, unexpected JSON object and bucket";
 	        }
+	    } else if (flag == SNS) { //unused testCase
+                JSONArray recs = (JSONArray)event.get("Records");
+		JSONObject testobj = (JSONObject)recs.get(0);
+                String esObj = (String)testobj.get("EventSubscriptionArn"); 
+		if (esObj != null) {
+		    eventSource = esObj;
+		    JSONObject snsobj = (JSONObject)testobj.get("Sns");
+		    if (snsobj != null) {
+                        esObj = (String)snsobj.get("Type"); 
+		        if (esObj != null) {
+			    eventOp = esObj;
+		        }
+                        esObj = (String)snsobj.get("MessageId"); 
+		        if (esObj != null) {
+			    caller = esObj;
+		        }
+                        esObj = (String)snsobj.get("Subject"); 
+		        if (esObj != null) {
+			    msg = esObj;
+		        }
+                        esObj = (String)snsobj.get("Message"); 
+		        if (esObj != null) {
+		    	    msg += ":"+esObj;
+		        }
+		    }
+		} else {
+	            eventSource = "SNSERROR";
+		}
             } else {
 	        eventSource = "ERROR";
 	    }

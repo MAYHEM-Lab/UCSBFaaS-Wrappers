@@ -17,6 +17,9 @@ def handler(event, context):
 
         if 'eventSource' in event:
             eventSource = event['eventSource']
+        elif 'EventSource' in event:
+            eventSource = event['EventSource']
+        
         if 'requestContext' in event:
             #API Gateway
             logger.info('SpotTemplatePy::handler: API Gateway triggered')
@@ -74,7 +77,7 @@ def invokeCLI(event,context,logger):
             msg['requestId'] = reqID
 	    #do not set functionName as you risk getting into an infinite loop!
             payload=json.dumps(msg)
-            logger.info('SpotTemplatePy.handler sending payload to {}: {}'.format(fn,msg))
+            logger.info('SpotTemplatePy::handler sending payload to {}: {}'.format(fn,msg))
 
             invoke_response = lambda_client.invoke(FunctionName=fn, 
                 InvocationType='Event', Payload=payload) #Event type says invoke asynchronously
@@ -90,7 +93,7 @@ def invokeCLI(event,context,logger):
         serialized = jsonpickle.encode(invoke_response)
         logger.info('{} invoke_response: {}'.format(me,json.loads(serialized)))
 
-    logger.info('SpotTemplatePy.handler returning: {}'.format(me_str))
+    logger.info('SpotTemplatePy::handler returning: {}'.format(me_str))
     return me_str
 
 if __name__ == "__main__":
