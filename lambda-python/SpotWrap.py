@@ -1,5 +1,5 @@
 import boto3,json,logging,jsonpickle
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 sessionID = str(uuid.uuid4())
 
@@ -58,7 +58,7 @@ def makeRecord(context,event,duration,errorstr):
     eventSource = "unknown"
     eventOp = "unknown"
     caller = "unknown"
-    sourceIP = "000.000.000.000"
+    sourceIP = "unknown"
     msg = "unset" #random info
     requestID = sessionID #reqID of this aws lambda function set random as default
     functionName = "unset" #this aws lambda function name
@@ -99,12 +99,14 @@ def makeRecord(context,event,duration,errorstr):
                 accountID = acct
             elif acct != accountID:
                 accountID +=':{}'.format(acct)
+            caller = req['requestId']
             eventOp = req['path']
             tmpObj = req['identity']
             sourceIP = tmpObj['sourceIp']
-            req = event['queryStringParameters']
-            if 'msg' in req:
-                msg += ':{}'.format(req['msg'])
+            if 'queryStringParameters' in event:
+                req = event['queryStringParameters']
+                if 'msg' in req:
+                    msg += ':{}'.format(req['msg'])
         elif 'Records' in event:
             #S3 or DynamoDB or unknown
             recs = event['Records']
@@ -178,7 +180,6 @@ def makeRecord(context,event,duration,errorstr):
                 if 'OldImage' in ddbobj:
                     mod += ':Old:{}'.format(str(ddbobj['OldImage']))
                 msg = mod
-                logger.info('SpotWrapPython::handleRequest: ddbobj {}'.format(str(ddbobj)))
                 if 'SequenceNumber' in ddbobj:
                     caller += ':{}'.format(ddbobj['SequenceNumber'])
                 if 'eventSourceARN' in obj:
@@ -230,21 +231,24 @@ def makeRecord(context,event,duration,errorstr):
         eventSource = 'unknown_source:{}'.format(functionName)
 
     dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
-    table = dynamodb.Table('spotFnTable')
+    table = dynamodb.Table('spotFns')
+    ts = datetime.now(timezone.utc).timestamp() #secs,tz must be explicitly set to utc
+    tsint = round(ts) * 1000 #msecs
     if event:
         start = 'true' #must match Java's SpotWrap
     else:
         start = 'false'
+        tsint += 1 #ensures that we have unique TS before and after for same requestID in dynamoDB
     table.put_item( Item={
+        'ts': tsint,
         'requestID': requestID,
-        'ts': int(round(datetime.now().timestamp())),
         'thisFnARN': myarn,
         'caller': caller,
         'eventSource': eventSource,
         'eventOp': eventOp,
         'region': region,
         'accountID': accountID,
-        'sourceIP': 'unknown',
+        'sourceIP': sourceIP,
         'message': msg,
         'duration': int(round(duration)),
         'start': start,

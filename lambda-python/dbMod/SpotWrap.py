@@ -1,12 +1,12 @@
 import boto3,json,logging,jsonpickle
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 sessionID = str(uuid.uuid4())
 
 def callIt(event,context):
     #replace your import and handler method (replacing "handler") here:
-    import dbMod
-    return dbMod.handler(event,context)
+    import SpotTemplate
+    return SpotTemplate.handler(event,context)
 
 def handleRequest(event, context):
     logger = logging.getLogger()
@@ -58,23 +58,24 @@ def makeRecord(context,event,duration,errorstr):
     eventSource = "unknown"
     eventOp = "unknown"
     caller = "unknown"
-    sourceIP = "000.000.000.000"
+    sourceIP = "unknown"
     msg = "unset" #random info
     requestID = sessionID #reqID of this aws lambda function set random as default
     functionName = "unset" #this aws lambda function name
-    arn = "unset"
+    myarn = "unset"
     region = "unset"
     accountID = "unset"
     APIGW = 1
     DYNDB = 2
     S3 = 3
-    INVCLI = 4
+    SNS = 4
+    INVCLI = 5
     UNKNOWN = 0
     flag = UNKNOWN
 
     if context:
-        arn = context.invoked_function_arn
-        arns = arn.split(":")
+        myarn = context.invoked_function_arn
+        arns = myarn.split(":")
         accountID = arns[4]
         region = arns[3]
         requestID = context.aws_request_id
@@ -101,66 +102,99 @@ def makeRecord(context,event,duration,errorstr):
             eventOp = req['path']
             tmpObj = req['identity']
             sourceIP = tmpObj['sourceIp']
-            req = event['queryStringParameters']
-            if 'msg' in req:
-                msg += ':{}'.format(req['msg'])
+            if 'queryStringParameters' in event:
+                req = event['queryStringParameters']
+                if 'msg' in req:
+                    msg += ':{}'.format(req['msg'])
         elif 'Records' in event:
             #S3 or DynamoDB or unknown
             recs = event['Records']
             obj = recs[0]
-            eventSource = obj['eventSource']
-            if eventSource.startswith('aws:s3'):
+            if 'eventSource' in obj:
+                eventSource = obj['eventSource']
+            if 'EventSource' in obj: #aws:sns
+                eventSource = obj['EventSource']
+            if eventSource.startswith('aws:sns'):
+                flag = SNS
+                if 'EventSubscriptionArn' in obj:
+                    eventSource = obj['EventSubscriptionArn']
+                else: 
+                    eventSource = 'unknown_aws:sns'
+                if 'Sns' in obj:
+                    snsObj = obj['Sns']
+                    if 'Type' in snsObj:
+                        eventOp = snsObj['Type']
+                    if 'MessageId' in snsObj:
+                        caller = snsObj['MessageId']
+                    if 'Subject' in snsObj:
+                        msg = snsObj['Subject']
+                    if 'Message' in snsObj:
+                        msg += ':{}'.format(snsObj['Message'])
+		
+            elif eventSource.startswith('aws:s3'):
                 flag = S3
-                s3obj = obj['s3']
-                s3bkt = s3obj['bucket']
-                s3bktobj = s3obj['object']
+                s3obj = None
+                s3bkt = None
+                s3bktobj = None
+                if 's3' in obj:
+                    s3obj = obj['s3']
                 if 'responseElements' in obj:
                     caller = obj['responseElements']['x-amz-request-id']
                 if 'requestParameters' in obj:
                     sourceIP = obj['requestParameters']['sourceIPAddress']
                 if 'userIdentity' in obj:
                     accountID = obj['userIdentity']['principalId']
-                if s3bkt and s3bktobj:
+                if 'awsRegion' in obj:
                     reg = obj['awsRegion']
                     if region != reg:
                         region +=':{}'.format(reg)
+                if 'eventName' in obj:
+                    eventOp = obj['eventName']
+                if s3obj:
+                    if 'bucket' in s3obj:
+                        s3bkt = s3obj['bucket']
+                        if 'arn' in s3bkt:
+                            eventSource = '{}:{}'.format(s3bkt['arn'],eventOp)
+                    if 'object' in s3obj:
+                        s3bktobj = s3obj['object']
+                if s3bkt and s3bktobj:
                     size = 0
                     if 'size' in s3bktobj:
                         size = s3bktobj['size']
-                    eventOp = obj['eventName']
-                    msg = '{}:{}:{}:{}:{}'.format(s3bkt['name'],s3bktobj['key'],size,s3bktobj['sequencer'],obj['eventTime'])
+                    msg = '{}:{}:{}:{}'.format(s3bkt['name'],s3bktobj['key'],size,obj['eventTime'])
+                    caller += ':{}'.format(s3bktobj['sequencer'])
                 else:
                     msg = 'Error, unexpected JSON object and bucket'
+
             elif eventSource.startswith('aws:dynamodb'):
                 flag = DYNDB
                 caller = obj['eventID']
+                eventSource = obj['eventSource']
                 ev = obj['eventName']
+                eventOp = ev
                 ddbobj = obj['dynamodb']
                 mod = ''
-                if ev == 'MODIFY':
-                    mod = ddbobj['NewImage']
-                    mod += ':{}'.format(ddbobj['OldImage'])
-                elif ev == 'INSERT':
-                    mod += ':{}'.format(ddbobj['NewImage'])
-                elif ev == 'REMOVE':
-                    mod += ':{}'.format(ddbobj['OldImage'])
-                msg = '{}:{}:OP:{}'.format(ev,ddbobj['SequenceNumber'],mod)
-                arn = obj['eventSourceARN']
-                arns = arn.split(":")
-                acct = arns[4]
-                if accountID == 'unset':
-                    accountID = acct
-                elif acct != accountID:
-                    accountID +=':{}'.format(acct)
-                reg = arns[3]
-                if region == 'unset':
-                    region = reg
-                elif reg != region:              
-                    region += ':{}'.format(reg)
-                rest = ''
-                for i in range(5,len(arns)):
-                    rest+=':{}'.format(arns[i])
-                eventOp = rest
+                if 'NewImage' in ddbobj:
+                    mod += 'New:{}'.format(str(ddbobj['NewImage']))
+                if 'OldImage' in ddbobj:
+                    mod += ':Old:{}'.format(str(ddbobj['OldImage']))
+                msg = mod
+                if 'SequenceNumber' in ddbobj:
+                    caller += ':{}'.format(ddbobj['SequenceNumber'])
+                if 'eventSourceARN' in obj:
+                    arn = obj['eventSourceARN']
+                    eventSource = arn
+                    arns = arn.split(":")
+                    acct = arns[4]
+                    if accountID == 'unset':
+                        accountID = acct
+                    elif acct != accountID:
+                        accountID +=':{}'.format(acct)
+                    reg = arns[3]
+                    if region == 'unset':
+                        region = reg
+                    elif reg != region:              
+                        region += ':{}'.format(reg)
             else:
                 flag = UNKNOWN
         elif eventSource.startswith('ext:invokeCLI'):
@@ -196,20 +230,27 @@ def makeRecord(context,event,duration,errorstr):
         eventSource = 'unknown_source:{}'.format(functionName)
 
     dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
-    table = dynamodb.Table('spotFnTable')
+    table = dynamodb.Table('spotFns')
+    ts = datetime.now(timezone.utc).timestamp() #secs,tz must be explicitly set to utc
+    tsint = round(ts) * 1000 #msecs
+    if event:
+        start = 'true' #must match Java's SpotWrap
+    else:
+        start = 'false'
+        tsint += 1 #ensures that we have unique TS before and after for same requestID in dynamoDB
     table.put_item( Item={
+        'ts': tsint,
         'requestID': requestID,
-        'ts': int(round(datetime.now().timestamp())),
-        'thisFnARN': arn,
+        'thisFnARN': myarn,
         'caller': caller,
         'eventSource': eventSource,
         'eventOp': eventOp,
         'region': region,
         'accountID': accountID,
-        'sourceIP': 'unknown',
+        'sourceIP': sourceIP,
         'message': msg,
         'duration': int(round(duration)),
-        'start': str(event != None),
+        'start': start,
         'error': errorstr,
         }
     )

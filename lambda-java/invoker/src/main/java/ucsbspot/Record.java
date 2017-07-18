@@ -28,7 +28,7 @@ public class Record {
 	String eventSource = "unknown";
 	String eventOp = "unknown";
 	String caller = "unknown";
-	String sourceIP = "000.000.000.000";
+	String sourceIP = "unknown";
         String msg = "unset"; //random info
 	String requestID = sessionID; //reqID of this aws lambda function; set random as default
         String functionName = "unset"; //this aws lambda function name
@@ -301,10 +301,15 @@ public class Record {
 	//get database handle - table must already exist
 	AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard().build();
 	DynamoDB dynamoDB = new DynamoDB(client);
-	Table table = dynamoDB.getTable("spotFnTable");
+	Table table = dynamoDB.getTable("spotFns");
 	long now = System.currentTimeMillis();
-	Item item = new Item().withPrimaryKey("requestID", requestID)
-    	        .withNumber("ts", now)
+        boolean start = true;
+        if (event == null) {
+            start = false;
+	    now += 1; //ensures that we have unique TS before and after for same requestID in dynamoDB
+        }
+	Item item = new Item().withPrimaryKey("ts",now)
+		.withString("requestID", requestID)
     	        .withString("thisFnARN", arn)
     	        .withString("caller", caller)
     	        .withString("eventSource", eventSource)
@@ -314,7 +319,7 @@ public class Record {
     	        .withString("sourceIP",sourceIP)
     	        .withString("message",msg)
     	        .withNumber("duration", duration)
-    	        .withString("start", String.valueOf(event != null))
+    	        .withString("start", String.valueOf(start))
     	        .withString("error", errorstr);
         PutItemOutcome outcome = table.putItem(item);
     }
