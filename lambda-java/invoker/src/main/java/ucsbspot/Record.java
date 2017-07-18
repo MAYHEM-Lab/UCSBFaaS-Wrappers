@@ -156,7 +156,12 @@ public class Record {
                         if ( qps.get("msg") != null) {
                             msg += ":"+ (String)qps.get("msg");
                         }
-                    }
+                    } else {
+                        String bodystr = (String)event.get("body");
+                        if (bodystr != null) { 
+                            msg += ":curl:"+bodystr;
+                        }
+                   } 
 	        } else if (flag == INVCLI) { //unused sourceIP
 		    //eventSource will not be null at this point b/c we used it
 		    //to set flag

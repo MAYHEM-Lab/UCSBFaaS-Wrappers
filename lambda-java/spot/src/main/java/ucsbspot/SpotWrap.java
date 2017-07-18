@@ -50,9 +50,9 @@ public class SpotWrap implements RequestStreamHandler {
 	    if (test != null && !test.equals("200")) {
 		ERR = true;
 		errorstr = "error_unknown:status:" + test;
-		Exception e = (Exception)userResp.get("exception");
-		if (e != null) {
-		    errorstr += e.toString() + ":status:" + test;
+		String estr = (String)userResp.get("exception");
+		if (estr != null) {
+		    errorstr += estr + ":status:" + test;
 		}
 	    }
 
@@ -68,6 +68,17 @@ public class SpotWrap implements RequestStreamHandler {
 	    if (entry == 0) {
 		duration = 0;
             }
+            if (userResp.get("statusCode") != null){
+                String status = (String)userResp.get("statusCode");
+		if (status != null && !status.equals("200")) {
+                    errorstr += ":"+status;
+		    status = (String)userResp.get("exception");
+		    if (status != null) {
+                        errorstr += ":"+status;
+                    }
+                }
+            }
+	    logger.log("in finally: "+errorstr);
 	    Record.makeRecord(context,null,duration,errorstr);//end event (event arg = null)
         }
 	//prepare userResp for synchronous calls to invoke

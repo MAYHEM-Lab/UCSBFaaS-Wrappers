@@ -71,11 +71,12 @@ public class SpotTemplate
 
         } catch(Exception e) {
             responseJson.put("statusCode", "400");
-            responseJson.put("exception", e);
+	    String exstr = "exception:"+e.toString()+":LINE:"+e.getStackTrace()[0].getLineNumber();
+            responseJson.put("exception", exstr);
 	    StringWriter sw = new StringWriter();
 	    PrintWriter pw = new PrintWriter(sw);
 	    e.printStackTrace(pw);
-	    logger.log("stack trace: "+sw.toString());
+	    logger.log("SpotTemplate stack trace: "+sw.toString());
         }
 
 	//prepare response 
@@ -197,7 +198,12 @@ public class SpotTemplate
                     if ( qps.get("msg") != null) {
                         msg += ":"+ (String)qps.get("msg");
                     }
-                }
+                } else {
+                    String bodystr = (String)event.get("body");
+                    if ( bodystr != null) {
+                        msg += ":curl:"+bodystr;
+                    }
+		}
 	    } else if (flag == INVCLI) { //unused sourceIP
 		//eventSource will not be null at this point b/c we used it
 		//to set flag
@@ -347,8 +353,12 @@ public class SpotTemplate
             } else {
 	        eventSource = "ERROR";
 	    }
+            responseJson.put("statusCode", "200");
         }catch(Exception e){
 	    logger.log("processEvent: exception="+e);
+            responseJson.put("statusCode", "400");
+	    String exstr = "exception:"+e.toString()+":LINE:"+e.getStackTrace()[0].getLineNumber();
+            responseJson.put("exception", exstr);
 	    StringWriter sw = new StringWriter();
 	    PrintWriter pw = new PrintWriter(sw);
 	    e.printStackTrace(pw);
@@ -370,7 +380,6 @@ public class SpotTemplate
 
 	//prepare response for synchronous calls to invoke
 	String body = responseBody.toString();
-        responseJson.put("statusCode", "200");
         responseJson.put("body", body);
 	//logger.log("processEvent: returning: "+body);
 	return responseJson;

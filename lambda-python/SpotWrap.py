@@ -105,8 +105,17 @@ def makeRecord(context,event,duration,errorstr):
             sourceIP = tmpObj['sourceIp']
             if 'queryStringParameters' in event:
                 req = event['queryStringParameters']
-                if 'msg' in req:
-                    msg += ':{}'.format(req['msg'])
+                if req: 
+                    if 'msg' in req:
+                        msg += ':{}'.format(req['msg'])
+                else: #req is null, try body
+                    req = event['body']
+                    if req:
+                        msg += ':curl:{}'.format(req)
+	
+		
+
+  
         elif 'Records' in event:
             #S3 or DynamoDB or unknown
             recs = event['Records']
