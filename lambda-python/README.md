@@ -22,15 +22,17 @@ Build the project
 ```
 cd UCSBFaaS-Wrappers/lambda-python
 source venv/bin/activate
-zip -r9 myzip.zip *.py
+zip -r9 spotzip.zip *.py
 cd venv/lib/python3.6/site-packages/   #change this if your site-packages is elsewhere under ./venv
-zip -ur ../../../../myzip.zip *
+zip -ur ../../../../spotzip.zip *
 cd ../../../..  #return back to lambda-python dir
 ```
 
 Create the AWS Lambda (note handler format (single period) is different from that for a Java AWS Lambda)
 ```
-aws lambda create-function --region us-west-2 --function-name SpotTemplatePy --zip-file fileb:///XXX/YYY/myzip.zip --role arn:aws:iam::XXXACCTXXX:role/basiclambda --handler SpotWrap.handleRequest --runtime python3.6 --profile awsprofile1 --timeout 30 --memory-size 128
+aws lambda create-function --region us-west-2 --function-name SpotTemplatePy --zip-file fileb:///XXX/YYY//UCSBFaaS-Wrappers/lambda-python/spotzip.zip --role arn:aws:iam::XXXACCTXXX:role/basiclambda --handler SpotWrap.handleRequest --runtime python3.6 --profile awsprofile1 --timeout 30 --memory-size 128
+# or update
+aws lambda update-function-code --region us-west-2 --function-name SpotTemplatePy --zip-file fileb:///XXX/YYY/UCSBFaaS-Wrappers/lambda-python/spotzip.zip --profile awsprofile1
 ```
 
 Run it:
@@ -97,7 +99,7 @@ aws lambda create-function --region us-west-2 --function-name S3ModPy --zip-file
 aws lambda update-function-code --region us-west-2 --function-name S3ModPy --zip-file fileb:///XXX/YYY/UCSBFaaS-Wrappers/lambda-python/s3Mod/s3mod.zip --profile awsprofile1
 ```
 
-Create a bucket in s3 and use it to run this function, adding the prefix (that will trigger your other function, e.g. SpotWrap).  keys bkt, prefix, fname, and file_content are required or this function does nothing.  eventSource tells SpotWrap that you are calling S3ModPy from the CLI externally:
+Create a bucket in s3 and use it to run this function, adding the prefix (e.g. PythonLambda for SpotTemplatePy and JavaLambda for SpotTemplate) so that updates will trigger your other function, e.g. SpotWrap.  keys bkt, prefix, fname, and file_content are required or this function does nothing.  eventSource tells SpotWrap that you are calling S3ModPy from the CLI externally:
 ```
 aws lambda invoke --invocation-type Event --function-name S3ModPy --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","bkt":"cjklambdatrigger","prefix":"PythonLambda","fname":"todo.txt","file_content":"get groceries"}' outputfile
 ```
