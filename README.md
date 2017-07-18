@@ -1,6 +1,10 @@
 ## AWS Lambda FaaS Wrappers and Tools
 
-The example lambda functions provided herein are called SpotTemplate.java and SpotTemplate.py, for each language respectively.
+SpotWrap is a tool (for Java and Python) that wraps your AWS Lambda functions in code that logs details about your function before and after its invocation in a DynamoDB table.  The example lambda functions provided herein are called SpotTemplate.java and SpotTemplate.py, for each language respectively.  You can swap these out for your functions to wrap them via SpotWrap.  Details are provided at the language-specific links below.  The setup belows provides details on the DynamoDB table you must setup.
+
+SpotWrap records the caller and callee (when inferable) of your functions.  To enable this, setup some triggers to your function via the steps below.  
+
+Note that everything here is assumed to be (and has been tested for) in a single region: us-west-2
 
 Setup:  
 1) Table for SpotWrap records (log).  
