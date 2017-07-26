@@ -16,8 +16,8 @@ gradle build
 aws lambda create-function --region us-west-2 --function-name SpotTemplate --zip-file fileb:///XXX/YYY/UCSBFaaS-Wrappers/lambda-java/spot/build/distributions/spot.zip --role arn:aws:iam::XXXACCTXXX:role/basiclambda --handler ucsbspot.SpotWrap::handleRequest --runtime java8 --profile awsprofile1 --timeout 30 --memory-size 512
 ```
 
-* Make a table if you haven't yet in AWS DynamoDB called `spotFnTable`  
-Ensure that it has a primary key called "requestID" with type String and sort key called "start" with type String
+* Make a table if you haven't yet in AWS DynamoDB called `spotFns`  
+Ensure that it has a primary key called "ts" with type Number and sort key called "requestID" with type String
 
 * Invoke the function  
 ```

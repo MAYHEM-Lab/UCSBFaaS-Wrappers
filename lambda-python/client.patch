@@ -1,15 +1,16 @@
---- client.py	2017-07-26 10:11:26.000000000 -0700
-+++ client.py.new	2017-07-26 10:11:21.000000000 -0700
-@@ -10,7 +10,7 @@
+--- client.py	2017-07-26 11:19:18.000000000 -0700
++++ client.py.new	2017-07-26 11:16:34.000000000 -0700
+@@ -10,7 +10,8 @@
  # distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
  # ANY KIND, either express or implied. See the License for the specific
  # language governing permissions and limitations under the License.
 -import logging
 +import logging,os,boto3,time,uuid
- from datetime import datetime, timezone
++from datetime import datetime, timezone
  import functools
  
-@@ -307,6 +307,61 @@
+ from botocore import waiter, xform_name
+@@ -306,6 +307,70 @@
              if args:
                  raise TypeError(
                      "%s() only accepts keyword arguments." % py_operation_name)
@@ -46,8 +47,17 @@
 +                    msg +=  ':{}'.format(kwargs['FunctionName'])
 +                    eventOp = 'invoke'
 +		    #also: kwargs['Payload']
++                elif operation_name == 'Publish':
++                    eventOp = 'sns_publish'
++                    msg += 'sns:Publish'
++                    if 'TopicArn' in kwargs:
++                        msg += ':Topic:{}'.format(kwargs['TopicArn'])
++                    if 'Subject' in kwargs:
++                        msg += ':Subject:{}'.format(kwargs['Subject'])
++                    if 'Message' in kwargs:
++                        msg += ':Message:{}'.format(kwargs['Message'])
 +                else:
-+                    msg += 'SpotWrapError:unknown_op'
++                    msg += 'SpotWrapError:unknown_op:{}:{}'.format(operation_name,str(kwargs))
 +                reqID += ':{}:{}'.format(operation_name,str(uuid.uuid4())[:8])
 +                ts = time.time() * 1000 #msecs
 +                tsint = int(round(ts))

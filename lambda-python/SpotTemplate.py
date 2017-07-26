@@ -52,7 +52,6 @@ def invokeCLI(event,context,logger):
     me = 'unknown'
     reqID = 'unknown'
     if not context: #invoking from main
-        boto3.session.Session( profile_name="cjk1")
         boto3.setup_default_session(profile_name='cjk1')
     else:
         me = context.invoked_function_arn

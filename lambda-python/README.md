@@ -59,10 +59,6 @@ Build the project
 ```
 #this assumes that you have setup the virtualenv for the previous project, activate it
 cd UCSBFaaS-Wrappers/lambda-python/
-virtualenv venv --python=python3
-source venv/bin/activate
-
-#everytime
 cd dbMod
 zip -r9 dbmod.zip *.py
 cd ../venv/lib/python3.6/site-packages/ #change this if your site-packages is elsewhere under ./venv
@@ -85,14 +81,8 @@ The function assumes a DynamoDB table in the same region that is called triggerT
 # s3mod function S3ModPy
 Build the project 
 ```
+#this assumes that you have setup the virtualenv for the previous project, activate it
 cd UCSBFaaS-Wrappers/lambda-python/s3Mod
-#first time only
-virtualenv venv --python=python3
-source venv/bin/activate
-pip install --upgrade pip
-pip install boto3 jsonpickle
-
-#everytime
 cd s3Mod
 zip -r9 s3mod.zip *.py
 cd ../venv/lib/python3.6/site-packages/ #change this if your site-packages is elsewhere under ./venv
@@ -110,4 +100,27 @@ aws lambda update-function-code --region us-west-2 --function-name S3ModPy --zip
 Create a bucket in s3 and use it to run this function, adding the prefix (e.g. PythonLambda for SpotTemplatePy and JavaLambda for SpotTemplate) so that updates will trigger your other function, e.g. SpotWrap.  keys bkt, prefix, fname, and file_content are required or this function does nothing.  eventSource tells SpotWrap that you are calling S3ModPy from the CLI externally:
 ```
 aws lambda invoke --invocation-type Event --function-name S3ModPy --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","bkt":"cjklambdatrigger","prefix":"PythonLambda","fname":"todo.txt","file_content":"get groceries"}' outputfile
+```
+# sns function snsPy
+Build the project 
+```
+#this assumes that you have setup the virtualenv for the previous project, activate it
+cd UCSBFaaS-Wrappers/lambda-python
+cd sns
+zip -r9 sns.zip *.py
+cd ../venv/lib/python3.6/site-packages/ #change this if your site-packages is elsewhere under ./venv
+zip -ur ../../../../sns/sns.zip *
+cd ../../../../sns  #return back to the sns directory
+```
+We assume here that you have setup your spotFns table in DynamoDB (see above for the details on setting this up.
+Perform the same setup as for SpotTemplatePy above and create your lambda wrapped with SpotWrap:
+```
+aws lambda create-function --region us-west-2 --function-name snsPy --zip-file fileb:///XXX/YYY/UCSBFaaS-Wrappers/lambda-python/sns/sns.zip --profile awsprofile1 --timeout 30 --memory-size 128 --role arn:aws:iam::XXXACCTXXX:role/basiclambda --handler SpotWrap.handleRequest --runtime python3.6
+# or update (ensure that handler is set to SpotWrap.handleRequest)
+aws lambda update-function-code --region us-west-2 --function-name snsPy --zip-file fileb:///XXX/YYY/UCSBFaaS-Wrappers/lambda-python/sns/sns.zip --profile awsprofile1
+```
+
+Create an SNS topic via the AWS Management console and subscribe to it (e.g. via email so that you can confirm the posting).  Use the ARN of the topic in the invoke call below (TOPIC_ARN).  eventSource tells SpotWrap that you are calling snsPy from the CLI externally:
+```
+aws lambda invoke --invocation-type Event --function-name snsPy --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","topic":"TOPIC_ARN","subject":"any subject","msg":"any message"}' outputfile
 ```
