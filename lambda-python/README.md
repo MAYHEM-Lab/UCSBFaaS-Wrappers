@@ -58,6 +58,11 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install boto3 jsonpickle datetime
 
+#patch botocore: venv/lib/python3.6/site-packages/botocore/client.py
+#WARNING these next two steps have not been tested yet!
+cd venv/lib/python3.6/site-packages/botocore
+patch -b -p4 < ../../../../../UCSBFaaS-Wrappers/lambda-python/client.patch
+
 #everytime
 zip -r9 dbmod.zip *.py
 cd venv/lib/python3.6/site-packages/   #change this if your site-packages is elsewhere under ./venv

@@ -5,8 +5,8 @@ sessionID = str(uuid.uuid4())
 
 def callIt(event,context):
     #replace your import and handler method (replacing "handler") here:
-    import SpotTemplate
-    return SpotTemplate.handler(event,context)
+    import s3Mod
+    return s3Mod.handler(event,context)
 
 def handleRequest(event, context):
     logger = logging.getLogger()

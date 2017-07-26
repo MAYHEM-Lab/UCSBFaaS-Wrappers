@@ -1,15 +1,22 @@
-import boto3,json,logging,jsonpickle
+import boto3,json,logging,jsonpickle,os
 from datetime import datetime, timezone
 import uuid
 sessionID = str(uuid.uuid4())
 
 def callIt(event,context):
     #replace your import and handler method (replacing "handler") here:
-    import SpotTemplate
-    return SpotTemplate.handler(event,context)
+    import dbMod
+    return dbMod.handler(event,context)
 
 def handleRequest(event, context):
     logger = logging.getLogger()
+    reqID = 'unknown'
+    arn = 'unknown'
+    if context:
+        reqID = context.aws_request_id
+        arn = context.invoked_function_arn
+    os.environ['spotReqID'] = reqID
+    os.environ['myArn'] = arn
     ERR = False
     entry = 0 #all ints in Python3 are longs
     #for debugging
@@ -38,6 +45,8 @@ def handleRequest(event, context):
         errorstr += ':SpotWrap_exception:{}:status:400'.format(e)
         ERR = True
     finally: 
+        if errorstr != 'SpotWrapPython':
+            print('SpotWrapPy error: {}'.format(errorstr))
         delta = datetime.now()-entry
         duration = delta.total_seconds() * 1000
         makeRecord(context,None,duration,errorstr) #end event (event arg = null)

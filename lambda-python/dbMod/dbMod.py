@@ -1,38 +1,55 @@
-import boto3
+import boto3, os
 from datetime import datetime
-import json, logging, jsonpickle
+import json, logging, jsonpickle, argparse
 
 def handler(event, context):
     start = datetime.now()
-    logger = logging.getLogger()
+    logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
     if context:
         serialized = jsonpickle.encode(context)
-        logger.info('dbMod.handler context: {}'.format(json.loads(serialized)))
+        logger.warn('dbMod.handler context: {}'.format(json.loads(serialized)))
+        if event:
+            serialized = jsonpickle.encode(event)
+            logger.warn('dbMod.handler event: {}'.format(json.loads(serialized)))
+        dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
+    else: #calling from main (testing)
+        session = boto3.Session(profile_name='cjk1') #replace with your profile
+        dynamodb = session.resource('dynamodb', region_name='us-west-2')
+    tablename = 'triggerTable'
     key = 'from:dbMod' #won't trigger function b/c no write if already in table
     val = 17
     if event:
-        serialized = jsonpickle.encode(event)
-        logger.info('dbMod.handler context: {}'.format(json.loads(serialized)))
         if 'mykey' in event:
             key = event['mykey']
         if 'myval' in event:
             val = event['myval']
         if 'functionName' in event:
             caller = event['functionName']
-
-    if context:
-        logger.info('dbMod.handler: writing to dynamodb')
-        dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
-        table = dynamodb.Table('triggerTable')
-        table.put_item( Item={
-            'name': key,
-            'age': val,
-            }
-        )
+        if 'tablename' in event:
+            tablename = event['tablename']
+    table = dynamodb.Table(tablename) # we assume key is name of type String
+    #read it
+    item = table.get_item( Key={'name': key})
+    #write it
+    table.put_item( Item={
+        'name': key,
+        'age': val,
+        }
+    )
 
     delta = datetime.now()-start
     ms = int(delta.total_seconds() * 1000)
     me_str = 'TIMER:CALL:0:HANDLER:{}'.format(ms)
-    logger.info(me_str)
+    logger.warn(me_str)
     return me_str
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='dbMod Test')
+    # for this table, we assume key is name of type String
+    parser.add_argument('tablename',action='store',help='dynamodb table name')
+    parser.add_argument('mykey',action='store',help='key')
+    parser.add_argument('myval',action='store',help='value')
+    args = parser.parse_args()
+    event = {'tablename':args.tablename,'mykey':args.mykey,'myval':args.myval}
+    handler(event,None)
