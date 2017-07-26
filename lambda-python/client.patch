@@ -1,5 +1,5 @@
---- client.py	2017-07-25 17:35:33.000000000 -0700
-+++ /Users/ckrintz/Desktop/client.py	2017-07-25 17:34:38.000000000 -0700
+--- client.py	2017-07-26 09:28:06.000000000 -0700
++++ client.py.new	2017-07-26 09:27:46.000000000 -0700
 @@ -10,7 +10,7 @@
  # distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
  # ANY KIND, either express or implied. See the License for the specific
