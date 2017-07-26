@@ -78,7 +78,6 @@ public class SpotWrap implements RequestStreamHandler {
                     }
                 }
             }
-	    logger.log("in finally: "+errorstr);
 	    Record.makeRecord(context,null,duration,errorstr);//end event (event arg = null)
         }
 	//prepare userResp for synchronous calls to invoke

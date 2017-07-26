@@ -308,11 +308,11 @@ public class Record {
 	DynamoDB dynamoDB = new DynamoDB(client);
 	Table table = dynamoDB.getTable("spotFns");
 	long now = System.currentTimeMillis();
-        boolean start = true;
-        if (event == null) {
-            start = false;
-	    now += 1; //ensures that we have unique TS before and after for same requestID in dynamoDB
-        }
+        if (event == null) { //distinguish requestIDs for multiple db entries for same requestID
+            requestID += ":exit";
+        } else {
+            requestID += ":entry";
+	}
 	Item item = new Item().withPrimaryKey("ts",now)
 		.withString("requestID", requestID)
     	        .withString("thisFnARN", arn)
@@ -324,7 +324,6 @@ public class Record {
     	        .withString("sourceIP",sourceIP)
     	        .withString("message",msg)
     	        .withNumber("duration", duration)
-    	        .withString("start", String.valueOf(start))
     	        .withString("error", errorstr);
         PutItemOutcome outcome = table.putItem(item);
     }
