@@ -17,6 +17,7 @@ def handleRequest(event, context):
     os.environ['spotReqID'] = reqID
     os.environ['myArn'] = arn
     ERR = False
+    entry = 0 #all ints in Python3 are longs
     #for debugging
     #serialized = jsonpickle.encode(event)
     #logger.info('SpotWrapPython::handleRequest: event: {}'.format(json.loads(serialized)))
@@ -249,11 +250,13 @@ def makeRecord(context,event,duration,errorstr):
     dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
     table = dynamodb.Table('spotFns')
     tsint = int(round(time.time() * 1000)) #msecs in UTC
-    if event:
-        start = 'true' #must match Java's SpotWrap
+    #since timestamps may be only second resolution, two events may record at the same ts
+    #spotFns is indexed on timestamp and requestID, so distinguish 
+    #two events with the same timestamp via postfix on requestID
+    if event: 
+        requestID += ':entry'
     else:
-        start = 'false'
-        tsint += 1 #ensures that we have unique TS before and after for same requestID in dynamoDB
+        requestID += ':exit'
     table.put_item( Item={
         'ts': tsint,
         'requestID': requestID,
@@ -266,7 +269,6 @@ def makeRecord(context,event,duration,errorstr):
         'sourceIP': sourceIP,
         'message': msg,
         'duration': int(round(duration)),
-        'start': start,
         'error': errorstr,
         }
     )
