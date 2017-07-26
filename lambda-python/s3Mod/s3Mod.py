@@ -1,11 +1,8 @@
 import boto3
-import json, logging, jsonpickle, argparse
-from datetime import datetime
+import json, logging, jsonpickle, argparse, time
 
 def handler(event, context):
-    start = datetime.now()
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
     if not context: #calling from main so set the profile we want
         session = boto3.Session(profile_name='cjk1')
         s3_client = session.resource('s3')
@@ -32,7 +29,7 @@ def handler(event, context):
 
 
     if fname and cont and prefix and bkt:
-        logger.warn('s3Mod.handler: writing to s3 bucket {}: {}/{}'.format(bkt,prefix,fname))
+        logger.info('s3Mod.handler: writing to s3 bucket {}: {}/{}'.format(bkt,prefix,fname))
         s3obj = s3_client.Object('{}'.format(bkt), '{}/{}'.format(prefix,fname))
  	#write 
         s3obj.put(Body=cont)
@@ -43,8 +40,7 @@ def handler(event, context):
     else:
         logger.warn('s3Mod.handler: insufficient arguments passed in (prefix,file_content,bkt, and fname required)')
 
-    delta = datetime.now()-start
-    ms = int(delta.total_seconds() * 1000)
+    ms = int(round(time.time() * 1000))
     me_str = 'TIMER:CALL:0:HANDLER:{}'.format(ms)
     logger.warn(me_str)
     return me_str

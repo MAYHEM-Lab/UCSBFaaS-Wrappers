@@ -1,11 +1,9 @@
 import boto3, os
-from datetime import datetime
+import time
 import json, logging, jsonpickle, argparse
 
 def handler(event, context):
-    start = datetime.now()
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
+    logger = logging.getLogger()
     if context:
         serialized = jsonpickle.encode(context)
         logger.warn('dbMod.handler context: {}'.format(json.loads(serialized)))
@@ -38,8 +36,7 @@ def handler(event, context):
         }
     )
 
-    delta = datetime.now()-start
-    ms = int(delta.total_seconds() * 1000)
+    ms = int(round(time.time() * 1000))
     me_str = 'TIMER:CALL:0:HANDLER:{}'.format(ms)
     logger.warn(me_str)
     return me_str

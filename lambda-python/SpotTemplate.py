@@ -1,11 +1,9 @@
 import boto3
-from datetime import datetime
 import json, logging, time, jsonpickle, argparse
 
 def handler(event, context):
-    start = datetime.now()
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    entry = time.time() * 1000
     retn = 'nothing:returned'
     eventSource = 'unknown'
     if context:
@@ -38,14 +36,14 @@ def handler(event, context):
         else:
             logger.info('SpotTemplatePy::handler: unknown trigger: {}'.format(eventSource))
 
-    inv = datetime.now()
+    inv = time.time() * 1000
     retn = invokeCLI(event,context,logger) #invoke the function passed in 
-    invend = datetime.now()
-    delta = invend-start
-    ms = int(delta.total_seconds() * 1000)
-    invdelta = inv-start
-    invms = int(invdelta.total_seconds() * 1000)
-    retn += ':SpotTemplatePy:setup:{}:invoke:{}'.format(ms,invms)
+    invend = time.time() * 1000
+    delta = invend-entry
+    ms = int(round(delta))
+    delta = inv-entry
+    invms = int(round(delta))
+    retn += ':SpotTemplatePy:ts:{}:setup:{}:invoke:{}'.format(invend,ms,invms)
     #logger.info('invokeCLI return: {}'.format(retn))
     return retn
 
@@ -69,25 +67,24 @@ def invokeCLI(event,context,logger):
     #run_lambda does not support invoke via Payload arg
     invoke_response = None
     if fn and fn != me:
-        #must convert (via str) datetime to string before calling serialize (dumps)
-        #b/c datetime is not serializable/builtin
-        now = datetime.now()
-        #msg = {k: event[k] for k in event if k not in ('functionName', 'msg')}
+        now = time.time() * 1000
         msg = {}
-        msg['msg'] = 'from {} at {}'.format(me,str(now))
+        msg['msg'] = 'from {} at {}'.format(me,now)
         msg['requestId'] = reqID
         if event and 'eventSource' in event and me == 'unknown': 
             msg['eventSource'] = event['eventSource']
         else:
             msg['eventSource'] = 'int:invokeCLI:{}'.format(me)
-	#do not set functionName as you risk getting into an infinite loop!
+
+	#do not set functionName here as you risk getting into an infinite loop!
         payload=json.dumps(msg)
         logger.warn('SpotTemplatePy::handler sending payload to {}: {}'.format(fn,msg))
 
         invoke_response = lambda_client.invoke(FunctionName=fn,
             InvocationType='Event', Payload=payload) #Event type says invoke asynchronously
-        delta = datetime.now()-now
-        ms = int(delta.total_seconds() * 1000)
+        nowtmp = time.time() * 1000
+        delta = nowtmp-now
+        ms = int(round(delta))
         me_str = 'REQ:{}:TIMER:CALL:{}:{}'.format(reqID,me,ms)
     else:
         me_str = 'No context or functions are the same: {}:{}'.format(me,functionName)

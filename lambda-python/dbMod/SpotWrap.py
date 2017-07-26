@@ -1,6 +1,5 @@
 import boto3,json,logging,jsonpickle,os
-from datetime import datetime, timezone
-import uuid
+import time,uuid
 sessionID = str(uuid.uuid4())
 
 def callIt(event,context):
@@ -18,7 +17,6 @@ def handleRequest(event, context):
     os.environ['spotReqID'] = reqID
     os.environ['myArn'] = arn
     ERR = False
-    entry = 0 #all ints in Python3 are longs
     #for debugging
     #serialized = jsonpickle.encode(event)
     #logger.info('SpotWrapPython::handleRequest: event: {}'.format(json.loads(serialized)))
@@ -27,7 +25,7 @@ def handleRequest(event, context):
 
     errorstr = "SpotWrapPython"
     makeRecord(context,event,0,errorstr)
-    entry = datetime.now()
+    entry = time.time() * 1000
     respObj = {}
     returnObj = {}
     status = '200'
@@ -47,8 +45,8 @@ def handleRequest(event, context):
     finally: 
         if errorstr != 'SpotWrapPython':
             print('SpotWrapPy error: {}'.format(errorstr))
-        delta = datetime.now()-entry
-        duration = delta.total_seconds() * 1000
+        delta = (time.time() * 1000) - entry
+        duration = int(round(delta))
         makeRecord(context,None,duration,errorstr) #end event (event arg = null)
 
     if ERR:
@@ -250,8 +248,7 @@ def makeRecord(context,event,duration,errorstr):
 
     dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
     table = dynamodb.Table('spotFns')
-    ts = datetime.now(timezone.utc).timestamp() #secs,tz must be explicitly set to utc
-    tsint = round(ts) * 1000 #msecs
+    tsint = int(round(time.time() * 1000)) #msecs in UTC
     if event:
         start = 'true' #must match Java's SpotWrap
     else:
