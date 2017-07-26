@@ -1,0 +1,68 @@
+--- client.py	2017-07-25 17:35:33.000000000 -0700
++++ /Users/ckrintz/Desktop/client.py	2017-07-25 17:34:38.000000000 -0700
+@@ -10,7 +10,7 @@
+ # distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+ # ANY KIND, either express or implied. See the License for the specific
+ # language governing permissions and limitations under the License.
+-import logging
++import logging,os,boto3
+ from datetime import datetime, timezone
+ import functools
+ 
+@@ -307,6 +307,56 @@
+             if args:
+                 raise TypeError(
+                     "%s() only accepts keyword arguments." % py_operation_name)
++
++            # SpotWrap additions to capture AWS API calls
++            reqID = 'unknown'
++            if 'spotReqID' in os.environ: #this will be set to 'unknown' if outside of lambda
++                reqID = os.environ['spotReqID']
++            print('cjk: {}::{}:{}'.format(operation_name,kwargs,reqID))
++            #skip if its a write to the dynamodb spot table (infinite loop)
++            if not(reqID == 'unknown' or (operation_name == 'PutItem' and kwargs['TableName'] == 'spotFns')): 
++                print('cjk: writing to spotFns table')
++                myArn = 'unknown'
++                if 'myArn' in os.environ:
++                    myArn = os.environ['myArn']
++                dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
++                table = dynamodb.Table('spotFns')
++                ts = datetime.now(timezone.utc).timestamp() #secs,set tz explicitly
++                tsint = round(ts) * 1000 #msecs
++                start = operation_name
++                msg = 'SW'
++                if start == 'PutObject' or start == 'GetObject': #s3
++                    msg +=  ':{}:{}'.format(kwargs['Bucket'],kwargs['Key'])
++                    #also kwargs['Body'] for Put
++                elif start == 'PutItem' or start == 'GetItem': #dynamodb
++                    msg +=  ':{}'.format(kwargs['TableName'])
++                    if start == 'GetItem':
++                        msg +=  ':{}'.format(str(kwargs['Key']))
++                    else:
++                        msg +=  ':{}'.format(str(kwargs['Item']))
++                elif start == 'Invoke':
++                    msg +=  ':{}'.format(kwargs['FunctionName'])
++		    #also: kwargs['Payload']
++                else:
++                    msg += 'SpotWrapError:unknown_op'
++                table.put_item( Item={
++                    'ts': tsint,
++                    'requestID': reqID,
++                    'thisFnARN': myArn,
++                    'caller': 'unknown',
++                    'eventSource': 'unknown',
++                    'eventOp': 'unknown',
++                    'region': 'unknown',
++                    'accountID': 'unknown',
++                    'sourceIP': 'unknown',
++                    'message': msg,
++                    'duration': 0,
++                    'start': start,
++                    'error': 'unknown',
++                    }
++               )
++
++
+             # The "self" in this scope is referring to the BaseClient.
+             return self._make_api_call(operation_name, kwargs)
+ 
