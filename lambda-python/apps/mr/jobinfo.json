@@ -1,0 +1,7 @@
+{
+    "jobId": "cjk-release",
+    "jobBucket": "spot-mr-bkt",
+    "mapCount": 29,
+    "reducerFunction": "cjk-reducer-cjk-release",
+    "reducerHandler": "reducer.lambda_handler"
+}

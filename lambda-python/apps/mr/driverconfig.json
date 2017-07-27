@@ -1,0 +1,23 @@
+{
+        "bucket": "big-data-benchmark",
+        "prefix": "pavlo/text/1node/uservisits/",
+        "jobBucket": "MY-S3-BUCKET",
+        "region": "us-west-2",
+        "concurrentLambdas": 50,
+        "lambdaMemory": 1536,
+        "mapper": {
+            "name": "mapper.py",
+            "handler": "mapper.lambda_handler",
+            "zip": "mapper.zip"
+        },
+        "reducer":{
+            "name": "reducer.py",
+            "handler": "reducer.lambda_handler",
+            "zip": "reducer.zip"
+        },
+        "reducerCoordinator":{
+            "name": "reducerCoordinator.py",
+            "handler": "reducerCoordinator.lambda_handler",
+            "zip": "reducerCoordinator.zip"
+        }
+}
