@@ -9,33 +9,32 @@ To run the benchmark, you must have the AWS CLI set up. Your credentials must ha
 
 1. Create your S3 bucket to store the intermediate and final results.  Replace MY-BUCKET-NAME with your own unique name.  
 
-  $ aws s3 mb s3://MY-BUCKET-NAME
+   $ aws s3 mb s3://MY-BUCKET-NAME
 
-2. Update the policy.json with your S3 bucket name (replace MY-S3-BUCKET with your bucket name from the previous step).
+2. Update the policy.json with your S3 bucket name (replace MY-S3-BUCKET with your bucket name from the previous step).  
 
-3. Create the IAM role with respective policy
+3. Create the IAM role with respective policy  
 ```python
 #This assumes you are using the SpotWrap virtual environment (venv)
 cd setup
 #Replace YOUR_PROFILE_NAME with the profile you wish to use, or leave off the option to use the root account; replace ROLENAME and POLICYNAME with names of your choosing
 python create-role.py --profile YOUR_PROFILE_NAME ROLENAME POLICYNAME
-```
+```  
 
 4. Use the output ARN from the script (or get it from the IAM Management Console under Roles). 
-Set the serverless_mapreduce_role environment variable (replace MY_ACCOUNT_ID with your AWS account ID):
+Set the serverless_mapreduce_role environment variable (replace MY_ACCOUNT_ID with your AWS account ID):  
 
   $ export serverless_mapreduce_role=arn:aws:iam::MY-ACCOUNT-ID:role/ROLENAME
 
 5. Make edits to driverconfig.json to update "jobBucket": "MY-BUCKET-NAME", replacing MY-BUCKET-NAME with the bucketname you created in step 1.
 
-
-6. Run the driver, defaults used are 50 concurrent lambdas and the us-west-2 region.  Update these values in driverconfig.json as appropriate.
+6. Run the driver, defaults used are 50 concurrent lambdas and the us-west-2 region.  Update these values in driverconfig.json as appropriate.  
  
-	$ python driver.py
+   $ python driver.py
 
-Additional details on running the original app can be found here: https://github.com/awslabs/lambda-refarch-mapreduce
+Additional details on running the original app can be found here: https://github.com/awslabs/lambda-refarch-mapreduce  
 
-Example output from driver.py for a successful run:
+Example output from driver.py for a successful run:  
 ```
 python driver.py
 big-data-benchmark
@@ -93,4 +92,4 @@ S3 Request Cost 0.00025360000000000004
 S3 Cost 0.00028598303306591954
 Total Cost:  0.06711925997976428
 Total Lines: 154999997
-```
+```  
