@@ -22,9 +22,9 @@ python create-role.py --profile YOUR_PROFILE_NAME ROLENAME POLICYNAME
 ```  
 
 4. Use the output ARN from the script (or get it from the IAM Management Console under Roles). 
-Set the serverless_mapreduce_role environment variable (replace MY_ACCOUNT_ID with your AWS account ID):  
+Set the serverless_mapreduce_role environment variable (replace MY_ACCOUNT_ID with your AWS account ID):   
 
-  $ export serverless_mapreduce_role=arn:aws:iam::MY-ACCOUNT-ID:role/ROLENAME
+   $ export serverless_mapreduce_role=arn:aws:iam::MY-ACCOUNT-ID:role/ROLENAME
 
 5. Make edits to driverconfig.json to update "jobBucket": "MY-BUCKET-NAME", replacing MY-BUCKET-NAME with the bucketname you created in step 1.
 
