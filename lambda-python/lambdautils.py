@@ -1,0 +1,91 @@
+'''
+ From: https://github.com/awslabs/lambda-refarch-mapreduce
+ Modifications fall under ../LICENSE
+ * LICENSE for original file:
+ * Copyright 2016, Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Amazon Software License (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ * http://aws.amazon.com/asl/
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing
+ * permissions and limitations under the License. 
+'''
+import boto3,botocore,os,sys
+
+class LambdaManager(object):
+    def __init__ (self, l, region, codepath, fname, handler, tracing=False, lmem=1536):
+        self.awslambda = l;
+        self.region = "us-east-1" if region is None else region
+        self.codefile = codepath
+        self.function_name = fname
+        self.handler = handler
+        self.role = os.environ.get('AWSRole')
+        if not self.role:
+            print('Please set AWSRole in your environment variables to your AWS Lambda Role')
+            sys.exit(1)
+        self.memory = lmem 
+        self.timeout = 300
+        self.tracing = tracing # if true, turn on Xray tracing (not needed with SpotWrap)
+        self.function_arn = None # set after creation
+
+    def create_lambda_function(self):
+        runtime = 'python3.6'
+        response = self.awslambda.create_function(
+                      FunctionName = self.function_name, 
+                      Code = { 
+                        "ZipFile": open(self.codefile, 'rb').read()
+                      },
+                      Handler =  self.handler,
+                      Role =  self.role, 
+                      Runtime = runtime,
+                      Description = self.function_name,
+                      MemorySize = self.memory,
+                      Timeout =  self.timeout,
+                      TracingConfig =  {'Mode':'Active'} if self.tracing else {'Mode':'PassThrough'}
+                    )
+        self.function_arn = response['FunctionArn']
+        print(response)
+
+    def update_function(self):
+        '''
+        Update lambda function
+        '''
+        response = self.awslambda.update_function_code(
+                FunctionName = self.function_name, 
+                ZipFile=open(self.codefile, 'rb').read()
+                #Publish=True
+                )
+        updated_arn = response['FunctionArn']
+        # parse arn and remove the release number (:n) 
+        arn = ":".join(updated_arn.split(':')[:-1])
+        self.function_arn = arn 
+        print(response)
+
+    def update_code_or_create_on_noexist(self):
+        '''
+        Update if the function exists, else create function
+        '''
+        try:
+            self.create_lambda_function()
+        except botocore.exceptions.ClientError as e:
+            # parse (Function already exist) 
+            self.update_function()
+
+    def delete_function(self):
+        self.awslambda.delete_function(FunctionName=self.function_name)
+
+    @classmethod
+    def cleanup_logs(cls, func_name):
+        '''
+        Delete all Lambda log group and log streams for a given function
+
+        '''
+        log_client = boto3.client('logs')
+        response = log_client.delete_log_group(logGroupName='/aws/lambda/' + func_name)
+        return response
+
