@@ -1,5 +1,5 @@
 import boto3
-import json, logging, jsonpickle, argparse, time
+import json, logging, argparse, time
 
 def handler(event, context):
     logger = logging.getLogger()
@@ -8,16 +8,14 @@ def handler(event, context):
         s3_client = session.resource('s3')
     else:
         s3_client = boto3.resource('s3')
-        serialized = jsonpickle.encode(context)
-        logger.info('s3Mod.handler context: {}'.format(json.loads(serialized)))
+        logger.info('s3Mod::handler: context: {}'.format(context))
 
     fname = None
     cont = None
     prefix = None
     bkt = None
     if event:
-        serialized = jsonpickle.encode(event)
-        logger.info('s3Mod.handler event: {}'.format(json.loads(serialized)))
+        logger.info('s3Mod::handler: event: {}'.format(event))
         if 'file_content' in event:
             cont = event['file_content']
         if 'prefix' in event:

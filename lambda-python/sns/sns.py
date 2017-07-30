@@ -1,16 +1,13 @@
-import boto3, os
-import time
-import json, logging, jsonpickle, argparse
+import boto3
+import json, logging, argparse, os, time
 
 def handler(event, context):
     entry = time.time() * 1000
     logger = logging.getLogger()
     if context:
-        serialized = jsonpickle.encode(context)
-        logger.warn('sns.handler context: {}'.format(json.loads(serialized)))
+        logger.info('sns::handler: context: {}'.format(context))
         if event:
-            serialized = jsonpickle.encode(event)
-            logger.warn('sns.handler event: {}'.format(json.loads(serialized)))
+            logger.info('sns::handler: event: {}'.format(event))
     else: #calling from main (testing)
         boto3.setup_default_session(profile_name='cjk1')
     sns = boto3.client('sns')

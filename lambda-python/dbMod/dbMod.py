@@ -1,15 +1,13 @@
 import boto3, os
 import time
-import json, logging, jsonpickle, argparse
+import json, logging, argparse
 
 def handler(event, context):
     logger = logging.getLogger()
     if context:
-        serialized = jsonpickle.encode(context)
-        logger.warn('dbMod.handler context: {}'.format(json.loads(serialized)))
+        logger.info('dbMod::handler: context: {}'.format(context))
         if event:
-            serialized = jsonpickle.encode(event)
-            logger.warn('dbMod.handler event: {}'.format(json.loads(serialized)))
+            logger.info('dbMod::handler: event: {}'.format(event))
         dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
     else: #calling from main (testing)
         session = boto3.Session(profile_name='cjk1') #replace with your profile

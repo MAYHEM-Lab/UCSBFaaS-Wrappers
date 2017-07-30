@@ -1,11 +1,14 @@
-import boto3,json,logging,jsonpickle,os
+#DO NOT CHANGE this file (setupApps depends on them)
+import boto3,json,logging,os
 import time,uuid
 sessionID = str(uuid.uuid4())
 
 def callIt(event,context):
     #replace your import and handler method (replacing "handler") here:
-    import sns
-    return sns.handler(event,context)
+    #DO NOT CHANGE the following two lines (setupApps depends on them)
+    #create a new file if changes are necessary
+    import SpotTemplate
+    return SpotTemplate.handler(event,context)
 
 def handleRequest(event, context):
     logger = logging.getLogger()
@@ -18,11 +21,6 @@ def handleRequest(event, context):
     os.environ['myArn'] = arn
     ERR = False
     entry = 0 #all ints in Python3 are longs
-    #for debugging
-    #serialized = jsonpickle.encode(event)
-    #logger.info('SpotWrapPython::handleRequest: event: {}'.format(json.loads(serialized)))
-    #serialized = jsonpickle.encode(context)
-    #logger.info('SpotWrapPython::handleRequest: context: {}'.format(json.loads(serialized)))
 
     errorstr = "SpotWrapPython"
     makeRecord(context,event,0,errorstr)
@@ -125,7 +123,7 @@ def makeRecord(context,event,duration,errorstr):
 
   
         elif 'Records' in event:
-            #S3 or DynamoDB or unknown
+            #S3 or DynamoDB or SNS or unknown
             recs = event['Records']
             obj = recs[0]
             if 'eventSource' in obj:

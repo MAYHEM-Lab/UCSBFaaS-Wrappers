@@ -1,5 +1,5 @@
 import boto3
-import json, logging, time, jsonpickle, argparse
+import json, logging, time, argparse
 
 def handler(event, context):
     logger = logging.getLogger()
@@ -7,12 +7,9 @@ def handler(event, context):
     retn = 'nothing:returned'
     eventSource = 'unknown'
     if context:
-        serialized = jsonpickle.encode(context)
-        logger.info('SpotTemplatePy::handler: context: {}'.format(json.loads(serialized)))
+        logger.info('SpotTemplatePy::handler: context: {}'.format(context))
     if event:
-        serialized = jsonpickle.encode(event)
-        logger.info('SpotTemplatePy::handler: event: {}'.format(json.loads(serialized)))
-
+        logger.info('SpotTemplatePy::handler: event: {}'.format(event))
         if 'eventSource' in event:
             eventSource = event['eventSource']
         elif 'EventSource' in event:
@@ -20,21 +17,27 @@ def handler(event, context):
         
         if 'requestContext' in event:
             #API Gateway
-            logger.info('SpotTemplatePy::handler: API Gateway triggered')
+            logger.warn('SpotTemplatePy::handler: API Gateway triggered')
         elif 'Records' in event:
-            #S3 or DynamoDB or unknown
+            #S3 or DynamoDB or SNS or unknown
+            recs = event['Records']
+            obj = recs[0]
+            if 'eventSource' in obj:
+                eventSource = obj['eventSource']
+            if 'EventSource' in obj: #aws:sns
+                eventSource = obj['EventSource']
             if eventSource.startswith('aws:s3'):
-                logger.info('SpotTemplatePy::handler: S3 triggered')
+                logger.warn('SpotTemplatePy::handler: S3 triggered')
             elif eventSource.startswith('aws:dynamodb'):
-                logger.info('SpotTemplatePy::handler: dynamoDB triggered')
+                logger.warn('SpotTemplatePy::handler: dynamoDB triggered')
             elif eventSource.startswith('aws:sns'):
-                logger.info('SpotTemplatePy::handler: SNS triggered')
+                logger.warn('SpotTemplatePy::handler: SNS triggered')
             else:
-                logger.info('SpotTemplatePy::handler: unknown Records trigger')
+                logger.warn('SpotTemplatePy::handler: unknown Records trigger: {}'.format(eventSource))
         elif 'invokeCLI' in eventSource:
-            logger.info('SpotTemplatePy::handler: invoke trigger: {}'.format(eventSource))
+            logger.warn('SpotTemplatePy::handler: invoke trigger: {}'.format(eventSource))
         else:
-            logger.info('SpotTemplatePy::handler: unknown trigger: {}'.format(eventSource))
+            logger.warn('SpotTemplatePy::handler: unknown trigger: {}'.format(eventSource))
 
     inv = time.time() * 1000
     retn = invokeCLI(event,context,logger) #invoke the function passed in 
@@ -44,7 +47,6 @@ def handler(event, context):
     delta = inv-entry
     invms = int(round(delta))
     retn += ':SpotTemplatePy:ts:{}:setup:{}:invoke:{}'.format(invend,ms,invms)
-    #logger.info('invokeCLI return: {}'.format(retn))
     return retn
 
 def invokeCLI(event,context,logger):
@@ -86,7 +88,7 @@ def invokeCLI(event,context,logger):
         ms = int(round(delta))
         me_str = 'REQ:{}:TIMER:CALL:{}:{}'.format(reqID,me,ms)
     else:
-        me_str = 'No context or functions are the same: {}:{}'.format(me,functionName)
+        me_str = 'No context, no functionName, or call will cause recursion: {}:fn:{}'.format(me,fn)
     
     if invoke_response:
         reqID = 'unknown'
