@@ -2,8 +2,8 @@ import boto3
 import json, logging, time, argparse
 
 def handler(event, context):
-    logger = logging.getLogger()
     entry = time.time() * 1000
+    logger = logging.getLogger()
     retn = 'nothing:returned'
     eventSource = 'unknown'
     if context:
@@ -42,11 +42,11 @@ def handler(event, context):
     inv = time.time() * 1000
     retn = invokeCLI(event,context,logger) #invoke the function passed in 
     invend = time.time() * 1000
-    delta = invend-entry
-    ms = int(round(delta))
-    delta = inv-entry
-    invms = int(round(delta))
+    ms = invend-entry
+    invms = inv-entry
     retn += ':SpotTemplatePy:ts:{}:setup:{}:invoke:{}'.format(invend,ms,invms)
+    me_str = 'TIMER:CALL:{}:INVOKE:{}'.format(ms,invms)
+    logger.warn(me_str)
     return retn
 
 def invokeCLI(event,context,logger):

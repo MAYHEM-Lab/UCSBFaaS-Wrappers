@@ -3,7 +3,7 @@
         "lambdaMemory": 128,
         "functions": [
             {
-                "name": "FnInvokerPy",
+                "name": "FnInvokerPyNOSPOT",
                 "handler": "FnInvoker.handler",
                 "zip": "fninvzip.zip",
                 "files_and_dirs": [
@@ -13,7 +13,7 @@
                 "s3bucket": "cjktestbkt"
             },
             {
-                "name": "SpotTemplatePy",
+                "name": "SpotTemplatePyNOSPOT",
                 "handler": "SpotTemplate.handler",
                 "zip": "spotzip.zip",
                 "files_and_dirs": [
@@ -23,7 +23,7 @@
                 "s3bucket": "cjktestbkt"
             },
             {
-                "name": "DBModPy",
+                "name": "DBModPyNOSPOT",
                 "handler": "dbMod.handler",
                 "zip": "dbmodzip.zip",
                 "files_and_dirs": [
@@ -33,7 +33,7 @@
                 "s3bucket": "cjktestbkt"
             },
             {
-                "name": "S3ModPy",
+                "name": "S3ModPyNOSPOT",
                 "handler": "s3Mod.handler",
                 "zip": "s3modzip.zip",
                 "files_and_dirs": [
@@ -43,7 +43,7 @@
                 "s3bucket": "cjktestbkt"
             },
             {
-                "name": "SNSPy",
+                "name": "SNSPyNOSPOT",
                 "handler": "sns.handler",
                 "zip": "snszip.zip",
                 "files_and_dirs": [
