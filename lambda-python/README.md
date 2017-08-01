@@ -209,5 +209,5 @@ aws sns get-topic-attributes --topic-arn arn:aws:sns:us-west-2:XXX:TOPICNAME --p
 Build this with setupApps to place in AWS Lambda.  Otherwise you can just run it from the command line:
 **Run It**
 ```
-python FnInvoker.py "arn:aws:lambda:us-west-2:443592014519:function:DBModPy" ext:invokeCLI --count 1
+python FnInvoker.py "arn:aws:lambda:us-west-2:XXXACCTXXX:function:DBModPy" ext:invokeCLI --count 1
 ```
