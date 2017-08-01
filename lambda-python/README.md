@@ -5,11 +5,30 @@ SpotTemplatePy handles different Lambda triggers and logs them, and then invokes
 
 This repo also contains a tool called setupApps.py which automatically zips up a Lambda package for each function and deploys it to AWS Lambda.  Use it whenever you change your code.  The configuration is in `setupconfig.json`.  AWS Lambda configuration options include Lambda name, handler, and memory size.
 Modify function configurations (the "functions" array data objects) to add functions or to change the list of files to include in the Lambda package that is uploaded.  The `files_and_dirs` object contains a list of strings that identify either Python3 files (with full paths, relative paths, or no path (for files in current directory), or directories that contain Python3 libraries (such as those under .../site-packages/).  Packages are created by placing all files and directories at the top level (root) and recursively including all directories (as required by AWS Lambda).  
+
 Use the included setupconfig.json (defaults) to build all of the Lambdas herein, 
-if no changes have been made.
+if no changes have been made.  Here is what it looks like (add more or functions as desired):
+```
+{
+        "region": "us-west-2",
+        "lambdaMemory": 128,
+        "functions": [
+            {
+                "name": "DBModPy",
+                "handler": "dbMod.handler",
+                "zip": "dbmodzip.zip",
+                "files_and_dirs": [
+                    "dbMod/dbMod.py"
+                ],
+		"patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+                "s3bucket": "cjktestbkt"
+            }
+        ]
+}
+```
 
 The build/deploy tool (setupApps.py) integrates SpotWrap.  If you don't wish to wrap your Lambdas with loggers, then use the `--no-spotwrap` option to the `setupApps.py` below.
-Using this option, you need not need to create a AWS DynamoDB table called `spotFns`.
+Using this option, you need not need to **create a AWS DynamoDB table called `spotFns`**.
 
 If you do wish to use SpotWrap, make a table n AWS DynamoDB called `spotFns`.
 Ensure that it has a primary key called "ts" with type Number and sort key called "requestID" with type String.
