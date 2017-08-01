@@ -108,3 +108,7 @@ class LambdaManager(object):
             pass
         return True
         
+    @classmethod
+    def write_to_s3(cls, s3, bucket, key, data, metadata):
+        s3.Bucket(bucket).put_object(Key=key, Body=data, Metadata=metadata)
+

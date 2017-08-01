@@ -29,9 +29,8 @@ def handler(event, context):
             Message=msg
         )
 
-    exit = time.time() * 1000
-    ms = exit-entry
-    me_str = 'TIMER:CALL:0:HANDLER:ts:{}:duration:{}'.format(exit,ms)
+    delta = (time.time() * 1000) - entry
+    me_str = 'TIMER:CALL:{}'.format(delta)
     logger.warn(me_str)
     return me_str
 

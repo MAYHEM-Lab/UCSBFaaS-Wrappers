@@ -1,6 +1,7 @@
 import boto3, json, logging, argparse, time, os, shutil, importlib
 
 def handler(event, context):
+    entry = time.time() * 1000
     logger = logging.getLogger()
     #logger.setLevel(logging.INFO)
     if context:
@@ -33,8 +34,8 @@ def handler(event, context):
         }
     )
 
-    ms = int(round(time.time() * 1000))
-    me_str = 'TIMER:CALL:0:HANDLER:{}'.format(ms)
+    delta = (time.time() * 1000) - entry
+    me_str = 'TIMER:CALL:{}'.format(delta)
     logger.warn(me_str)
     return me_str
 

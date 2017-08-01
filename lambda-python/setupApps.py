@@ -43,15 +43,14 @@ def zipLambda(zipname,ziplist,update=False):
             sys.exit(1)
     return zipname
 
-def write_to_s3(bucket, key, data, metadata):
-    s3.Bucket(bucket).put_object(Key=key, Body=data, Metadata=metadata)
-
-def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=False):
+def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=False, noBotocore=False):
     if profile:
         boto3.setup_default_session(profile_name=profile)
     config = botocore.client.Config(connect_timeout=50, read_timeout=100)
     lambda_client = boto3.client('lambda',config=config)
-    s3 = boto3.resource('s3')
+    s3 = None
+    if not noBotocore:
+        s3 = boto3.resource('s3')
     spotwraptemplate = 'SpotWrap.py.template'
     spotwrapfile = 'SpotWrap.py'
 
@@ -88,7 +87,8 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
 
         ''' Process the patched botocore file (place in S3 for SpotWrap.py to download)''' 
         botozipdir = None
-        zipname = '/tmp/botocore_patched.zip' #this much match same in SpotWrap.py.template
+        zipbase = 'botocore_patched.zip'
+        zipname = '/tmp/'.format(zipbase) #this much match same in SpotWrap.py.template
 
         if 'patched_botocore_dir' not in fn or fn['patched_botocore_dir'] == '': #no patch dir specified
             print('patched_botocore_dir not set in configuration file. To inject SpotWrap support, set this value and rerun this program. Not injecting SpotWrap support...')
@@ -99,31 +99,33 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
                 if not os.path.isdir(botozipdir):
                     noWrap = True
 
+        s3bkt = 'spotbucket'
         if not noWrap and ('s3bucket' not in fn or fn['s3bucket'] == ''): #double check that this exists
             print('No s3 bucket name (s3bucket) found in configuration file. Not injecting SpotWrap support...')
             noWrap = True
         elif not noWrap: #s3bucket is set, check that it is a valid S3 bucket
             s3bkt = fn['s3bucket']
-            if lambdautils.LambdaManager.S3BktExists(s3,s3bkt,region):
-                #zip up the patched botocore directory and place in S3
-                if not botozipdir: #sanity check
-                    print('setupApps Error:  botozipdir is None unexpectedly here')
-                    sys.exit(1)
-                here = os.path.abspath(os.path.dirname(__file__))
-                dirname = os.path.dirname(botozipdir)
-                fname = os.path.basename(botozipdir)
-                if dirname != '':
-                    os.chdir(dirname) #go to dir to place file at top level
-                if os.path.exists(zipname): #remove the zip file first
-                    os.remove(zipname)
-                subprocess.call(['zip', '-9', '-u', '-r','--exclude=*.pyc', zipname, fname])
-                try:
-                    lambdautils.LambdaManager.copyToS3(s3,s3bkt,zipname)
-                except Exception as e:
-                    print('setupApps: S3 error on zip file storage:\n{}'.format(e))
-                    sys.exit(1)
-                os.chdir(here)
-         
+            if not noBotocore:
+                if lambdautils.LambdaManager.S3BktExists(s3,s3bkt,region):
+                    #zip up the patched botocore directory and place in S3
+                    if not botozipdir: #sanity check
+                        print('setupApps Error:  botozipdir is None unexpectedly here')
+                        sys.exit(1)
+                    here = os.path.abspath(os.path.dirname(__file__))
+                    dirname = os.path.dirname(botozipdir)
+                    fname = os.path.basename(botozipdir)
+                    if dirname != '':
+                        os.chdir(dirname) #go to dir to place file at top level
+                    if os.path.exists(zipname): #remove the zip file first
+                        os.remove(zipname)
+                    subprocess.call(['zip', '-9', '-u', '-r','--exclude=*.pyc', zipname, fname])
+                    try:
+                        lambdautils.LambdaManager.copyToS3(s3,s3bkt,zipname)
+                    except Exception as e:
+                        print('setupApps: S3 error on zip file storage:\n{}'.format(e))
+                        sys.exit(1)
+                    os.chdir(here)
+             
         ''' Inject SpotWrap Support '''
         tmp_dir = None
         if not noWrap: 
@@ -156,6 +158,8 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
                     filedata = f.read()
                 filedata = filedata.replace('import SpotTemplate', 'import {}'.format(orig_file))
                 filedata = filedata.replace('SpotTemplate.handler', orig_handler)
+                filedata = filedata.replace('XXXX', s3bkt)
+                filedata = filedata.replace('YYYY', zipbase)
                 # Write the file out 
                 with open(target, 'w') as f:
                     f.write(filedata)
@@ -176,9 +180,10 @@ if __name__ == "__main__":
     parser.add_argument('--update',action='store_true',default=False,help='Update the zip file and Lambda function, for Lambdas that we originally created (faster zipping)')
     parser.add_argument('--deleteAll',action='store_true',default=False,help='Delete the lambda functions that we originally created')
     parser.add_argument('--config','-f',action='store',default='setupconfig.json',help='Pass in the json configuration file instead of using setupconfig.json')
+    parser.add_argument('--no_botocore_change',action='store_true',default=False,help='Do NOT prepare and upload botocore zip to S3. The one there from a prior run will work.')
     parser.add_argument('--no_spotwrap',action='store_true',default=False,help='Do NOT inject SpotWrapSupport')
     args = parser.parse_args()
     if args.update and args.deleteAll:
         print('Error, update and deleteAll options cannot be used together.  Choose one.')
         sys.exit(1)
-    processLambda(args.config,args.profile,args.no_spotwrap,args.update,args.deleteAll)
+    processLambda(args.config,args.profile,args.no_spotwrap,args.update,args.deleteAll,args.no_botocore_change)

@@ -4,7 +4,6 @@ import time,uuid
 sessionID = str(uuid.uuid4())
 
 def callIt(event,context):
-    #replace your import and handler method (replacing "handler") here:
     #DO NOT CHANGE the following two lines (setupApps depends on them)
     #create a new file if changes are necessary
     import SpotTemplate
@@ -12,26 +11,27 @@ def callIt(event,context):
 
 def handleRequest(event, context):
     logger = logging.getLogger()
+
+    ''' Download the zip file from s3, unzip it into libdir, 
+        put it in the path and reload botocore.client to get the changes.
+    '''
     libdir = '/tmp/spotlibs'
+    bkt = 'XXXX' #do not change this text as it is replaced
+    fname = 'YYYY' #do not change this text as it is replaced
+    tmpfname = '/tmp/{}'.format(fname)
     s3 = boto3.resource('s3')
     try:
-        s3.Bucket('cjktestbkt').download_file('testzip.zip', '/tmp/testzip.zip')
+        s3.Bucket(bkt).download_file(fname, tmpfname)
     except Exception as e:
-        print('Error, s3 GET exception: {}'.format(e))
-
-    with zipfile.ZipFile('/tmp/testzip.zip', 'r') as z:
+        print('Error, s3 GET exception (unable to download libfile {}/{} to tmp):\n{}'.format(bkt,fname,e))
+    with zipfile.ZipFile(tmpfname, 'r') as z:
         z.extractall(path=libdir)
-
     sys.path.insert(0, libdir)
-    print('path: {}'.format(sys.path))
     import botocore
     importlib.invalidate_caches()
-    m1 =importlib.import_module('botocore')
-    print('import return: {}'.format(m1))
-    m2 = importlib.reload(botocore)
-    print('botocore: {}'.format(m2))
-    m2 = importlib.reload(botocore.client)
-    print('botocore.client: {}'.format(m2))
+    importlib.import_module('botocore')
+    importlib.reload(botocore)
+    importlib.reload(botocore.client)
 
     reqID = 'unknown'
     arn = 'unknown'

@@ -2,6 +2,7 @@ import boto3
 import json, logging, argparse, time
 
 def handler(event, context):
+    entry = time.time() * 1000
     logger = logging.getLogger()
     if not context: #calling from main so set the profile we want
         session = boto3.Session(profile_name='cjk1')
@@ -38,8 +39,8 @@ def handler(event, context):
     else:
         logger.warn('s3Mod.handler: insufficient arguments passed in (prefix,file_content,bkt, and fname required)')
 
-    ms = int(round(time.time() * 1000))
-    me_str = 'TIMER:CALL:0:HANDLER:{}'.format(ms)
+    delta = (time.time() * 1000) - entry
+    me_str = 'TIMER:CALL:{}'.format(delta)
     logger.warn(me_str)
     return me_str
 
