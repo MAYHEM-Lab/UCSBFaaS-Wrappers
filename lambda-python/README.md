@@ -1,7 +1,7 @@
 # SpotWrap 
 SpotWrapper is a simple wrapper for Python3 AWS Lambda functions that enables tracing
-of and connecting dependent events in AWS Lambda.  In this repo are three projects: SpotTemplate, dbMod, and s3Mod which produce three Lambda functions called SpotTemplatePy, dbModPy, and s3ModPy.
-SpotTemplatePy handles different Lambda triggers and logs them, and then invokes another Lambda funcction if a Lambda ARN has been passed into it.  dbModPy reads and writes to AWS DynamoDB; s3ModPy writes to AWS S3; SNSPy posts a notification to AWS SNS.
+of and connecting dependent events in AWS Lambda.  In this repo are three projects: SpotTemplate, dbMod, and s3Mod which produce three Lambda functions called SpotTemplatePy, dbModPy, s3ModPy, and FnInvokerPy.
+SpotTemplatePy handles different Lambda triggers and logs them, and then invokes another Lambda funcction if a Lambda ARN has been passed into it.  dbModPy reads and writes to AWS DynamoDB; s3ModPy writes to AWS S3; SNSPy posts a notification to AWS SNS; FnInvokerPy invokes 1+ function instances.
 
 This repo also contains a tool called setupApps.py which automatically zips up a Lambda package for each function and deploys it to AWS Lambda.  Use it whenever you change your code.  The configuration is in `setupconfig.json`.  AWS Lambda configuration options include Lambda name, handler, and memory size.
 Modify function configurations (the "functions" array data objects) to add functions or to change the list of files to include in the Lambda package that is uploaded.  The `files_and_dirs` object contains a list of strings that identify either Python3 files (with full paths, relative paths, or no path (for files in current directory), or directories that contain Python3 libraries (such as those under .../site-packages/).  Packages are created by placing all files and directories at the top level (root) and recursively including all directories (as required by AWS Lambda).  
@@ -194,6 +194,8 @@ aws lambda update-function-code --region us-west-2 --function-name SNSPy --zip-f
 Create an SNS topic via the AWS Management console and subscribe to it (e.g. via email so that you can confirm the posting).  To add an SNS trigger to one of your AWS Lambda functions (e.g. SpotTemplate), use the console to subscribe your Lambda function to it. If you use the `add trigger` option in the AWS Lambda console for your function, you will only be able to add SNS topics in the same region as a trigger (so its better to use subscribe from the SNS console).  **Note** that an AWS Lambda function can only post to an SNS topic it its own region.
 
 Use the ARN of the topic in the invoke call below (TOPIC_ARN -- which can be found on the SNS Management Console next to your topic (make sure you are in the right region (notifications in one region can trigger Lambda functions in different regions)).  eventSource tells SpotWrap that you are calling SNSPy from the CLI externally:
+
+**Run It**
 ```
 aws lambda invoke --invocation-type Event --function-name SNSPy --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","topic":"TOPIC_ARN","subject":"any subject","msg":"any message"}' outputfile
 
@@ -201,4 +203,11 @@ aws lambda invoke --invocation-type Event --function-name SNSPy --region us-west
 aws sns get-subscription-attributes --subscription-arn arn:aws:sns:us-west-2:XXX:TOPICNAME:YYY --profile awsprofile1
 #see topic details given a particular topic ARN from SNS Mgmnt Console:
 aws sns get-topic-attributes --topic-arn arn:aws:sns:us-west-2:XXX:TOPICNAME --profile awsprofile1
+```
+
+# FnInvoker.py function FnInvokerPy
+Build this with setupApps to place in AWS Lambda.  Otherwise you can just run it from the command line:
+**Run It**
+```
+python FnInvoker.py "arn:aws:lambda:us-west-2:443592014519:function:DBModPy" ext:invokeCLI --count 1
 ```
