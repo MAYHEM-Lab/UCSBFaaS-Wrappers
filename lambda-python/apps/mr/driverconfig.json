@@ -1,7 +1,7 @@
 {
         "bucket": "big-data-benchmark",
         "prefix": "pavlo/text/1node/uservisits/",
-        "jobBucket": "MY-S3-BUCKET",
+        "jobBucket": "spot-mr-bkt",
         "region": "us-west-2",
         "concurrentLambdas": 50,
         "lambdaMemory": 1536,

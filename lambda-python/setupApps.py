@@ -4,7 +4,7 @@
  License and Copyright in ../LICENSE
 '''
 import boto3,botocore,json
-import sys,time,glob,subprocess,argparse,os,tempfile,shutil
+import sys,time,glob,subprocess,argparse,os,tempfile,shutil,random
 import lambdautils
 
 ### UTILS ####
@@ -49,8 +49,11 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
     config = botocore.client.Config(connect_timeout=50, read_timeout=100)
     lambda_client = boto3.client('lambda',config=config)
     s3 = None
+    s3_client = None
     if not noBotocore:
         s3 = boto3.resource('s3')
+        config = botocore.client.Config(connect_timeout=50, read_timeout=200)
+        s3_client = boto3.client('s3',config=config)
     spotwraptemplate = 'SpotWrap.py.template'
     spotwrapfile = 'SpotWrap.py'
 
@@ -172,6 +175,11 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
 
         l_fn = lambdautils.LambdaManager(lambda_client, region, l_zip, name, handler)
         l_fn.update_code_or_create_on_noexist()
+        if 'permission' in fn:
+            job_bucket = fn['permission']
+            job_id = fn['job_id']
+            l_fn.add_lambda_permission(random.randint(1,1000), job_bucket)
+            l_fn.create_s3_eventsource_notification(s3_client,job_bucket,job_id)
 
 
 if __name__ == "__main__":

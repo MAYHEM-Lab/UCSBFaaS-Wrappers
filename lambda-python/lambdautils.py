@@ -62,7 +62,8 @@ class LambdaManager(object):
                 )
         updated_arn = response['FunctionArn']
         # parse arn and remove the release number (:n) 
-        arn = ":".join(updated_arn.split(':')[:-1])
+        #arn = ":".join(updated_arn.split(':')[:-1]) broken when no release number
+        arn = updated_arn
         self.function_arn = arn 
         print(response)
 
@@ -76,6 +77,43 @@ class LambdaManager(object):
             # parse (Function already exist) 
             self.update_function()
 
+    def add_lambda_permission(self, sId, bucket):
+        resp = self.awslambda.add_permission(
+          Action = 'lambda:InvokeFunction',
+          FunctionName = self.function_name,
+          Principal = 's3.amazonaws.com',
+          StatementId = '%s' % sId,
+          SourceArn = 'arn:aws:s3:::' + bucket
+        )
+        print(resp)
+
+    def create_s3_eventsource_notification(self, s3, bucket, prefix=None):
+        if not prefix:
+            prefix = self.job_id +"/task";
+
+        s3.put_bucket_notification_configuration(
+          Bucket =  bucket,
+          NotificationConfiguration = {
+            'LambdaFunctionConfigurations': [
+              {
+                  'Events': [ 's3:ObjectCreated:*'],
+                  'LambdaFunctionArn': self.function_arn,
+                   'Filter' : {
+                    'Key':    {
+                        'FilterRules' : [
+                      {
+                          'Name' : 'prefix',
+                          'Value' : prefix
+                      },
+                    ]
+                  }
+                }
+              }
+            ],
+            #'TopicConfigurations' : [],
+            #'QueueConfigurations' : []
+          }
+        )
     def delete_function(self):
         self.awslambda.delete_function(FunctionName=self.function_name)
 
