@@ -28,7 +28,10 @@ Set the serverless_mapreduce_role environment variable (replace MY_ACCOUNT_ID wi
 
 5. Make edits to driverconfig.json to update "jobBucket": "MY-BUCKET-NAME", replacing MY-BUCKET-NAME with the bucketname you created in step 1.
 
-6. Run the driver, defaults used are 50 concurrent lambdas and the us-west-2 region.  Update these values in driverconfig.json as appropriate.  
+6. Update the driver with your profile name.   
+   $ vi driver.py  //Change awsprofile1 to your profile name or comment out the line containing it to use your root user
+
+7. Run the driver, defaults used are 50 concurrent lambdas and the us-west-2 region.  Update these values in driverconfig.json as appropriate.  
  
    $ python driver.py
 
