@@ -1,9 +1,8 @@
-import boto3, os
-import time
-import json, logging, argparse
+import boto3, json, logging, argparse, time, os, shutil, importlib
 
 def handler(event, context):
     logger = logging.getLogger()
+    #logger.setLevel(logging.INFO)
     if context:
         logger.info('dbMod::handler: context: {}'.format(context))
         if event:

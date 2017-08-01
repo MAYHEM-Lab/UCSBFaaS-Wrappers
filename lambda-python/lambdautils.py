@@ -89,3 +89,22 @@ class LambdaManager(object):
         response = log_client.delete_log_group(logGroupName='/aws/lambda/' + func_name)
         return response
 
+    @classmethod
+    def copyToS3(cls,s3,bucketname,filename):
+        '''
+        Copy file to s3 in bucket 
+        '''
+        fname = os.path.basename(filename)
+        return s3.Object(bucketname, fname).upload_file(filename)
+
+    @classmethod
+    def S3BktExists(cls,s3,bucketname,region):
+        '''
+        Check that s3 bucket exists; idempotent so either creates it or does nothing
+        '''
+        try:
+            s3.create_bucket(Bucket=bucketname,CreateBucketConfiguration={'LocationConstraint': region})
+        except:
+            pass
+        return True
+        

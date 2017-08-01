@@ -18,6 +18,10 @@ def zipLambda(zipname,ziplist,update=False):
         and recursively include all files underneath them (deep copy)
         e.g.: /var/log/ddd ./bbb results in ddd and bbb directories in basedir 
         (with contents) when unzipped
+	The ziplist should not include any boto directories (they are already 
+	available in AWS Lambda).
+
+	See also zappa blog.zappa.io
     '''
     here = os.path.abspath(os.path.dirname(__file__))
     zipname = here+'/'+zipname
@@ -31,7 +35,7 @@ def zipLambda(zipname,ziplist,update=False):
             fname = os.path.basename(fname)
             if dirname != '':
                 os.chdir(dirname) #go to dir to place file at top level
-            subprocess.call(['zip', '-9', '-u', '-r', zipname, fname])
+            subprocess.call(['zip', '-9', '-u', '-r','--exclude=*.pyc', zipname, fname])
             os.chdir(here)
         else:
             print('Error: file not found: {}'.format(fname))
@@ -47,6 +51,7 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
         boto3.setup_default_session(profile_name=profile)
     config = botocore.client.Config(connect_timeout=50, read_timeout=100)
     lambda_client = boto3.client('lambda',config=config)
+    s3 = boto3.resource('s3')
     spotwraptemplate = 'SpotWrap.py.template'
     spotwrapfile = 'SpotWrap.py'
 
@@ -80,21 +85,69 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
         if periods != 1 or peridx == 0:
             print('Error, the handler entry for {} must be of the form filename.handlername.  Please fix and rerun.'.format(name))
             sys.exit(1)
-     
-        if not noWrap: #then inject SpotWrap support
+
+        ''' Process the patched botocore file (place in S3 for SpotWrap.py to download)''' 
+        botozipdir = None
+        zipname = '/tmp/botocore_patched.zip' #this much match same in SpotWrap.py.template
+
+        if 'patched_botocore_dir' not in fn or fn['patched_botocore_dir'] == '': #no patch dir specified
+            print('patched_botocore_dir not set in configuration file. To inject SpotWrap support, set this value and rerun this program. Not injecting SpotWrap support...')
+            noWrap = True
+        else:
+            if 'patched_botocore_dir' in fn:
+                botozipdir = fn['patched_botocore_dir']
+                if not os.path.isdir(botozipdir):
+                    noWrap = True
+
+        if not noWrap and ('s3bucket' not in fn or fn['s3bucket'] == ''): #double check that this exists
+            print('No s3 bucket name (s3bucket) found in configuration file. Not injecting SpotWrap support...')
+            noWrap = True
+        elif not noWrap: #s3bucket is set, check that it is a valid S3 bucket
+            s3bkt = fn['s3bucket']
+            if lambdautils.LambdaManager.S3BktExists(s3,s3bkt,region):
+                #zip up the patched botocore directory and place in S3
+                if not botozipdir: #sanity check
+                    print('setupApps Error:  botozipdir is None unexpectedly here')
+                    sys.exit(1)
+                here = os.path.abspath(os.path.dirname(__file__))
+                dirname = os.path.dirname(botozipdir)
+                fname = os.path.basename(botozipdir)
+                if dirname != '':
+                    os.chdir(dirname) #go to dir to place file at top level
+                if os.path.exists(zipname): #remove the zip file first
+                    os.remove(zipname)
+                subprocess.call(['zip', '-9', '-u', '-r','--exclude=*.pyc', zipname, fname])
+                try:
+                    lambdautils.LambdaManager.copyToS3(s3,s3bkt,zipname)
+                except Exception as e:
+                    print('setupApps: S3 error on zip file storage:\n{}'.format(e))
+                    sys.exit(1)
+                os.chdir(here)
+         
+        ''' Inject SpotWrap Support '''
+        tmp_dir = None
+        if not noWrap: 
             #first check that SpotWrap.py is in the current working directory
             if not os.path.isfile(spotwraptemplate):
                 print('Error, {} Not Found!  To inject SpotWrap support, rerun this program in the same directory as SpotWrap.py. Not injecting SpotWrap support...'.format(spotwraptemplate))
             else: #inject SpotWrap support
                 #first remove SpotWrap.py so we don't confuse things, if added by mistake
-                while spotwrapfile in ziplist: ziplist.remove(spotwrapfile)
-
+                todel = []
+                for fname in ziplist:
+                    #if fname.endswith(spotwrapfile) or fname.endswith('botocore'):
+                    if fname.find('boto') != -1:
+                        print('Found boto in the list, AWS Lambda installs boto for you, please remove to reduce the size of your zip, and rerun: {}'.format(fname))
+                        sys.exit(1)
+                    if fname.endswith(spotwrapfile):
+                        todel.append(fname) #can't remove while iterating...
+                for fname in todel:
+                    ziplist.remove(fname)
                 tmp_dir = tempfile.mkdtemp() 
                 target = '{}/{}'.format(tmp_dir,spotwrapfile)
                 shutil.copyfile(spotwraptemplate,target) #copy the template into temp dir
                 ziplist.append(target) #add temp dir and file to the zip list so we include it
  
-                #now update the template to call the user's handler
+                #next update the template to call the user's handler
                 orig_file = handler[:peridx] #filename containing original handler
                 orig_handler = handler
                 handler = 'SpotWrap.handleRequest'
@@ -106,6 +159,7 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
                 # Write the file out 
                 with open(target, 'w') as f:
                     f.write(filedata)
+
                 print('setupApps: SpotWrap support inserted')
 
         l_zip = zipLambda(zipfile,ziplist,update)

@@ -1,5 +1,5 @@
 #DO NOT CHANGE this file (setupApps depends on them)
-import boto3,json,logging,os
+import boto3,json,logging,os,sys,importlib,zipfile
 import time,uuid
 sessionID = str(uuid.uuid4())
 
@@ -12,6 +12,27 @@ def callIt(event,context):
 
 def handleRequest(event, context):
     logger = logging.getLogger()
+    libdir = '/tmp/spotlibs'
+    s3 = boto3.resource('s3')
+    try:
+        s3.Bucket('cjktestbkt').download_file('testzip.zip', '/tmp/testzip.zip')
+    except Exception as e:
+        print('Error, s3 GET exception: {}'.format(e))
+
+    with zipfile.ZipFile('/tmp/testzip.zip', 'r') as z:
+        z.extractall(path=libdir)
+
+    sys.path.insert(0, libdir)
+    print('path: {}'.format(sys.path))
+    import botocore
+    importlib.invalidate_caches()
+    m1 =importlib.import_module('botocore')
+    print('import return: {}'.format(m1))
+    m2 = importlib.reload(botocore)
+    print('botocore: {}'.format(m2))
+    m2 = importlib.reload(botocore.client)
+    print('botocore.client: {}'.format(m2))
+
     reqID = 'unknown'
     arn = 'unknown'
     if context:
