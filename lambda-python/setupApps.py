@@ -88,7 +88,7 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
         ''' Process the patched botocore file (place in S3 for SpotWrap.py to download)''' 
         botozipdir = None
         zipbase = 'botocore_patched.zip'
-        zipname = '/tmp/'.format(zipbase) #this much match same in SpotWrap.py.template
+        zipname = '/tmp/{}'.format(zipbase) #this much match same in SpotWrap.py.template
 
         if 'patched_botocore_dir' not in fn or fn['patched_botocore_dir'] == '': #no patch dir specified
             print('patched_botocore_dir not set in configuration file. To inject SpotWrap support, set this value and rerun this program. Not injecting SpotWrap support...')
