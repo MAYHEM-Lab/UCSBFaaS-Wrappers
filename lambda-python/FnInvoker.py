@@ -35,7 +35,7 @@ def handler(event,context):
             msg['eventSource'] = 'int:invokeCLI:{}'.format(me)
         #TODO: send remaining inputs
 
-        for x in range(0,count):
+        for x in range(count):
             payload=json.dumps(msg)
             now = time.time() * 1000
             invoke_response = lambda_client.invoke(FunctionName=fn,
