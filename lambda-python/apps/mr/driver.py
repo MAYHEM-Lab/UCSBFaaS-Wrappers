@@ -33,8 +33,8 @@ from multiprocessing.dummy import Pool as ThreadPool
 from functools import partial
 
 # create an S3 session
-boto3.setup_default_session(profile_name='cjk1')
-config = botocore.client.Config(connect_timeout=50, read_timeout=100)
+boto3.setup_default_session(profile_name='aswprofile1')
+config = botocore.client.Config(connect_timeout=50, read_timeout=200)
 s3 = boto3.resource('s3')
 s3_client = boto3.client('s3',config=config)
 lambda_client = boto3.client('lambda',config=config)
@@ -146,11 +146,8 @@ def invoke_lambda(batches, m_id):
     '''
     lambda invoke function
     '''
-    # TODO: Increase timeout
 
-    #batch = [k['Key'] for k in batches[m_id-1]]
     batch = [k.key for k in batches[m_id-1]]
-    #print("invoking", m_id, len(batch))
     resp = lambda_client.invoke( 
             FunctionName = mapper_lambda_name,
             InvocationType = 'RequestResponse',
