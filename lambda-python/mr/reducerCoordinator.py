@@ -172,7 +172,7 @@ def handler(event, context):
                 
             # Create Batch params for the Lambda function
             r_batch_params = lambdautils.batch_creator(reducer_keys, r_batch_size);
-            print("Batch Size {}, len {}".format(r_batch_size,len(r_batch_params[0])))
+            print("Batch Size {}, Spawning this many reducers: {}".format(r_batch_size,len(r_batch_params[0])))
                 
             # Build the lambda parameters
             n_reducers = len(r_batch_params)
@@ -202,7 +202,7 @@ def handler(event, context):
             fname = "%s/reducerstate.%s"  % (job_id, step_id)
             write_reducer_state(n_reducers, n_s3, bucket, fname)
         else:
-            print("Still waiting for all the mappers to finish ..")
+            print("Still waiting for all the mappers or reducers (if count > total_jobs (Num. of Mappers reported by driver)) to finish ..")
 
 '''
 ev = {

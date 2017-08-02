@@ -1,0 +1,45 @@
+{
+        "region": "us-west-2",
+        "functions": [
+            {
+                "name": "driverNOSPOT",
+                "lambdaMemory": 128,
+                "handler": "driver.handler",
+                "zip": "driverzip.zip",
+                "files_and_dirs": [
+                    "mr/driver.py",
+                    "mr/lambdautils.py"
+                ]
+            },
+            {
+                "name": "mapperNOSPOT",
+                "lambdaMemory": 1536,
+                "handler": "mapper.handler",
+                "zip": "mapperzip.zip",
+                "files_and_dirs": [
+                    "mr/mapper.py"
+                ]
+            },
+            {
+                "name": "reducerNOSPOT",
+                "lambdaMemory": 1536,
+                "handler": "reducer.handler",
+                "zip": "reducerzip.zip",
+                "files_and_dirs": [
+                    "mr/reducer.py"
+                ]
+            },
+            {
+                "name": "reducerCoordinatorNOSPOT",
+                "lambdaMemory": 128,
+                "handler": "reducerCoordinator.handler",
+                "zip": "reducerCoordinatorzip.zip",
+                "files_and_dirs": [
+                    "mr/reducerCoordinator.py",
+                    "mr/lambdautils.py"
+                ],
+                "permission": "spot-mr-bkt",
+                "job_id": "job1000/task"
+            }
+        ]
+}

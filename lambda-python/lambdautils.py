@@ -24,12 +24,12 @@ class LambdaManager(object):
         self.codefile = codepath
         self.function_name = fname
         self.handler = handler
+        self.memory = lmem 
+        self.timeout = 300
         self.role = os.environ.get('AWSRole')
         if not self.role:
             print('Please set AWSRole in your environment variables to your AWS Lambda Role')
             sys.exit(1)
-        self.memory = lmem 
-        self.timeout = 300
         self.tracing = tracing # if true, turn on Xray tracing (not needed with SpotWrap)
         self.function_arn = None # set after creation
 

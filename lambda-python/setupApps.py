@@ -60,7 +60,6 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
     # Config
     config = json.loads(open(config_fname, 'r').read())
     region = config['region']
-    lambda_memory = config['lambdaMemory']
     fns = config['functions']
     #Create the lambda functions
     for fn in fns:
@@ -81,6 +80,7 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
             continue #get the next function to delete
 
         #else process the rest and create the Lambda
+        lambda_memory = fn['lambdaMemory']
         ziplist = fn['files_and_dirs']
         zipfile = fn['zip']
         handler = fn['handler'] #must be of the form filename.handlername
@@ -165,7 +165,7 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
                 filedata = filedata.replace('SpotTemplate.handler', orig_handler)
                 filedata = filedata.replace('XXXX', s3bkt)
                 filedata = filedata.replace('YYYY', zipbase)
-                filedata = filedata.replace('ZZZZ', spotTableRegion )
+                filedata = filedata.replace('ZZZZ', spotTableRegion)
                 filedata = filedata.replace('QQQQ', spotTableName)
                 # Write the file out 
                 with open(target, 'w') as f:
@@ -177,7 +177,9 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
         if tmp_dir:
             shutil.rmtree(tmp_dir)
 
-        l_fn = lambdautils.LambdaManager(lambda_client, region, l_zip, name, handler)
+        #create lambdas
+        tracing = False
+        l_fn = lambdautils.LambdaManager(lambda_client, region, l_zip, name, handler,tracing,lambda_memory)
         l_fn.update_code_or_create_on_noexist()
         if 'permission' in fn:
             job_bucket = fn['permission']
@@ -201,4 +203,4 @@ if __name__ == "__main__":
     if args.update and args.deleteAll:
         print('Error, update and deleteAll options cannot be used together.  Choose one.')
         sys.exit(1)
-    processLambda(args.config,args.profile,args.no_spotwrap,args.update,args.deleteAll,args.no_botocore_change,args.spotFnsTableRegion,args.saveTriggerBucket)
+    processLambda(args.config,args.profile,args.no_spotwrap,args.update,args.deleteAll,args.no_botocore_change,args.spotFnsTableRegion,args.spotFnsTableName,args.saveTriggerBucket)

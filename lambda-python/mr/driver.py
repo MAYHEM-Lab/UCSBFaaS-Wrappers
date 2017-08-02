@@ -83,17 +83,13 @@ def handler(event, context):
     s3_client = boto3.client('s3',config=config)
 
     JOB_INFO = 'jobinfo.json'
+
     # 1. Get all keys to be processed  
     # init 
-    job_id = event["job_id"]
     bucket = event["bucket"]
-    job_bucket = event["jobBucket"]
-    region = event["region"]
-    async = True if "full_async" in event else False
     dryrun = True if "dryrun" in event else False
     lambda_memory = 1536
-    reducer_lambda_name = "reducerNOSPOT"
-    
+
     # Fetch all the keys that match the prefix
     all_keys = []
     for obj in s3.Bucket(bucket).objects.filter(Prefix=event["prefix"]).all():
@@ -102,12 +98,20 @@ def handler(event, context):
     bsize = lambdautils.compute_batch_size(all_keys, lambda_memory)
     batches = lambdautils.batch_creator(all_keys, bsize)
     n_mappers = len(batches)
-    print("# of Mappers ", n_mappers)
-    if dryrun:
+    print("Num. of Mappers (and Reducers) ", n_mappers)
+
+    if dryrun: #don't go any further
         delta = (time.time() * 1000) - entry
         me_str = 'TIMER:CALL:{}:dryrun:0'.format(delta)
         logger.warn(me_str)
         return me_str
+
+    #process the remaining arguments
+    job_id = event["job_id"]
+    job_bucket = event["jobBucket"]
+    region = event["region"]
+    async = True if "full_async" in event else False
+    reducer_lambda_name = "reducerNOSPOT"
     
     # Write Jobdata to S3
     j_key = job_id + "/jobdata";
