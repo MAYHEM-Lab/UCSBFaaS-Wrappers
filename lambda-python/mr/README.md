@@ -33,7 +33,7 @@ Use the "dryrun":"yes" key/value pair as an argument to only run the driver and 
 
 lambdaMemory for mapper and reducer functions must be 1536.  
 
-The lambda timeout (300s) for the driver may be exceeded when run in synchronous mode.  In this case, the total timings will not be report but most likely all mappers will be spawned.  To see the timings, you can run the driver locally via ```python drive.py MY-BUCKET-NAME JOBID --wait4reducers``` replacing MY-BUCKET-NAME and JOBID (with the job prefix in the reducerCoordinator entry in the configuration below, up to /task, e.g. job1000).
+The lambda timeout (300s) for the driver may be exceeded when run in synchronous mode.  In this case, the total timings will not be report but most likely all mappers will be spawned.  To see the timings, you can run the driver locally via ```python driver.py MY-BUCKET-NAME JOBID --wait4reducers``` replacing MY-BUCKET-NAME and JOBID (with the job prefix in the reducerCoordinator entry in the configuration below, up to /task, e.g. job1000).
 
 Upload the functions to Lambda using the following. 
 ```
@@ -87,7 +87,7 @@ cat scns.json    #replace MY-BUCKET-NAME for reduceCoordinator
 }
 ```
 6. **Run It**. Replace MY-BUCKET-NAME below.  
-Make sure that job_id matches the prefix (prior to /task) in the reducerCoordinator configuration entry above (job1000).  The job takes approximately 5 minutes to complete and can be run synchronously (mappers are in parallel) or fully asynchronous (omit the "full_async" argument).  
+Make sure that job_id value below matches the prefix (prior to /task) in the reducerCoordinator configuration entry above (job1000).  The job takes approximately 5 minutes to complete and can be run synchronously (mappers are in parallel) or fully asynchronous (omit the "full_async" argument).  
 "Job done!!! Check the result file" in one of the reducerCoordinator logs signals app completion.  
 
 The region argument must match that in the setupApps configuration above. Replace awsprofile1 below with your AWS IAM profile. Keep the settings for prefix and bucket as that is where the original datasets from the big data benchmark are located.
