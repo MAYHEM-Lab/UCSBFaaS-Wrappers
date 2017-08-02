@@ -9,7 +9,9 @@
                 "files_and_dirs": [
                     "mr/driver.py",
                     "mr/lambdautils.py"
-                ]
+                ],
+		"patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+                "s3bucket": "CODEBUCKET"
             },
             {
                 "name": "mapper",
@@ -18,7 +20,9 @@
                 "zip": "mapperzip.zip",
                 "files_and_dirs": [
                     "mr/mapper.py"
-                ]
+                ],
+		"patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+                "s3bucket": "CODEBUCKET"
             },
             {
                 "name": "reducer",
@@ -27,7 +31,9 @@
                 "zip": "reducerzip.zip",
                 "files_and_dirs": [
                     "mr/reducer.py"
-                ]
+                ],
+		"patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+                "s3bucket": "CODEBUCKET"
             },
             {
                 "name": "reducerCoordinatorNS",
@@ -39,7 +45,9 @@
                     "mr/lambdautils.py"
                 ],
                 "permission": "MY-BUCKET-NAME",
-                "job_id": "job1000/task"
+                "job_id": "JOBID/task",
+		"patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+                "s3bucket": "CODEBUCKET"
             }
         ]
 }
