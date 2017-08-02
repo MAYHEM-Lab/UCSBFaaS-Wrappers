@@ -56,6 +56,7 @@ def handleRequest(event, context):
     try: 
         respObj = callIt(event,context)
         if not respObj:
+            respObj = {}
             respObj['SpotWrapMessage'] = 'NoResponseReturned'
         if 'statusCode' in respObj:
             status = respObj['statusCode']
@@ -75,6 +76,8 @@ def handleRequest(event, context):
         duration = int(round(delta))
         makeRecord(context,None,duration,errorstr) #end event (event arg = null)
 
+    if not respObj: 
+        respObj = {}
     if ERR:
         status = '400'
         respObj['SpotWrapError']=errorstr

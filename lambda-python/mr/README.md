@@ -121,3 +121,36 @@ python setupApps.py --profile cjk1 -f scns.json --deleteAll --saveTriggerBucket
 cd UCSBFaaS-Wrappers/lambda-python
 python setupApps.py --profile cjk1 -f scns.json --deleteAll
 ```
+2. Change the configuration file to support SpotWrap.  Add these two lines:  
+   "patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+   "s3bucket": "cjktestbkt"
+   To the end of each function entry after the files_and_dirs array.  Don't forget to add your comma at the end of the array. Change CODE_BUCKET to a bucket name of your choosing, make one if you need to.  E.g.
+```
+{
+    "region": "us-west-2",
+    "functions": [
+        {
+            "name": "driverNS",
+            "lambdaMemory": 128,
+            "handler": "driver.handler",
+            "zip": "driverzip.zip",
+            "files_and_dirs": [
+                "mr/driver.py",
+                "mr/lambdautils.py"
+            ],
+            "patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+            "s3bucket": "CODE_BUCKET"
+        }
+    ]
+}
+```
+
+4. Generate the functions with SpotWrap support.  Once you do this the first time, you can then use the --no_botocore_change flag for subsequent invocations to make it go faster.  Without this flag, setupApps builds the zip file for the botocore changes and puts them in S3 so that SpotWrap can grab them upon first function invocation.  If you don't change this code, you only need to run this once to put it in S3.
+```
+cd UCSBFaaS-Wrappers/lambda-python
+python setupApps.py --profile cjk1 -f scns.json
+```
+
+#Troubleshooting
+   * If your app goes rogue in AWS Lambda and you want to kill it midstream, use ```python setupApps.py --profile cjk1 -f scns.json --deleteAll``` repeatedly and everything will eventually stop and be deleted (running functions must complete).  Its a good idea to change the JOBID when this happens so that you are sure that nothing old is being triggered.  Do this after running deleteAll, then change the configuration (reducerCoordinator object), and then rerun setupApps to reload new lambdas.  Then use the updated JOBID on the commandline (locallay or in AWS Lambda).
+   * If you want to run a short version of this app, use the ```endearly``` flad set to some integer lower than 29.  The app will only execute this many mappers (and reducers).  E.g., ```python driver.py MY-BUCKET-NAME JOBID --wait4reducers --endearly 2``` for two mappers/reducers.  To do the same but running the driver in AWS Lambda, use ```aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile cjk1 --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","job_id":"JOBID","bucket":"big-data-benchmark","jobBucket":"MY-BUCKET-NAME","full_async":"yes","endearly":2}' outputfile```

@@ -77,7 +77,8 @@ python setupApps.py --profile awsprofile1 --deleteAll
 python setupApps.py --profile awsprofile1 --no-spotwrap
 ```
 **Troubleshooting**  
-   If you get this error ```botocore.exceptions.ClientError: An error occurred (UnrecognizedClientException) when calling the UpdateFunctionCode operation: The security token included in the request is invalid.```.  Rerun using `--profile awsprofile1` replacing awsprofile1 with your profile.
+   * If you get this error ```botocore.exceptions.ClientError: An error occurred (UnrecognizedClientException) when calling the UpdateFunctionCode operation: The security token included in the request is invalid.```.  Rerun using `--profile awsprofile1` replacing awsprofile1 with your profile.
+   * If you are trying to wrap your own function -- note that SpotWrap wraps the return value as ```{{'statusCode': '200', 'body': BODY_RETURNED}``` so check for the body keyword and extract via body.  This will only matter if you are invoking functions via RequestResponse (synchronously).
 
 # SpotTemplate
 This code is for an AWS Lambda function in Python3 that can handle different triggers (logs them) and invokes another Lambda function if an ARN for the function is passed in via the "functionName" key in the payload to invoke.
@@ -211,3 +212,4 @@ Build this with setupApps to place in AWS Lambda.  Otherwise you can just run it
 ```
 python FnInvoker.py "arn:aws:lambda:us-west-2:XXXACCTXXX:function:DBModPy" ext:invokeCLI --count 1
 ```
+

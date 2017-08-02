@@ -86,6 +86,9 @@ def handler(event, context):
 
     # 1. Get all keys to be processed  
     # init 
+    endearly = 0
+    if 'endearly' in event:
+        endearly = int(event['endearly'])
     bucket = event["bucket"]
     dryrun = True if "dryrun" in event else False
     lambda_memory = 1536
@@ -98,6 +101,8 @@ def handler(event, context):
     bsize = lambdautils.compute_batch_size(all_keys, lambda_memory)
     batches = lambdautils.batch_creator(all_keys, bsize)
     n_mappers = len(batches)
+    if endearly > 0 and endearly < n_mappers:
+        n_mappers = endearly
     print("Num. of Mappers (and Reducers) ", n_mappers)
 
     if dryrun: #don't go any further
@@ -157,7 +162,10 @@ def handler(event, context):
         pool.join()
     
     for output in mapper_outputs:
-        total_lambda_secs += float(output[2])
+        if 'body' in output:
+            total_lambda_secs += float(output['body'][2])
+        else:
+            total_lambda_secs += float(output[2])
     
     if not async:
         #Note: Wait for the job to complete so that we can compute total cost ; create a poll every 10 secs
@@ -196,6 +204,7 @@ if __name__ == "__main__":
     parser.add_argument('--region',action='store',default='us-west-2',help='job bucket')
     parser.add_argument('--wait4reducers',action='store_false',default=True,help='Wait 4 reducers to finish and report their timings')
     parser.add_argument('--dryrun',action='store_true',default=False,help='see how many mappers are needed then exit (do not run the mapreduce job)')
+    parser.add_argument('--endearly',action='store',default=0,help='For debugging, start endearly maappers then stop')
     args = parser.parse_args()
     event = {}
     event['prefix'] = args.prefix
@@ -204,6 +213,7 @@ if __name__ == "__main__":
     event['bucket'] = args.databkt
     event['jobBucket'] = args.jobbkt
     event['region'] = args.region
+    event['endearly'] = args.endearly
     if args.wait4reducers:
         event['full_async'] = "set_anything_here"
     if args.dryrun:
