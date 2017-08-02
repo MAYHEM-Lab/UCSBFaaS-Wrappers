@@ -79,9 +79,7 @@ def handleRequest(event, context):
         status = '400'
         respObj['SpotWrapError']=errorstr
     returnObj['statusCode'] = status
-    returnObj['body'] = 'SpotWrapError'
-    else:
-        returnObj['body'] = respObj
+    returnObj['body'] = respObj
     selfdelta = (time.time() * 1000) - entry
     logger.info('SpotWrapPython::handleRequest:TIMER:CALL:{}:WRAPPEDCALL:{}:status:{}:response:{}'.format(selfdelta,delta,status,respObj))
     return returnObj
