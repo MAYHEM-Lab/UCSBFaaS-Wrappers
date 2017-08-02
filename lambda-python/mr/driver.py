@@ -96,7 +96,6 @@ def handler(event, context):
     
     # Fetch all the keys that match the prefix
     all_keys = []
-    print(bucket)
     for obj in s3.Bucket(bucket).objects.filter(Prefix=event["prefix"]).all():
         all_keys.append(obj)
     
@@ -171,7 +170,6 @@ def handler(event, context):
         
             # check job done
             if job_id + "/result" in keys:
-                print("job done")
                 reducer_lambda_time += float(s3.Object(job_bucket, job_id + "/result").metadata['processingtime'])
                 for key in keys:
                     if "task/reducer" in key:
