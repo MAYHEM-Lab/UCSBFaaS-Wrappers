@@ -170,7 +170,7 @@ def handler(event, context):
                 
             # Create Batch params for the Lambda function
             r_batch_params = lambdautils.batch_creator(reducer_keys, r_batch_size);
-            print("Batch Size {}, Spawning this many reducers: {}".format(r_batch_size,len(r_batch_params[0])))
+            print("Batch Size {}, Spawning this many reducers: {}".format(r_batch_size,len(r_batch_params)))
                 
             # Build the lambda parameters
             n_reducers = len(r_batch_params)
@@ -194,7 +194,7 @@ def handler(event, context):
                             "reducerId": i 
                         })
                     )
-                print('Reducer: {}'.format(resp))
+                #print('Reducer: {}'.format(resp))
 
             # Now write the reducer state
             fname = "%s/reducerstate.%s"  % (job_id, step_id)

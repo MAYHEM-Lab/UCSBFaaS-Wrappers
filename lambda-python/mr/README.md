@@ -200,5 +200,9 @@ python setupApps.py --profile cjk1 -f scns.json
 5. **Run It**  See step 6 in first part (same as without SpotWrap)
 
 #Troubleshooting
+   * If you get this error:  
+   ```botocore.errorfactory.NoSuchBucket: An error occurred (NoSuchBucket) when calling the PutBucketNotificationConfiguration operation: The specified bucket does not exist
+   ```
+   Update your the file with the your CODEBUCKET (and bucket with read/write access), MY-BUCKET-NAME, and JOBID.
    * If your app goes rogue in AWS Lambda and you want to kill it midstream, use ```python setupApps.py --profile cjk1 -f scns.json --deleteAll``` repeatedly and everything will eventually stop and be deleted (running functions must complete).  Its a good idea to change the JOBID when this happens so that you are sure that nothing old is being triggered.  Do this after running deleteAll, then change the configuration (reducerCoordinator object), and then rerun setupApps to reload new lambdas.  Then use the updated JOBID on the commandline (locallay or in AWS Lambda).
    * If you want to run a short version of this app, use the ```endearly``` flad set to some integer lower than 29.  The app will only execute this many mappers (and reducers).  E.g., ```python driver.py MY-BUCKET-NAME JOBID --wait4reducers --endearly 2``` for two mappers/reducers.  To do the same but running the driver in AWS Lambda, use ```aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile cjk1 --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","job_id":"JOBID","bucket":"big-data-benchmark","jobBucket":"MY-BUCKET-NAME","full_async":"yes","endearly":2}' outputfile```
