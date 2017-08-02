@@ -141,7 +141,9 @@ optional arguments:
 ```
 
 ----------------------------
-#Add SpotWrap Support to MR
+
+# Add SpotWrap Support to MR
+
 1. Delete all previous lambda functions of the same name
 ```
 cd UCSBFaaS-Wrappers/lambda-python
