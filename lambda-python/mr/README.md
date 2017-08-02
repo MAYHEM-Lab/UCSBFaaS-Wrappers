@@ -94,14 +94,32 @@ Make sure that job_id value below matches the prefix (prior to /task) in the red
 
 The region argument must match that in the setupApps configuration above. Replace awsprofile1 below with your AWS IAM profile. Keep the settings for prefix and bucket as that is where the original datasets from the big data benchmark are located.
 ```
+#Replace MY-BUCKET-NAME and JOBID, JOBID must match the JOBID prefix (before the /task) in the config file for the reducerCoordinator entry.
+#dry run only (count mappers)
+python driver.py MY-BUCKET-NAME JOBID --dryrun
+#run short and synchronously
+python driver.py MY-BUCKET-NAME JOBID --wait4reducers --endearly 2
+#run short and asynchronously
+python driver.py MY-BUCKET-NAME JOBID --full-async --endearly 2
+#run full
+python driver.py MY-BUCKET-NAME JOBID
+
+#or use invoke to execute the driver in AWS Lambda and pass in the flags as JSON args:
+#driver name must match "name" of driver.py entry in config file.
+#region must match the region of the functions in the config file.
+#leave off the endearly option to run the full version (here it says run just 2 mappers/reducers).
+#eventSource will be ignored if SpotWrap not in use
+aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","job_id":"JOBID","bucket":"big-data-benchmark","jobBucket":"MY-BUCKET-NAME","full_async":"yes","endearly":2}' outputfile
+
 #dry run (do not run mappers or reducers, just see how many of each there will be
 aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","bucket":"big-data-benchmark","dryrun":"yes"}' outputfile
+
 #synchronously
-aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","bucket":"big-data-benchmark","job_id":"job1000","jobBucket":"MY-BUCKET-NAME","region":"us-west-2"}' outputfile
-//See the driverNS CloudWatch log for progress
+aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","bucket":"big-data-benchmark","job_id":"JOBID","jobBucket":"MY-BUCKET-NAME","region":"us-west-2"}' outputfile
+//See the driverNS CloudWatch log for progress, WARNING driverNS may be killed if it takes over 300s, which it sometimes might (use async instead)
 
 #asynchronously
-aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","bucket":"big-data-benchmark","job_id":"job1000","jobBucket":"MY-BUCKET-NAME","region":"us-west-2","full_async":"yes"}' outputfile
+aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","bucket":"big-data-benchmark","job_id":"JOBID","jobBucket":"MY-BUCKET-NAME","region":"us-west-2","full_async":"yes"}' outputfile
 //Wait for two reducerNS CloudWatch logs to complete, one with contents "
 ```
 
@@ -179,26 +197,7 @@ cd UCSBFaaS-Wrappers/lambda-python
 python setupApps.py --profile cjk1 -f scns.json
 ```
 
-5. **Run It**
-
-```
-#Replace MY-BUCKET-NAME and JOBID, JOBID must match the JOBID prefix (before the /task) in the config file for the reducerCoordinator entry.
-#dry run only (count mappers)
-python driver.py MY-BUCKET-NAME JOBID --dryrun
-#run short and synchronously
-python driver.py MY-BUCKET-NAME JOBID --wait4reducers --endearly 2
-#run short and asynchronously
-python driver.py MY-BUCKET-NAME JOBID --full-async --endearly 2
-#run full
-python driver.py MY-BUCKET-NAME JOBID
-
-#or use invoke and pass in the flags as JSON args:
-#driver name must match "name" of driver.py entry in config file.
-#region must match the region of the functions in the config file.
-#leave off the endearly option to run the full version.
-#eventSource will be ignored if SpotWrap not in use
-aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","job_id":"JOBID","bucket":"big-data-benchmark","jobBucket":"MY-BUCKET-NAME","full_async":"yes","endearly":2}' outputfile
-```
+5. **Run It**  See step 6 in first part (same as without SpotWrap)
 
 #Troubleshooting
    * If your app goes rogue in AWS Lambda and you want to kill it midstream, use ```python setupApps.py --profile cjk1 -f scns.json --deleteAll``` repeatedly and everything will eventually stop and be deleted (running functions must complete).  Its a good idea to change the JOBID when this happens so that you are sure that nothing old is being triggered.  Do this after running deleteAll, then change the configuration (reducerCoordinator object), and then rerun setupApps to reload new lambdas.  Then use the updated JOBID on the commandline (locallay or in AWS Lambda).
