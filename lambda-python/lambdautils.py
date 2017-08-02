@@ -118,6 +118,12 @@ class LambdaManager(object):
         self.awslambda.delete_function(FunctionName=self.function_name)
 
     @classmethod
+    def deleteBucketContents(cls, s3, bucketname):
+        ''' Delete the contents of s3 bucket named bucketname '''
+        b = s3.Bucket(bucketname)
+        b.objects.all().delete()
+
+    @classmethod
     def cleanup_logs(cls, func_name):
         '''
         Delete all Lambda log group and log streams for a given function

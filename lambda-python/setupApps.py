@@ -43,7 +43,7 @@ def zipLambda(zipname,ziplist,update=False):
             sys.exit(1)
     return zipname
 
-def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=False, noBotocore=False, spotTableRegion='us-west-2', spotTableName='spotFns'):
+def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=False, noBotocore=False, spotTableRegion='us-west-2', spotTableName='spotFns',saveBucket=False):
     if profile:
         boto3.setup_default_session(profile_name=profile)
     config = botocore.client.Config(connect_timeout=50, read_timeout=100)
@@ -71,6 +71,8 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
                 l_fn.delete_function()
             except:
                 pass
+            if not saveBucket and 'permission' in fn:
+                lambdautils.LambdaManager.deleteBucketContents(s3,fn['permission'])
             try:
                 lambdautils.LambdaManager.cleanup_logs(name)
             except:
@@ -189,6 +191,7 @@ if __name__ == "__main__":
     parser.add_argument('--profile','-p',action='store',default=None,help='AWS profile to use, omit argument if none')
     parser.add_argument('--update',action='store_true',default=False,help='Update the zip file and Lambda function, for Lambdas that we originally created (faster zipping)')
     parser.add_argument('--deleteAll',action='store_true',default=False,help='Delete the lambda functions that we originally created')
+    parser.add_argument('--saveTriggerBucket',action='store_true',default=False,help='Used only if deleteAll is set, forces setupApps to keep job bucket.  setupApps removes the bucket contents if not set (left off).')
     parser.add_argument('--config','-f',action='store',default='setupconfig.json',help='Pass in the json configuration file instead of using setupconfig.json')
     parser.add_argument('--no_botocore_change',action='store_true',default=False,help='Do NOT prepare and upload botocore zip to S3. The one there from a prior run will work.')
     parser.add_argument('--no_spotwrap',action='store_true',default=False,help='Do NOT inject SpotWrapSupport')
@@ -198,4 +201,4 @@ if __name__ == "__main__":
     if args.update and args.deleteAll:
         print('Error, update and deleteAll options cannot be used together.  Choose one.')
         sys.exit(1)
-    processLambda(args.config,args.profile,args.no_spotwrap,args.update,args.deleteAll,args.no_botocore_change,args.spotFnsTableRegion)
+    processLambda(args.config,args.profile,args.no_spotwrap,args.update,args.deleteAll,args.no_botocore_change,args.spotFnsTableRegion,args.saveTriggerBucket)
