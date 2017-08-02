@@ -204,7 +204,7 @@ if __name__ == "__main__":
     parser.add_argument('--region',action='store',default='us-west-2',help='job bucket')
     parser.add_argument('--wait4reducers',action='store_false',default=True,help='Wait 4 reducers to finish and report their timings')
     parser.add_argument('--dryrun',action='store_true',default=False,help='see how many mappers are needed then exit (do not run the mapreduce job)')
-    parser.add_argument('--endearly',action='store',default=0,help='For debugging, start endearly maappers then stop')
+    parser.add_argument('--endearly',action='store',default=0,help='For debugging, start endearly mappers then stop')
     args = parser.parse_args()
     event = {}
     event['prefix'] = args.prefix

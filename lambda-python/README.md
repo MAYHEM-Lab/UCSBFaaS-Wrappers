@@ -7,21 +7,22 @@ This repo also contains a tool called setupApps.py which automatically zips up a
 Modify function configurations (the "functions" array data objects) to add functions or to change the list of files to include in the Lambda package that is uploaded.  The `files_and_dirs` object contains a list of strings that identify either Python3 files (with full paths, relative paths, or no path (for files in current directory), or directories that contain Python3 libraries (such as those under .../site-packages/).  Packages are created by placing all files and directories at the top level (root) and recursively including all directories (as required by AWS Lambda).  
 
 Use the included setupconfig.json (defaults) to build all of the Lambdas herein, 
-if no changes have been made.  Here is what it looks like (add more or functions as desired):
+if no changes have been made.  
+Here is what it looks like (add more or functions as desired):
 ```
 {
         "region": "us-west-2",
-        "lambdaMemory": 128,
         "functions": [
             {
                 "name": "DBModPy",
+                "lambdaMemory": 128,
                 "handler": "dbMod.handler",
                 "zip": "dbmodzip.zip",
                 "files_and_dirs": [
                     "dbMod/dbMod.py"
                 ],
 		"patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
-                "s3bucket": "cjktestbkt"
+                "s3bucket": "CODEBUCKET"
             }
         ]
 }
@@ -30,8 +31,10 @@ if no changes have been made.  Here is what it looks like (add more or functions
 The build/deploy tool (setupApps.py) integrates SpotWrap.  If you don't wish to wrap your Lambdas with loggers, then use the `--no-spotwrap` option to the `setupApps.py` below.
 Using this option, you need not need to **create a AWS DynamoDB table called `spotFns`**.
 
-If you do wish to use SpotWrap, make a table n AWS DynamoDB called `spotFns`.
+If you do wish to use SpotWrap, make a table in AWS DynamoDB called `spotFns` and set its write throughput to 25 (defaults are fine for read).
 Ensure that it has a primary key called "ts" with type Number and sort key called "requestID" with type String.
+
+Next, make a bucket in s3 to use to hold the code package for botocore (so that we don't send it with your Lambda and increase its size unnecessarily).  Replace CODEBUCKET everywhere in the config file with the name of the bucket you create. ```patched_botocore_dir``` should be set to the full path (relative to this directory or a full path) to the botocore that you patched in the setup step below.  If you are using virtualenv, this path should work.  Verify that this directory exists.  Change it in all places in the configuration file if it is different.
 
 See each function below under **Run It** for instructions to invoke each function.
 
@@ -67,10 +70,11 @@ python setupApps.py -f myconfig.json
 #-OR- create or update AWS Lambda functions using a particular profile name:
 python setupApps.py --profile awsprofile1
 
-#if you wish to simply update an existing Lambda function use:
-python setupApps.py --profile awsprofile1 --update
+#if you wish to simply update an existing Lambda function that you've already uploaded use:
+python setupApps.py --profile awsprofile1 --update --no_botocore_change
 
 #if you wish to delete the functions in AWS Lambda, run this instead:
+#this will also stop rogue functions from executing should you need it (currently executing functions must finish but no new ones will trigger, hopefully...).
 python setupApps.py --profile awsprofile1 --deleteAll
 
 #If you don't wish to wrap your Lambdas with loggers (SpotWrap), then use:
@@ -79,6 +83,41 @@ python setupApps.py --profile awsprofile1 --no-spotwrap
 **Troubleshooting**  
    * If you get this error ```botocore.exceptions.ClientError: An error occurred (UnrecognizedClientException) when calling the UpdateFunctionCode operation: The security token included in the request is invalid.```.  Rerun using `--profile awsprofile1` replacing awsprofile1 with your profile.
    * If you are trying to wrap your own function -- note that SpotWrap wraps the return value as ```{{'statusCode': '200', 'body': BODY_RETURNED}``` so check for the body keyword and extract via body.  This will only matter if you are invoking functions via RequestResponse (synchronously).
+
+The full usage for setupApps is here:
+```
+usage: setupApps.py [-h] [--profile PROFILE] [--update] [--deleteAll]
+                    [--saveTriggerBucket] [--config CONFIG]
+                    [--no_botocore_change] [--no_spotwrap]
+                    [--spotFnsTableName SPOTFNSTABLENAME]
+                    [--spotFnsTableRegion SPOTFNSTABLEREGION]
+
+create-role
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --profile PROFILE, -p PROFILE
+                        AWS profile to use, omit argument if none
+  --update              Update the zip file and Lambda function, for Lambdas
+                        that we originally created (faster zipping)
+  --deleteAll           Delete the lambda functions that we originally created
+  --saveTriggerBucket   Used only if deleteAll is set, forces setupApps to
+                        keep job bucket. setupApps removes the bucket contents
+                        if not set (left off).
+  --config CONFIG, -f CONFIG
+                        Pass in the json configuration file instead of using
+                        setupconfig.json
+  --no_botocore_change  Do NOT prepare and upload botocore zip to S3. The one
+                        there from a prior run will work.
+  --no_spotwrap         Do NOT inject SpotWrapSupport
+  --spotFnsTableName SPOTFNSTABLENAME
+                        Name of table which will hold SpotWrap writes. Arg is
+                        unused if --no_spotwrap is set.
+  --spotFnsTableRegion SPOTFNSTABLEREGION
+                        AWS region in which table spotFns is located (for all
+                        SpotWrap writes). Arg is unused if --no_spotwrap is
+                        set.
+```
 
 # SpotTemplate
 This code is for an AWS Lambda function in Python3 that can handle different triggers (logs them) and invokes another Lambda function if an ARN for the function is passed in via the "functionName" key in the payload to invoke.
@@ -89,7 +128,7 @@ In all of the code/steps below:
    3) change awsprofile1 to your AIM profile that has Lambda admin access
    4) change XXX and YYY to your full path to the zip file you create in the step below
 
-Make a table if you haven't yet in AWS DynamoDB called `spotFns`.  
+Make a table if you haven't yet in AWS DynamoDB called `spotFns` and set its write throughput to 25 (defaults are fine for read).  
 Ensure that it has a primary key called "ts" with type Number and sort key called "requestID" with type String
 
 Build the project 

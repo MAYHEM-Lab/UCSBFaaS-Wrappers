@@ -114,6 +114,32 @@ python setupApps.py --profile cjk1 -f scns.json --deleteAll
 python setupApps.py --profile cjk1 -f scns.json --deleteAll --saveTriggerBucket
 ```
 
+The full usage for the driver program is here (it can be run as an AWS Lambda or via the command line):
+```
+usage: driver.py [-h] [--databkt DATABKT] [--prefix PREFIX] [--region REGION]
+                 [--wait4reducers] [--dryrun] [--endearly ENDEARLY]
+                 jobbkt jobid
+
+MRDriver
+
+positional arguments:
+  jobbkt               job bucket for output files (that trigger reducers)
+  jobid                unique jobid - must match the S3 job_id in trigger
+                       (bucket prefix: permission/job_id) specified in
+                       ../setupconfig.json for reducerCoordinator installation
+                       by setupApps
+
+optional arguments:
+  -h, --help           show this help message and exit
+  --databkt DATABKT    input data bucket
+  --prefix PREFIX      prefix of data files in input data bucket
+  --region REGION      job bucket
+  --wait4reducers      Wait 4 reducers to finish and report their timings
+  --dryrun             see how many mappers are needed then exit (do not run
+                       the mapreduce job)
+  --endearly ENDEARLY  For debugging, start endearly mappers then stop
+```
+
 ----------------------------
 #Add SpotWrap Support to MR
 1. Delete all previous lambda functions of the same name
@@ -149,6 +175,27 @@ python setupApps.py --profile cjk1 -f scns.json --deleteAll
 ```
 cd UCSBFaaS-Wrappers/lambda-python
 python setupApps.py --profile cjk1 -f scns.json
+```
+
+5. **Run It**
+
+```
+#Replace MY-BUCKET-NAME and JOBID, JOBID must match the JOBID prefix (before the /task) in the config file for the reducerCoordinator entry.
+#dry run only (count mappers)
+python driver.py MY-BUCKET-NAME JOBID --dryrun
+#run short and synchronously
+python driver.py MY-BUCKET-NAME JOBID --wait4reducers --endearly 2
+#run short and asynchronously
+python driver.py MY-BUCKET-NAME JOBID --full-async --endearly 2
+#run full
+python driver.py MY-BUCKET-NAME JOBID
+
+#or use invoke and pass in the flags as JSON args:
+#driver name must match "name" of driver.py entry in config file.
+#region must match the region of the functions in the config file.
+#leave off the endearly option to run the full version.
+#eventSource will be ignored if SpotWrap not in use
+aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","job_id":"JOBID","bucket":"big-data-benchmark","jobBucket":"MY-BUCKET-NAME","full_async":"yes","endearly":2}' outputfile
 ```
 
 #Troubleshooting
