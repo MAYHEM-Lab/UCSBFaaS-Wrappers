@@ -54,6 +54,7 @@ def handleRequest(event, context):
     delta = 0
     wrappedentry = time.time() * 1000
     try: 
+        logger.warn('SpotWrapPython::handleRequest:calling:{}:event:{}'.format(arn,str(event)))
         respObj = callIt(event,context)
         if 'statusCode' in respObj:
             status = respObj['statusCode']
@@ -68,7 +69,7 @@ def handleRequest(event, context):
         ERR = True
     finally: 
         if errorstr != 'SpotWrapPython':
-            print('SpotWrapPy error: {}'.format(errorstr))
+            print('SpotWrapPy caught error: {}'.format(errorstr))
         delta = (time.time() * 1000) - wrappedentry
         duration = int(round(delta))
         makeRecord(context,None,duration,errorstr) #end event (event arg = null)

@@ -116,6 +116,8 @@ def get_reducer_state_info(files, job_id, job_bucket):
 
 def handler(event, context):
 
+    logger = logging.getLogger()
+    logger.warn(str(event))    
     start_time = time.time();
 
     # Job Bucket. We just got a notification from this bucket
@@ -162,7 +164,7 @@ def handler(event, context):
             reducer_keys = stepInfo[1];
                
             if len(reducer_keys) == 0:
-                #print("Still waiting to finish Reducer step ", step_number)
+                print("Waiting to finish Reducer step ", step_number)
                 return
                  
             # Compute this based on metadata of files
@@ -196,7 +198,7 @@ def handler(event, context):
                             "reducerId": i 
                         })
                     )
-                print(resp)
+                #print(resp)
 
             # Now write the reducer state
             fname = "%s/reducerstate.%s"  % (job_id, step_id)

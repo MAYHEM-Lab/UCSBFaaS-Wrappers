@@ -53,7 +53,7 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
     if not noBotocore:
         s3 = boto3.resource('s3')
         config = botocore.client.Config(connect_timeout=50, read_timeout=200)
-        s3_client = boto3.client('s3',config=config)
+    s3_client = boto3.client('s3',config=config) #used to set trigger
     spotwraptemplate = 'SpotWrap.py.template'
     spotwrapfile = 'SpotWrap.py'
 

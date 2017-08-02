@@ -34,8 +34,6 @@ def write_to_s3(bucket, key, data, metadata):
     s3.Bucket(bucket).put_object(Key=key, Body=data, Metadata=metadata)
 
 def handler(event, context):
-    logger = logging.getLogger()
-    logger.warn(str(event))    
     
     start_time = time.time()
 
