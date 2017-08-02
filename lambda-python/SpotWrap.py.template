@@ -11,21 +11,26 @@ def callIt(event,context):
 
 def handleRequest(event, context):
     logger = logging.getLogger()
+    entry = time.time() * 1000
 
     ''' Download the zip file from s3, unzip it into libdir, 
         put it in the path and reload botocore.client to get the changes.
     '''
     libdir = '/tmp/spotlibs'
-    bkt = 'XXXX' #do not change this text as it is replaced
-    fname = 'YYYY' #do not change this text as it is replaced
-    tmpfname = '/tmp/{}'.format(fname)
-    s3 = boto3.resource('s3')
-    try:
-        s3.Bucket(bkt).download_file(fname, tmpfname)
-    except Exception as e:
-        print('Error, s3 GET exception (unable to download libfile {}/{} to tmp):\n{}'.format(bkt,fname,e))
-    with zipfile.ZipFile(tmpfname, 'r') as z:
-        z.extractall(path=libdir)
+    botoname = '{}/botocore'.format(libdir)
+    #first check if here (container reuse), if not then load it, else use it
+    if not os.path.exists(botoname): 
+        bkt = 'XXXX' #do not change this text as it is replaced
+        fname = 'YYYY' #do not change this text as it is replaced
+        tmpfname = '/tmp/{}'.format(fname)
+        s3 = boto3.resource('s3')
+        try:
+            s3.Bucket(bkt).download_file(fname, tmpfname)
+        except Exception as e:
+            print('Error, s3 GET exception (unable to download libfile {}/{} to tmp):\n{}'.format(bkt,fname,e))
+        with zipfile.ZipFile(tmpfname, 'r') as z:
+            z.extractall(path=libdir)
+
     sys.path.insert(0, libdir)
     import botocore
     importlib.invalidate_caches()
@@ -41,14 +46,13 @@ def handleRequest(event, context):
     os.environ['spotReqID'] = reqID
     os.environ['myArn'] = arn
     ERR = False
-    entry = 0 #all ints in Python3 are longs
-
     errorstr = "SpotWrapPython"
     makeRecord(context,event,0,errorstr)
-    entry = time.time() * 1000
     respObj = {}
     returnObj = {}
     status = '200'
+    delta = 0
+    wrappedentry = time.time() * 1000
     try: 
         respObj = callIt(event,context)
         if 'statusCode' in respObj:
@@ -65,7 +69,7 @@ def handleRequest(event, context):
     finally: 
         if errorstr != 'SpotWrapPython':
             print('SpotWrapPy error: {}'.format(errorstr))
-        delta = (time.time() * 1000) - entry
+        delta = (time.time() * 1000) - wrappedentry
         duration = int(round(delta))
         makeRecord(context,None,duration,errorstr) #end event (event arg = null)
 
@@ -74,11 +78,10 @@ def handleRequest(event, context):
         respObj['SpotWrapError']=errorstr
     returnObj['statusCode'] = status
     returnObj['body'] = respObj
-    logger.info('SpotWrapPython::handleRequest: returning: {}:{}'.format(status,respObj))
+    selfdelta = (time.time() * 1000) - entry
+    logger.info('SpotWrapPython::handleRequest:TIMER:CALL:{}:WRAPPEDCALL:{}:status:{}:response:{}'.format(selfdelta,delta,status,respObj))
     return returnObj
     
-
-#def logFn(start,msg,context,caller=None):
 def makeRecord(context,event,duration,errorstr): 
     logger = logging.getLogger()
     #setup record defaults
@@ -139,9 +142,6 @@ def makeRecord(context,event,duration,errorstr):
                     req = event['body']
                     if req:
                         msg += ':curl:{}'.format(req)
-	
-		
-
   
         elif 'Records' in event:
             #S3 or DynamoDB or SNS or unknown
@@ -260,16 +260,16 @@ def makeRecord(context,event,duration,errorstr):
 
         if flag == UNKNOWN:
             eventSource = 'unknown_source:{}'.format(functionName)
-    #else: #event is None
 
     if eventSource == 'unset':
         #if functionName is "unset" then context is null!
         eventSource = 'unknown_source:{}'.format(functionName)
 
-    dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
-    table = dynamodb.Table('spotFns')
+    dynamodb = boto3.resource('dynamodb', region_name='ZZZZ')
+    table = dynamodb.Table('QQQQ')
     tsint = int(round(time.time() * 1000)) #msecs in UTC
-    #since timestamps may be only second resolution, two events may record at the same ts
+    #since timestamps may be only second resolution, 
+    #two events may record at the same ts
     #spotFns is indexed on timestamp and requestID, so distinguish 
     #two events with the same timestamp via postfix on requestID
     if event: 

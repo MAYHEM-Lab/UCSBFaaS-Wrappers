@@ -43,7 +43,7 @@ def zipLambda(zipname,ziplist,update=False):
             sys.exit(1)
     return zipname
 
-def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=False, noBotocore=False):
+def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=False, noBotocore=False, spotTableRegion='us-west-2', spotTableName='spotFns'):
     if profile:
         boto3.setup_default_session(profile_name=profile)
     config = botocore.client.Config(connect_timeout=50, read_timeout=100)
@@ -163,6 +163,8 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
                 filedata = filedata.replace('SpotTemplate.handler', orig_handler)
                 filedata = filedata.replace('XXXX', s3bkt)
                 filedata = filedata.replace('YYYY', zipbase)
+                filedata = filedata.replace('ZZZZ', spotTableRegion )
+                filedata = filedata.replace('QQQQ', spotTableName)
                 # Write the file out 
                 with open(target, 'w') as f:
                     f.write(filedata)
@@ -190,8 +192,10 @@ if __name__ == "__main__":
     parser.add_argument('--config','-f',action='store',default='setupconfig.json',help='Pass in the json configuration file instead of using setupconfig.json')
     parser.add_argument('--no_botocore_change',action='store_true',default=False,help='Do NOT prepare and upload botocore zip to S3. The one there from a prior run will work.')
     parser.add_argument('--no_spotwrap',action='store_true',default=False,help='Do NOT inject SpotWrapSupport')
+    parser.add_argument('--spotFnsTableName',action='store',default='spotFns',help='Name of table which will hold SpotWrap writes. Arg is unused if --no_spotwrap is set.')
+    parser.add_argument('--spotFnsTableRegion',action='store',default='us-west-2',help='AWS region in which table spotFns is located (for all SpotWrap writes). Arg is unused if --no_spotwrap is set.')
     args = parser.parse_args()
     if args.update and args.deleteAll:
         print('Error, update and deleteAll options cannot be used together.  Choose one.')
         sys.exit(1)
-    processLambda(args.config,args.profile,args.no_spotwrap,args.update,args.deleteAll,args.no_botocore_change)
+    processLambda(args.config,args.profile,args.no_spotwrap,args.update,args.deleteAll,args.no_botocore_change,args.spotFnsTableRegion)

@@ -25,9 +25,29 @@ def write_job_config(job_id, job_bucket, n_mappers, r_func, r_handler):
             }, indent=4);
         f.write(data)
 
-def invoke_lambda(batches,mapper_outputs,bucket,job_bucket,job_id,m_id):
+def invoke_lambda(batches,bucket,job_bucket,job_id,m_id):
     '''
-    lambda invoke function
+    lambda invoke function asynchronously
+    '''
+    config = botocore.client.Config(connect_timeout=50, read_timeout=200)
+    lambda_client = boto3.client('lambda',config=config)
+
+    batch = [k.key for k in batches[m_id-1]]
+    resp = lambda_client.invoke( 
+            FunctionName = 'mapperNOSPOT',
+            InvocationType = 'Event',
+            Payload =  json.dumps({
+                "bucket": bucket,
+                "keys": batch,
+                "jobBucket": job_bucket,
+                "jobId": job_id,
+                "mapperId": m_id
+            })
+        )
+
+def invoke_lambda_sync(batches,mapper_outputs,bucket,job_bucket,job_id,m_id):
+    '''
+    lambda invoke function synchronously using partial and threads
     '''
     config = botocore.client.Config(connect_timeout=50, read_timeout=200)
     lambda_client = boto3.client('lambda',config=config)
@@ -48,8 +68,8 @@ def invoke_lambda(batches,mapper_outputs,bucket,job_bucket,job_id,m_id):
     mapper_outputs.append(out)
     print("mapper output", out)
 
-
 def handler(event, context):
+    entry = time.time() * 1000
     logger = logging.getLogger()
     logger.setLevel(logging.WARN)
     if not event: #requires arguments
@@ -62,17 +82,16 @@ def handler(event, context):
     config = botocore.client.Config(connect_timeout=50, read_timeout=200)
     s3_client = boto3.client('s3',config=config)
 
-
     JOB_INFO = 'jobinfo.json'
-    
     # 1. Get all keys to be processed  
     # init 
     job_id = event["job_id"]
     bucket = event["bucket"]
     job_bucket = event["jobBucket"]
     region = event["region"]
+    async = True if "full_async" in event else False
+    dryrun = True if "dryrun" in event else False
     lambda_memory = 1536
-    concurrent_lambdas = event["concurrentLambdas"]
     reducer_lambda_name = "reducerNOSPOT"
     
     # Fetch all the keys that match the prefix
@@ -84,16 +103,21 @@ def handler(event, context):
     bsize = lambdautils.compute_batch_size(all_keys, lambda_memory)
     batches = lambdautils.batch_creator(all_keys, bsize)
     n_mappers = len(batches)
+    print("# of Mappers ", n_mappers)
+    if dryrun:
+        delta = (time.time() * 1000) - entry
+        me_str = 'TIMER:CALL:{}:dryrun:0'.format(delta)
+        logger.warn(me_str)
+        return me_str
     
     # Write Jobdata to S3
     j_key = job_id + "/jobdata";
     data = json.dumps({
-                    "mapCount": n_mappers, 
-                    "totalS3Files": len(all_keys),
-                    "startTime": time.time()
-                    })
+        "mapCount": n_mappers, 
+        "totalS3Files": len(all_keys),
+        "startTime": time.time()
+        })
     write_to_s3(s3, job_bucket, j_key, data, {})
-    #write_job_config(job_id, job_bucket, n_mappers, reducer_lambda_name, "{}.handler".format(reducer_lambda_name)) #local write won't work, put instead in s3
     data = json.dumps({
         "jobId": job_id,
         "jobBucket" : job_bucket,
@@ -105,76 +129,81 @@ def handler(event, context):
     write_to_s3(s3,job_bucket,j_key,data,{})
 
     ### Execute ###
-    
-    mapper_outputs = []
-    print("# of Mappers ", n_mappers)
-    pool = ThreadPool(n_mappers)
-    Ids = [i+1 for i in range(n_mappers)]
-    invoke_lambda_partial = partial(invoke_lambda, batches,mapper_outputs,bucket,job_bucket,job_id)
-    
-    # Burst request handling
-    mappers_executed = 0
-    while mappers_executed < n_mappers:
-        nm = min(concurrent_lambdas, n_mappers)
-        results = pool.map(invoke_lambda_partial, Ids[mappers_executed: mappers_executed + nm])
-        mappers_executed += nm
-    
-    pool.close()
-    pool.join()
-    
-    print("all the mappers finished")
-    
-    total_s3_get_ops = 0
-    s3_storage_hours = 0
-    total_lines = 0
     total_lambda_secs = 0
+    reducer_lambda_time = 0
+    mapper_outputs = []
+
+    if async: #asynchronous invocation of mappers
+        for i in range(n_mappers):
+            invoke_lambda(batches,bucket,job_bucket,job_id,i)
+
+    else: #synchronous invocation of mappers on parallel threads
+        pool = ThreadPool(n_mappers)
+        Ids = [i+1 for i in range(n_mappers)]
+        invoke_lambda_partial = partial(invoke_lambda_sync,batches,mapper_outputs,bucket,job_bucket,job_id)
+        
+        # Burst request handling
+        mappers_executed = 0
+        concurrent_lambdas = 100 #only used by synchronous run (use --dryrun to see how many actual mappers are needed
+        while mappers_executed < n_mappers:
+            nm = min(concurrent_lambdas, n_mappers)
+            results = pool.map(invoke_lambda_partial, Ids[mappers_executed: mappers_executed + nm])
+            mappers_executed += nm
+    
+        pool.close()
+        pool.join()
     
     for output in mapper_outputs:
-        total_s3_get_ops += int(output[0])
-        total_lines += int(output[1])
         total_lambda_secs += float(output[2])
     
-    #Note: Wait for the job to complete so that we can compute total cost ; create a poll every 10 secs
-    # Get all reducer keys
-    reducer_keys = []
+    if not async:
+        #Note: Wait for the job to complete so that we can compute total cost ; create a poll every 10 secs
+        # Get all reducer keys
+        reducer_keys = []
+        # Total execution time for reducers
     
-    # Total execution time for reducers
-    reducer_lambda_time = 0
-    
-    while True:
-        job_keys = s3_client.list_objects(Bucket=job_bucket, Prefix=job_id)["Contents"]
-        keys = [jk["Key"] for jk in job_keys]
-        total_s3_size = sum([jk["Size"] for jk in job_keys])
+        while True:
+            job_keys = s3_client.list_objects(Bucket=job_bucket, Prefix=job_id)["Contents"]
+            keys = [jk["Key"] for jk in job_keys]
+            total_s3_size = sum([jk["Size"] for jk in job_keys])
+            
+            logger.info("checking if job is done")
         
-        print( "check to see if the job is done")
-    
-        # check job done
-        if job_id + "/result" in keys:
-            print("job done")
-            reducer_lambda_time += float(s3.Object(job_bucket, job_id + "/result").metadata['processingtime'])
-            for key in keys:
-                if "task/reducer" in key:
-                    reducer_lambda_time += float(s3.Object(job_bucket, key).metadata['processingtime'])
-                    reducer_keys.append(key)
-            break
-        time.sleep(5)
-    
-    total_s3_get_ops += len(job_keys) 
-    print('total_s3_get_ops:{}:total_lines:{}:total_map_secs:{}:mappers:{}:total_red_secs:{}'.format(total_s3_get_ops,total_lines,total_lambda_secs,n_mappers,reducer_lambda_time))
+            # check job done
+            if job_id + "/result" in keys:
+                print("job done")
+                reducer_lambda_time += float(s3.Object(job_bucket, job_id + "/result").metadata['processingtime'])
+                for key in keys:
+                    if "task/reducer" in key:
+                        reducer_lambda_time += float(s3.Object(job_bucket, key).metadata['processingtime'])
+                        reducer_keys.append(key)
+                break
+            time.sleep(5)
+        
+    delta = (time.time() * 1000) - entry
+    me_str = 'TIMER:CALL:{}:mappers:{}:reducer:{}'.format(delta,total_lambda_secs,reducer_lambda_time)
+    logger.warn(me_str)
+    return me_str
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='MRDriver')
-    parser.add_argument('jobbkt',action='store',help='job bucket')
-    parser.add_argument('jobid',action='store',help='unique jobid')
-    parser.add_argument('--databkt',action='store',default='big-data-benchmark',help='data bucket')
+    parser.add_argument('jobbkt',action='store',help='job bucket for output files (that trigger reducers)')
+    parser.add_argument('jobid',action='store',help='unique jobid - must match the S3 job_id in trigger (bucket prefix: permission/job_id) specified in ../setupconfig.json for reducerCoordinator installation by setupApps')
+    parser.add_argument('--databkt',action='store',default='big-data-benchmark',help='input data bucket')
+    parser.add_argument('--prefix',action='store',default='pavlo/text/1node/uservisits/',help='prefix of data files in input data bucket')
     parser.add_argument('--region',action='store',default='us-west-2',help='job bucket')
+    parser.add_argument('--wait4reducers',action='store_false',default=True,help='Wait 4 reducers to finish and report their timings')
+    parser.add_argument('--dryrun',action='store_true',default=False,help='see how many mappers are needed then exit (do not run the mapreduce job)')
     args = parser.parse_args()
     event = {}
-    event['prefix'] = "pavlo/text/1node/uservisits/"
+    event['prefix'] = args.prefix
     event['eventSource'] = "ext:invokeCLI"
     event['job_id'] = args.jobid
     event['bucket'] = args.databkt
     event['jobBucket'] = args.jobbkt
     event['region'] = args.region
-    event['concurrentLambdas'] = 50
+    if args.wait4reducers:
+        event['full_async'] = "set_anything_here"
+    if args.dryrun:
+        event['dryrun'] = "set_anything_here"
     handler(event,None)
