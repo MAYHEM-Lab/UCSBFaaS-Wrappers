@@ -70,8 +70,13 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
                 l_fn.delete_function()
             except:
                 pass
-            if not saveBucket and 'permission' in fn:
-                lambdautils.LambdaManager.deleteBucketContents(s3,fn['permission'])
+            try:
+                if not saveBucket and 'permission' in fn:
+                    bkt = fn['permission']
+                    print('setupApps: bucket contents for {} deleted'.format(bkt))
+                    lambdautils.LambdaManager.deleteBucketContents(s3,bkt)
+            except:
+                pass
             try:
                 lambdautils.LambdaManager.cleanup_logs(name)
             except:
