@@ -54,8 +54,9 @@ def handleRequest(event, context):
     delta = 0
     wrappedentry = time.time() * 1000
     try: 
-        logger.warn('SpotWrapPython::handleRequest:calling:{}:event:{}'.format(arn,str(event)))
         respObj = callIt(event,context)
+        if not respObj:
+            respObj['SpotWrapMessage'] = 'NoResponseReturned'
         if 'statusCode' in respObj:
             status = respObj['statusCode']
             if status != '200':
@@ -78,7 +79,9 @@ def handleRequest(event, context):
         status = '400'
         respObj['SpotWrapError']=errorstr
     returnObj['statusCode'] = status
-    returnObj['body'] = respObj
+    returnObj['body'] = 'SpotWrapError'
+    else:
+        returnObj['body'] = respObj
     selfdelta = (time.time() * 1000) - entry
     logger.info('SpotWrapPython::handleRequest:TIMER:CALL:{}:WRAPPEDCALL:{}:status:{}:response:{}'.format(selfdelta,delta,status,respObj))
     return returnObj

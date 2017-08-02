@@ -22,7 +22,7 @@ import random
 import re
 #import StringIO
 import time
-import urllib
+import logging
 
 DEFAULT_REGION = "us-east-1";
 
@@ -115,9 +115,6 @@ def get_reducer_state_info(files, job_id, job_bucket):
             return (r_index, [])
 
 def handler(event, context):
-
-    logger = logging.getLogger()
-    logger.warn(str(event))    
     start_time = time.time();
 
     # Job Bucket. We just got a notification from this bucket
@@ -125,7 +122,6 @@ def handler(event, context):
     key = event['Records'][0]['s3']['object']['key']
     print("Received event: {}:{}".format(bucket,key))
 
-    #key = urllib.unquote_plus(event['Records'][0]['s3']['object']['key'].encode('utf8'))
    
     #config = json.loads(open('./jobinfo.json', "r").read()) #local files won't work, get it from s3
     idx = key.find('/')
@@ -198,7 +194,7 @@ def handler(event, context):
                             "reducerId": i 
                         })
                     )
-                #print(resp)
+                print('Reducer: {}'.format(resp))
 
             # Now write the reducer state
             fname = "%s/reducerstate.%s"  % (job_id, step_id)
