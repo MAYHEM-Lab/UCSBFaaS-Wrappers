@@ -88,7 +88,7 @@ cat scns.json    #replace MY-BUCKET-NAME for reduceCoordinator
         ]
 }
 ```
-6. **Run It**. Replace MY-BUCKET-NAME below.  
+6. **Run It**. Replace MY-BUCKET-NAME.
 Make sure that job_id value below matches the prefix (prior to /task) in the reducerCoordinator configuration entry above (job1000).  The job takes approximately 5 minutes to complete and can be run synchronously (mappers are in parallel) or fully asynchronous (omit the "full_async" argument).  
 "Job done!!! Check the result file" in one of the reducerCoordinator logs signals app completion.  
 
