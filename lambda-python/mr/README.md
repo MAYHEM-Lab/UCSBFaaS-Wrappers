@@ -35,6 +35,8 @@ lambdaMemory for mapper and reducer functions must be 1536.
 
 The lambda timeout (300s) for the driver may be exceeded when run in synchronous mode.  In this case, the total timings will not be report but most likely all mappers will be spawned.  To see the timings, you can run the driver locally via ```python driver.py MY-BUCKET-NAME JOBID --wait4reducers``` replacing MY-BUCKET-NAME and JOBID (with the job prefix in the reducerCoordinator entry in the configuration below, up to /task, e.g. job1000).
 
+Mapper and reducer "name" entries in the configuration below must not change (if you do change them, then update driver.py FunctionName and reducer_lambda_name variables).
+
 Upload the functions to Lambda using the following. 
 ```
 cd UCSBFaaS-Wrappers/lambda-python
@@ -54,7 +56,7 @@ cat scns.json    #replace MY-BUCKET-NAME for reduceCoordinator
                 ]
             },
             {
-                "name": "mapperNS",
+                "name": "mapper",
            	"lambdaMemory": 1536,
                 "handler": "mapper.handler",
                 "zip": "mapperzip.zip",
@@ -63,7 +65,7 @@ cat scns.json    #replace MY-BUCKET-NAME for reduceCoordinator
                 ]
             },
             {
-                "name": "reducerNS",
+                "name": "reducer",
            	"lambdaMemory": 1536,
                 "handler": "reducer.handler",
                 "zip": "reducerzip.zip",
@@ -110,4 +112,12 @@ python setupApps.py --profile cjk1 -f scns.json --deleteAll
 
 #or delete everything except bucket contents
 python setupApps.py --profile cjk1 -f scns.json --deleteAll --saveTriggerBucket
+```
+
+----------------------------
+#Add SpotWrap Support to MR
+1. Delete all previous lambda functions of the same name
+```
+cd UCSBFaaS-Wrappers/lambda-python
+python setupApps.py --profile cjk1 -f scns.json --deleteAll
 ```

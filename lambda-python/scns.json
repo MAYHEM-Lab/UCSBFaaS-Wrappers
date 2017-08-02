@@ -2,7 +2,7 @@
         "region": "us-west-2",
         "functions": [
             {
-                "name": "driverNOSPOT",
+                "name": "driverNS",
                 "lambdaMemory": 128,
                 "handler": "driver.handler",
                 "zip": "driverzip.zip",
@@ -12,7 +12,7 @@
                 ]
             },
             {
-                "name": "mapperNOSPOT",
+                "name": "mapper",
                 "lambdaMemory": 1536,
                 "handler": "mapper.handler",
                 "zip": "mapperzip.zip",
@@ -21,7 +21,7 @@
                 ]
             },
             {
-                "name": "reducerNOSPOT",
+                "name": "reducer",
                 "lambdaMemory": 1536,
                 "handler": "reducer.handler",
                 "zip": "reducerzip.zip",
@@ -30,7 +30,7 @@
                 ]
             },
             {
-                "name": "reducerCoordinatorNOSPOT",
+                "name": "reducerCoordinatorNS",
                 "lambdaMemory": 128,
                 "handler": "reducerCoordinator.handler",
                 "zip": "reducerCoordinatorzip.zip",

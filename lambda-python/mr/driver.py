@@ -34,7 +34,7 @@ def invoke_lambda(batches,bucket,job_bucket,job_id,m_id):
 
     batch = [k.key for k in batches[m_id-1]]
     resp = lambda_client.invoke( 
-            FunctionName = 'mapperNOSPOT',
+            FunctionName = 'mapper',
             InvocationType = 'Event',
             Payload =  json.dumps({
                 "bucket": bucket,
@@ -54,7 +54,7 @@ def invoke_lambda_sync(batches,mapper_outputs,bucket,job_bucket,job_id,m_id):
 
     batch = [k.key for k in batches[m_id-1]]
     resp = lambda_client.invoke( 
-            FunctionName = 'mapperNOSPOT',
+            FunctionName = 'mapper',
             InvocationType = 'RequestResponse',
             Payload =  json.dumps({
                 "bucket": bucket,
@@ -111,7 +111,7 @@ def handler(event, context):
     job_bucket = event["jobBucket"]
     region = event["region"]
     async = True if "full_async" in event else False
-    reducer_lambda_name = "reducerNOSPOT"
+    reducer_lambda_name = "reducer"
     
     # Write Jobdata to S3
     j_key = job_id + "/jobdata";
