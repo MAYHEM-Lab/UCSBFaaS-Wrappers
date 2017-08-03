@@ -250,5 +250,8 @@ Build this with setupApps to place in AWS Lambda.  Otherwise you can just run it
 **Run It**
 ```
 python FnInvoker.py "arn:aws:lambda:us-west-2:XXXACCTXXX:function:DBModPy" ext:invokeCLI --count 1
+
+#or in AWS Lambda:
+aws lambda invoke --invocation-type Event --function-name FnInvokerPy --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","functionName":"arn:aws:lambda:us-west-2:XXXACCTXXX:function:DBModPy","tablename":"testTable","mykey":"cjk114","myval":"226"}' outputfile
 ```
 
