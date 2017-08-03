@@ -117,4 +117,5 @@ if __name__ == "__main__":
     parser.add_argument('eventSource',action='store',help='value')
     args = parser.parse_args()
     event = {'functionName':args.functionName,'eventSource':args.eventSource}
-    invokeCLI(event,None,logger)
+    #invokeCLI(event,None,logger)
+    handler(event,None)

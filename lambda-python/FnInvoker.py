@@ -38,8 +38,10 @@ def handler(event,context):
         for x in range(count):
             payload=json.dumps(msg)
             now = time.time() * 1000
+            #invoke_response = lambda_client.invoke(FunctionName=fn,
+                #InvocationType='Event', Payload=payload) #Event type says invoke asynchronously
             invoke_response = lambda_client.invoke(FunctionName=fn,
-                InvocationType='Event', Payload=payload) #Event type says invoke asynchronously
+                InvocationType='Event') #Event type says invoke asynchronously
             nowtmp = time.time() * 1000
             delta = nowtmp-now
             me_str = 'REQ:{}:{}:{}:TIMER:INVOKE:{}'.format(reqID,me,count,delta)

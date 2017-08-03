@@ -3,7 +3,7 @@ import boto3, json, logging, argparse, time, os, shutil, importlib
 def handler(event, context):
     entry = time.time() * 1000
     logger = logging.getLogger()
-    #logger.setLevel(logging.INFO)
+    logger.setLevel(logging.INFO)
     if context:
         logger.info('dbMod::handler: context: {}'.format(context))
         if event:

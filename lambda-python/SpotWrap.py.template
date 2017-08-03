@@ -1,5 +1,5 @@
 #DO NOT CHANGE this file (setupApps depends on them)
-import boto3,json,logging,os,sys,importlib,zipfile
+import boto3,json,logging,os,sys,importlib,zipfile,traceback
 import time,uuid
 sessionID = str(uuid.uuid4())
 
@@ -67,7 +67,9 @@ def handleRequest(event, context):
                 else:
                     errorstr += ':error_unknown:status:{}'.format(errcode)
     except Exception as e:
-        errorstr += ':SpotWrap_exception:{}:status:400'.format(e)
+        _, _, exc_traceback = sys.exc_info()
+        msg = repr(traceback.format_tb(exc_traceback))
+        errorstr += ':SpotWrap_exception:{}:{}:status:400'.format(e,msg)
         ERR = True
     finally: 
         if errorstr != 'SpotWrapPython':
@@ -242,6 +244,8 @@ def makeRecord(context,event,duration,errorstr):
         elif eventSource.startswith('ext:invokeCLI'):
             flag = INVCLI
         elif eventSource.startswith('int:invokeCLI'):
+            flag = INVCLI
+        elif eventSource.startswith('lib:invokeCLI'):
             flag = INVCLI
         else:
             flag = UNKNOWN
