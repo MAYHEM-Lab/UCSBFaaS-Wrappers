@@ -85,8 +85,8 @@ def main():
     # parse args
     parser = argparse.ArgumentParser(description="AWS Cloudwatch Download and Delete Script")
     parser.add_argument('logGroup',action='store',help='Cloudwatch log group (multiple groups OK if separated by commas with entire list in double quotes')
-    parser.add_argument('startTs',action='store',help='Filter streams where creationTime is no earlier than this *UTC/GMT* value (value expected in UTC epoch millisecs, else use the --useString option for datetime UTC string in %Y-%m-%dT%H:%M:%S format)')
-    parser.add_argument('--endTs',action='store',default=None,help='Filter streams where creationTime is not after this value. default = now, value must be UTC epoch millisecs, else use the --useString option for datetime UTC string in %Y-%m-%dT%H:%M:%S format)')
+    parser.add_argument('startTs',action='store',help='Filter streams where creationTime is no earlier than this *UTC/GMT* value (value expected in UTC epoch millisecs, else use the --useString option for datetime UTC string in %Y-%m-%d %H:%M:%S format)')
+    parser.add_argument('--endTs',action='store',default=None,help='Filter streams where creationTime is not after this value. default = now, value must be UTC epoch millisecs, else use the --useString option for datetime UTC string in %Y-%m-%d %H:%M:%S format)')
     parser.add_argument("--useString",default=False, help="Use string datetime for start and end instead of epoch milliseconds")
     parser.add_argument("--profile","-p",default=None, help="AWS credentials file profile to use.")
     parser.add_argument('--region','-r',action='store',default='us-west-2',help='AWS Region log is in')
@@ -96,13 +96,13 @@ def main():
     aws_region = args.region
     log_group = args.logGroup
     if args.useString:
-        start = int(datetime.strptime(args.startTs, '%Y-%m-%dT%H:%M:%S').strftime('%s')) * 1000
+        start = int(datetime.strptime(args.startTs, '%Y-%m-%d %H:%M:%S').strftime('%s')) * 1000
         if not args.endTs:
             e = datetime.now()
             end = int(e.timestamp*1000)
         else: 
             e = args.endTs
-            end = int(datetime.strptime(e, '%Y-%m-%dT%H:%M:%S').strftime('%s')) * 1000
+            end = int(datetime.strptime(e, '%Y-%m-%d %H:%M:%S').strftime('%s')) * 1000
     else:
         start = int(args.startTs)
         if not args.endTs:

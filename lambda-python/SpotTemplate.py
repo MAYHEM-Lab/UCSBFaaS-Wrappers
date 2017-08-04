@@ -110,7 +110,6 @@ def invokeCLI(event,context,logger):
 
 if __name__ == "__main__":
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
     parser = argparse.ArgumentParser(description='invoke Test')
     # for this table, we assume key is name of type String
     parser.add_argument('functionName',action='store',help='ARN to invoke')
