@@ -43,7 +43,7 @@ def zipLambda(zipname,ziplist,update=False):
             sys.exit(1)
     return zipname
 
-def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=False, noBotocore=False, spotTableRegion='us-west-2', spotTableName='spotFns',saveBucket=False):
+def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=False, noBotocore=False, spotTableRegion='us-west-2', spotTableName='spotFns',saveBucket=False,tracing=False):
     if profile:
         boto3.setup_default_session(profile_name=profile)
     config = botocore.client.Config(connect_timeout=50, read_timeout=100)
@@ -183,7 +183,6 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
             shutil.rmtree(tmp_dir)
 
         #create lambdas
-        tracing = False
         l_fn = lambdautils.LambdaManager(lambda_client, region, l_zip, name, handler,tracing,lambda_memory)
         l_fn.update_code_or_create_on_noexist()
         if 'permission' in fn:
@@ -201,6 +200,7 @@ if __name__ == "__main__":
     parser.add_argument('--saveTriggerBucket',action='store_true',default=False,help='Used only if deleteAll is set, forces setupApps to keep job bucket.  setupApps removes the bucket contents if not set (left off).')
     parser.add_argument('--config','-f',action='store',default='setupconfig.json',help='Pass in the json configuration file instead of using setupconfig.json')
     parser.add_argument('--no_botocore_change',action='store_true',default=False,help='Do NOT prepare and upload botocore zip to S3. The one there from a prior run will work.')
+    parser.add_argument('--turn_on_tracing',action='store_true',default=False,help='Turn on AWS Xray tracing.')
     parser.add_argument('--no_spotwrap',action='store_true',default=False,help='Do NOT inject SpotWrapSupport')
     parser.add_argument('--spotFnsTableName',action='store',default='spotFns',help='Name of table which will hold SpotWrap writes. Arg is unused if --no_spotwrap is set.')
     parser.add_argument('--spotFnsTableRegion',action='store',default='us-west-2',help='AWS region in which table spotFns is located (for all SpotWrap writes). Arg is unused if --no_spotwrap is set.')
@@ -208,4 +208,4 @@ if __name__ == "__main__":
     if args.update and args.deleteAll:
         print('Error, update and deleteAll options cannot be used together.  Choose one.')
         sys.exit(1)
-    processLambda(args.config,args.profile,args.no_spotwrap,args.update,args.deleteAll,args.no_botocore_change,args.spotFnsTableRegion,args.spotFnsTableName,args.saveTriggerBucket)
+    processLambda(args.config,args.profile,args.no_spotwrap,args.update,args.deleteAll,args.no_botocore_change,args.spotFnsTableRegion,args.spotFnsTableName,args.saveTriggerBucket,args.turn_on_tracing)

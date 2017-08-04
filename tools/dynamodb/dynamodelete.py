@@ -12,6 +12,7 @@ def main():
     parser.add_argument('tableName',action='store',help='DynamoDB table to delete all items from')
     parser.add_argument("--profile","-p",default=None, help="AWS credentials file profile to use. Allows you to use a profile instead accessKey, secretKey authentication")
     parser.add_argument('--region','-r',action='store',default='us-west-2',help='AWS Region table is in')
+    parser.add_argument('--dryrun','-d',action='store_true',default=False,help='Dry run (count) only')
     args = parser.parse_args()
 
     profile = args.profile
@@ -32,6 +33,11 @@ def main():
     if number_of_items == 0:  # no items to delete
         print("Table '{}' is empty.".format(tableName))
         return
+    print('{} item count: {}'.format(tableName,number_of_items))
+    if args.dryrun:
+        return
+
+    #OK do it.
     with table.batch_writer() as batch:
         count = 0
         for item in items:
