@@ -313,8 +313,9 @@ public class Record {
         } else {
             requestID += ":entry";
 	}
-	Item item = new Item().withPrimaryKey("ts",now)
-		.withString("requestID", requestID)
+	Item item = new Item()
+		.withPrimaryKey("requestID", requestID)
+    	        .withNumber("ts", now)
     	        .withString("thisFnARN", arn)
     	        .withString("caller", caller)
     	        .withString("eventSource", eventSource)

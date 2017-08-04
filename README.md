@@ -8,7 +8,7 @@ Note that everything here is assumed to be (and has been tested for) in a single
 
 Setup:  
 1) Table for SpotWrap records (log).  
-Create an AWS dynamoDB table called spotFns (hard coded in SpotWrap.py and SpotWrap.java), setup with primary/partition key called ts (Number) and sort key called requestID (String). Set this as your trigger for either your Java function or Python function (or both) that is wrapped with SpotWrap, e.g. SpotTemplate.  
+Create an AWS dynamoDB table called spotFns (hard coded in SpotWrap.py and SpotWrap.java), setup with primary/partition key called requestID (of type String). SpotWrap (java and python versions) will write its event log to this table.  Set up autoscaling and throughput of 5 reads and 10 writes as minima.
 2) Create and upload your lambda functions to AWS (see links below for Java and/or Python)
 3) Create AWS SNS notification to trigger lambda your functions wrapped with SpotWrap via the AWS SNS console (https://console.aws.amazon.com/sns/v2/home?region=us-east-1#/topics).  Set this as an event trigger in the AWS Lambda console (https://us-west-2.console.aws.amazon.com/lambda/home?region=us-west-2#/functions?display=list) for each function you want to trigger.
 4) Create AWS DynamoDB table with stream to trigger lambda your functions wrapped with SpotWrap.  Create a table with a stream that provides New and Old images as view type via the DynamoDB console.  Set this as an event trigger in the AWS Lambda console (https://us-west-2.console.aws.amazon.com/lambda/home?region=us-west-2#/functions?display=list) for each function you want to trigger.
