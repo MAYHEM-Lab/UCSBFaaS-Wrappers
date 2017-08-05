@@ -23,14 +23,20 @@ def makeEle(blob,nm):
     es = blob['eventSource']['S']
     if es.find('int:invokeCLI') or es.find('lib:invokeCLI'):
         print('Found one! {}'.format(es))
-    }
     if nm == Names.FN:
-    elif nm = Names.S3R:
-    elif nm = Names.S3W:
-    elif nm = Names.DBR:
-    elif nm = Names.DBW:
-    elif nm = Names.SNS:
-    elif nm = Names.GW:
+        pass
+    elif nm == Names.S3R:
+        pass
+    elif nm == Names.S3W:
+        pass
+    elif nm == Names.DBR:
+        pass
+    elif nm == Names.DBW:
+        pass
+    elif nm == Names.SNS:
+        pass
+    elif nm == Names.GW:
+        pass
     else:
         assert False
     ele = DictEle(item,nm)
@@ -41,18 +47,14 @@ def parseIt(event):
     fname = schema = None
     reqDict = {} #dictionary holding request (DictEle) objects by requestID
 
-    #check that the file and schema is avialable 
+    #check that the file is available 
     if 'fname' in event:
         fname = event['fname']
         print('processing file: {}'.format(fname))
-        if os.path.exists(fname):
+        if os.path.exists(fname) and os.path.isfile(fname):
             OK = True
-            #if 'schema' in event:
-                #schema = event['schema']
-                #if os.path.exists(schema):
-                    #print('schema file: {}'.format(schema))
-                    #OK = True
     if not OK: 
+        print('Unable to find/open file in parseIt: {}'.format(fname))
         return
 
     #decode the json file
@@ -82,7 +84,7 @@ def parseIt(event):
             assert reqStr == 'exit'
             assert req in reqDict
             #update timings only
-            ele = reqDict['req']
+            ele = reqDict[req]
             ele.endTime(item['duration'])
 
         if req not in reqDict:
@@ -126,10 +128,10 @@ class DictEle:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DynamoDB spotFns Table data Parser')
     parser.add_argument('fname',action='store',help='filename to process')
-    parser.add_argument('schema',action='store',help='schema of file to process')
+    #parser.add_argument('schema',action='store',help='schema of file to process')
     args = parser.parse_args()
     event = {}
     event['fname'] = args.fname
-    event['schema'] = args.schema
+    #event['schema'] = args.schema
     parseIt(event)
 
