@@ -1,17 +1,17 @@
 #! /bin/bash
-ACCT = XXX
-PROF = YYY
-MRBKT = spot-mr-bkt #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run without --no_spotwrap
-MRBKTNS = spot-mr-bkt-ns #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
-JOBID = job3000  #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run without --no_spotwrap
-JOBIDNS = jobNS300 #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run with --no_spotwrap
-PREFIX = /Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
-LAMDIR = ${PREFIX}/lambda-python
-DYNDBDIR = ${PREFIX}/tools/dynamodb
-CWDIR = ${PREFIX}/tools/cloudwatch
-TOOLSDIR = ${PREFIX}/tools/timings
-MRDIR = ${PREFIX}/lambda-python/mr
-SPOTTABLE = spotFns #must match tablename used by SpotWrap.py.template
+ACCT=XXX
+PROF=YYY
+MRBKT=spot-mr-bkt #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run without --no_spotwrap
+MRBKTNS=spot-mr-bkt-ns #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
+JOBID=job3000  #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run without --no_spotwrap
+JOBIDNS=jobNS300 #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run with --no_spotwrap
+PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
+LAMDIR=${PREFIX}/lambda-python
+DYNDBDIR=${PREFIX}/tools/dynamodb
+CWDIR=${PREFIX}/tools/cloudwatch
+TOOLSDIR=${PREFIX}/tools/timings
+MRDIR=${PREFIX}/lambda-python/mr
+SPOTTABLE=spotFns #must match tablename used by SpotWrap.py.template
 
 cd ${TOOLSDIR}
 #delete s3 entries for map/reduce jobs
@@ -55,6 +55,6 @@ cd ${CWDIR}
 rm -f 1/*.log 1/NS/*.log 2/*.log 2/NS/*.log 3/*.log 3/NS/*.log 4/*.log 4/NS/*.log 5/*.log 5/NS/*.log 6/*.log 6/NS/*.log 7/*.log 7/NS/*.log 8/*.log 8/NS/*.log 9/*.log 9/NS/*.log 10/*.log 10/NS/*.log
 #cleanup mapreduce job output: dynamodb downloads
 cd ${DYNDBDIR}
-rm -f 1/dump 1/NS/dump 2/dump 2/NS/dump 3/dump 3/NS/dump 4/dump 4/NS/dump 5/dump 5/NS/dump 6/dump 6/NS/dump 7/dump 7/NS/dump 8/dump 8/NS/dump 9/dump 9/NS/dump 10/dump 10/NS/dump
+rm -rf 1/dump 1/NS/dump 2/dump 2/NS/dump 3/dump 3/NS/dump 4/dump 4/NS/dump 5/dump 5/NS/dump 6/dump 6/NS/dump 7/dump 7/NS/dump 8/dump 8/NS/dump 9/dump 9/NS/dump 10/dump 10/NS/dump
 cd ${TOOLSDIR}
 
