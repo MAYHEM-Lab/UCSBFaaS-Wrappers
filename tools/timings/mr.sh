@@ -28,36 +28,34 @@ python downloadLogs.py "/aws/lambda/driver" ${ACCT} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/reducerCoordinator" ${ACCT} -p ${PROF} --deleteOnly
 deactivate
 
-#do the same for no spotwrap
-for i in `seq 1 10`;
+for i in `seq 1 1`;
 do
     #delete the bucket contents for the job
     aws s3 rm s3://${MRBKT}/${JOBID} --recursive --profile ${PROF}
 
     cd ${MRDIR}
-    rm -f overhead.out
     . ../venv/bin/activate
     #run the driver
-    /usr/bin/time python driver.py ${MRBKT} ${JOBID} mapper reducer --wait4reducers >> overhead.out
-    mkdir -p $i
-    mv overhead.out $i
-
-    #download cloudwatch logs (and delete them)
-    cd ${CWDIR}
-    mkdir -p $i
-    python downloadLogs.py "/aws/lambda/mapper" ${ACCT} -p ${PROF} --delete  > $i/map.log
-    python downloadLogs.py "/aws/lambda/reducer" ${ACCT} -p ${PROF} --delete  > $i/red.log
-    python downloadLogs.py "/aws/lambda/driver" ${ACCT} -p ${PROF} --delete  > $i/driv.log
-    python downloadLogs.py "/aws/lambda/reducerCoordinator" ${ACCT} -p ${PROF} --delete  > $i/coord.log
-    deactivate
-    
-    #download the db and then delete its entries
-    cd ${DYNDBDIR}
-    . ./venv/bin/activate
-    rm -rf dump
-    python dynamodump.py -m backup -r us-west-2 -p ${PROF} -s ${SPOTTABLE}
-    mkdir $i
-    mv dump $i/
-    python dynamodelete.py -p ${PROF} ${SPOTTABLE}
-    deactivate
+    aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile ${PROF} --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","job_id":"${JOBID}","mapper":"mapper","reducer":"reducer","bucket":"big-data-benchmark","jobBucket":"${MRBKT}","region":"us-west-2","full_async":"yes"}' outputfile
+    sleep 15m
 done
+
+#download cloudwatch logs (and delete them)
+cd ${CWDIR}
+mkdir -p $i/MR
+python downloadLogs.py "/aws/lambda/mapper" ${ACCT} -p ${PROF} --delete  > $i/MR/map.log
+python downloadLogs.py "/aws/lambda/reducer" ${ACCT} -p ${PROF} --delete  > $i/MR/red.log
+python downloadLogs.py "/aws/lambda/driver" ${ACCT} -p ${PROF} --delete  > $i/MR/driv.log
+python downloadLogs.py "/aws/lambda/reducerCoordinator" ${ACCT} -p ${PROF} --delete  > $i/MR/coord.log
+deactivate
+    
+#download the db and then delete its entries
+cd ${DYNDBDIR}
+. ./venv/bin/activate
+rm -rf dump
+python dynamodump.py -m backup -r us-west-2 -p ${PROF} -s ${SPOTTABLE}
+mkdir -p $i/MR
+mv dump $i/MR/
+python dynamodelete.py -p ${PROF} ${SPOTTABLE}
+deactivate
+
