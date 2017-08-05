@@ -1,4 +1,4 @@
-# tools to collect timings with and without spotwrap
+# Tools to collect timings with and without spotwrap
 
 Edit each bash script and change XXX to your AWS account ID and YYY to your AWS profile.
 
