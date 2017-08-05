@@ -25,17 +25,15 @@ Set the serverless_mapreduce_role environment variable (replace MY_ACCOUNT_ID wi
 
    $ export serverless_mapreduce_role=arn:aws:iam::MY-ACCOUNT-ID:role/ROLENAME
 
-5. The app consists of 4 lambda functions: driver, mapper, reducer, and reducerCoordinator.  The driver starts the process and invokes mappers in parallel either asynchronously (Event) or synchronously (RequestResponse) -- (see settings for this are below). Mappers get their data from the input data bucket ("bucket" argument) from the big data benchmark suite.  It processes data that have the prefix ("prefix" argument) specified and generates files in MY-BUCKET-NAME ("jobBucket" argument) under task/mapper/.  Generation of these files triggers (job_id/task prefix for a given job_id) the reducerCoordinator which spawns the reducers once the mappers are done ("Mappers Done so far" message in logs equals max mappers).  The reducerCoordinator reports "Job done!!! Check the result file" when everything has completed.
+5. The app consists of 4 lambda functions: driver, mapper, reducer, and reducerCoordinator.  The driver starts the process and invokes mappers in parallel either asynchronously (Event) or synchronously (RequestResponse) -- (see settings for this are below). Mappers get their data from the input data bucket ("bucket" argument) from the big data benchmark suite.  It processes data that have the prefix ("prefix" argument) specified and generates files in MY-BUCKET-NAME ("jobBucket" argument) under JOBID/task/mapper/.  Generation of these files triggers the reducerCoordinator which spawns the reducers once the mappers are done ("Mappers Done so far" message in logs equals max mappers).  The reducerCoordinator reports "Job done!!! Check the result file" when everything has completed.
 
-The reducers process the mapper data in parallel and asychronously, and write their results to the bucket under tasks/reducer/.  The overall app computes how many entries are made for each unique IP address prefix.
+The reducers process the mapper data in parallel and asychronously, and write their results to the bucket under JOBID/tasks/reducer/.  The overall app computes how many entries are made for each unique IP address prefix.
 
 Use the "dryrun":"yes" key/value pair as an argument to only run the driver and see how many mappers (and then reducers) will be spawned.  
 
 lambdaMemory for mapper and reducer functions must be 1536.  
 
-The lambda timeout (300s) for the driver may be exceeded when run in synchronous mode.  In this case, the total timings will not be report but most likely all mappers will be spawned.  To see the timings, you can run the driver locally via ```python driver.py MY-BUCKET-NAME JOBID --wait4reducers``` replacing MY-BUCKET-NAME and JOBID (with the job prefix in the reducerCoordinator entry in the configuration below, up to /task, e.g. job1000).
-
-Mapper and reducer "name" entries in the configuration below must not change (if you do change them, then update driver.py FunctionName and reducer_lambda_name variables).
+The lambda timeout (300s) for the driver may be exceeded when run in synchronous mode.  In this case, the total timings will not be report but most likely all mappers will be spawned.  To see the timings, you can run the driver locally via ```python driver.py MY-BUCKET-NAME JOBID --wait4reducers``` replacing MY-BUCKET-NAME and JOBID.
 
 Upload the functions to Lambda using the following. 
 ```
@@ -56,7 +54,7 @@ cat scns.json    #replace MY-BUCKET-NAME for reduceCoordinator
                 ]
             },
             {
-                "name": "mapper",
+                "name": "mapperNS",
            	"lambdaMemory": 1536,
                 "handler": "mapper.handler",
                 "zip": "mapperzip.zip",
@@ -65,7 +63,7 @@ cat scns.json    #replace MY-BUCKET-NAME for reduceCoordinator
                 ]
             },
             {
-                "name": "reducer",
+                "name": "reducerNS",
            	"lambdaMemory": 1536,
                 "handler": "reducer.handler",
                 "zip": "reducerzip.zip",
@@ -83,26 +81,26 @@ cat scns.json    #replace MY-BUCKET-NAME for reduceCoordinator
                     "mr/lambdautils.py"
                 ],
                 "permission": "MY-BUCKET-NAME",
-                "job_id": "job1000/task"
+                "job_id": "job1000"
             }
         ]
 }
 ```
-6. **Run It**. Replace MY-BUCKET-NAME.
-Make sure that job_id value below matches the prefix (prior to /task) in the reducerCoordinator configuration entry above (job1000).  The job takes approximately 5 minutes to complete and can be run synchronously (mappers are in parallel) or fully asynchronous (omit the "full_async" argument).  
+6. **Run It**. Replace MY-BUCKET-NAME and job_id.
+Make sure that job_id value below matches the prefix in the reducerCoordinator configuration entry above (job1000).  The job takes approximately 5 minutes to complete and can be run synchronously (mappers are in parallel) or fully asynchronous (omit the "full_async" argument).  
 "Job done!!! Check the result file" in one of the reducerCoordinator logs signals app completion.  
 
 The region argument must match that in the setupApps configuration above. Replace awsprofile1 below with your AWS IAM profile. Keep the settings for prefix and bucket as that is where the original datasets from the big data benchmark are located.
 ```
-#Replace MY-BUCKET-NAME and JOBID, JOBID must match the JOBID prefix (before the /task) in the config file for the reducerCoordinator entry.
+#Replace MY-BUCKET-NAME and JOBID, JOBID must match the JOBID prefix in the config file for the reducerCoordinator entry.
 #dry run only (count mappers)
 python driver.py MY-BUCKET-NAME JOBID --dryrun
 #run short and synchronously
-python driver.py MY-BUCKET-NAME JOBID --wait4reducers --endearly 2
+python driver.py MY-BUCKET-NAME JOBID --mapper_function MAPPER_FN_NAME --reducer_function REDUCER_FN_NAME --wait4reducers --endearly 2
 #run short and asynchronously
-python driver.py MY-BUCKET-NAME JOBID --full-async --endearly 2
+python driver.py MY-BUCKET-NAME JOBID --mapper_function MAPPER_FN_NAME --reducer_function REDUCER_FN_NAME --full-async --endearly 2
 #run full
-python driver.py MY-BUCKET-NAME JOBID
+python driver.py MY-BUCKET-NAME JOBID --mapper_function MAPPER_FN_NAME --reducer_function REDUCER_FN_NAME
 
 #or use invoke to execute the driver in AWS Lambda and pass in the flags as JSON args:
 #driver name must match "name" of driver.py entry in config file.
@@ -146,6 +144,9 @@ positional arguments:
                        (bucket prefix: permission/job_id) specified in
                        ../setupconfig.json for reducerCoordinator installation
                        by setupApps
+  mapper_function      AWS Function Name of mapper function
+  reducer_function     AWS Function Name of reducer function
+
 
 optional arguments:
   -h, --help           show this help message and exit

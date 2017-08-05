@@ -121,7 +121,6 @@ def handler(event, context):
     bucket = event['Records'][0]['s3']['bucket']['name']
     key = event['Records'][0]['s3']['object']['key']
     print("Received event: {}:{}".format(bucket,key))
-
    
     #config = json.loads(open('./jobinfo.json', "r").read()) #local files won't work, get it from s3
     idx = key.find('/')

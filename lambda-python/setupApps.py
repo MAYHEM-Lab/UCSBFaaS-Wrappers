@@ -187,7 +187,13 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
         l_fn.update_code_or_create_on_noexist()
         if 'permission' in fn:
             job_bucket = fn['permission']
-            job_id = fn['job_id']
+            job_id = '{}/{}'.format(fn['job_id'],'task')
+            print('adding permission and notification to {} for JOBID {}'.format(job_bucket,job_id))
+            l_fn.add_lambda_permission(random.randint(1,1000), job_bucket)
+            l_fn.create_s3_eventsource_notification(s3_client,job_bucket,job_id)
+        if 'bucket_listener' in fn:
+            job_bucket = fn['bucket_listener']
+            job_id = '{}/{}'.format(fn['job_id'],'result')
             l_fn.add_lambda_permission(random.randint(1,1000), job_bucket)
             l_fn.create_s3_eventsource_notification(s3_client,job_bucket,job_id)
 

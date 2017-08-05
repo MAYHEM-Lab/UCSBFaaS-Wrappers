@@ -25,7 +25,7 @@ def write_job_config(job_id, job_bucket, n_mappers, r_func, r_handler):
             }, indent=4);
         f.write(data)
 
-def invoke_lambda(batches,bucket,job_bucket,job_id,m_id):
+def invoke_lambda(f_mapper,batches,bucket,job_bucket,job_id,m_id):
     '''
     lambda invoke function asynchronously
     '''
@@ -34,7 +34,7 @@ def invoke_lambda(batches,bucket,job_bucket,job_id,m_id):
 
     batch = [k.key for k in batches[m_id-1]]
     resp = lambda_client.invoke( 
-            FunctionName = 'mapper',
+            FunctionName = f_mapper,
             InvocationType = 'Event',
             Payload =  json.dumps({
                 "bucket": bucket,
@@ -45,7 +45,7 @@ def invoke_lambda(batches,bucket,job_bucket,job_id,m_id):
             })
         )
 
-def invoke_lambda_sync(batches,mapper_outputs,bucket,job_bucket,job_id,m_id):
+def invoke_lambda_sync(f_mapper,batches,mapper_outputs,bucket,job_bucket,job_id,m_id):
     '''
     lambda invoke function synchronously using partial and threads
     '''
@@ -54,7 +54,7 @@ def invoke_lambda_sync(batches,mapper_outputs,bucket,job_bucket,job_id,m_id):
 
     batch = [k.key for k in batches[m_id-1]]
     resp = lambda_client.invoke( 
-            FunctionName = 'mapper',
+            FunctionName = f_mapper,
             InvocationType = 'RequestResponse',
             Payload =  json.dumps({
                 "bucket": bucket,
@@ -73,6 +73,11 @@ def handler(event, context):
     logger = logging.getLogger()
     logger.setLevel(logging.WARN)
     if not event: #requires arguments
+        print('No event was passed to the handler, exiting...')
+        return
+
+    if 'mapper' not in event or 'reducer' not in event:
+        print('No mapper or reducer function names given, unable to proceed, exiting...')
         return
 
     # create an S3 session
@@ -116,7 +121,8 @@ def handler(event, context):
     job_bucket = event["jobBucket"]
     region = event["region"]
     async = True if "full_async" in event else False
-    reducer_lambda_name = "reducer"
+    reducer_lambda_name = event["reducer"]
+    mapper_lambda_name = event["mapper"]
     
     # Write Jobdata to S3
     j_key = job_id + "/jobdata";
@@ -143,12 +149,12 @@ def handler(event, context):
 
     if async: #asynchronous invocation of mappers
         for i in range(n_mappers):
-            invoke_lambda(batches,bucket,job_bucket,job_id,i)
+            invoke_lambda(mapper_lambda_name,batches,bucket,job_bucket,job_id,i)
 
     else: #synchronous invocation of mappers on parallel threads
         pool = ThreadPool(n_mappers)
         Ids = [i+1 for i in range(n_mappers)]
-        invoke_lambda_partial = partial(invoke_lambda_sync,batches,mapper_outputs,bucket,job_bucket,job_id)
+        invoke_lambda_partial = partial(invoke_lambda_sync,mapper_lambda_name,batches,mapper_outputs,bucket,job_bucket,job_id)
         
         # Burst request handling
         mappers_executed = 0
@@ -199,6 +205,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='MRDriver')
     parser.add_argument('jobbkt',action='store',help='job bucket for output files (that trigger reducers)')
     parser.add_argument('jobid',action='store',help='unique jobid - must match the S3 job_id in trigger (bucket prefix: permission/job_id) specified in ../setupconfig.json for reducerCoordinator installation by setupApps')
+    parser.add_argument('mapper_function',action='store',help='AWS Function Name of mapper function')
+    parser.add_argument('reducer_function',action='store',help='AWS Function Name of reducer function')
     parser.add_argument('--databkt',action='store',default='big-data-benchmark',help='input data bucket')
     parser.add_argument('--prefix',action='store',default='pavlo/text/1node/uservisits/',help='prefix of data files in input data bucket')
     parser.add_argument('--region',action='store',default='us-west-2',help='job bucket')
@@ -214,6 +222,8 @@ if __name__ == "__main__":
     event['jobBucket'] = args.jobbkt
     event['region'] = args.region
     event['endearly'] = args.endearly
+    event['mapper'] = args.mapper_function
+    event['reducer'] = args.reducer_function
     if args.wait4reducers:
         event['full_async'] = "set_anything_here"
     if args.dryrun:

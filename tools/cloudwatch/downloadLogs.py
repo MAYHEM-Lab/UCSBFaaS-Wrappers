@@ -14,11 +14,18 @@ def find_streams(logs,log_group,token,start,end):
         lets = stream['lastEventTimestamp'] 
         return cts >= start and lets <= end 
 
-    if token:
-        data = logs.describe_log_streams(logGroupName=log_group, nextToken=token)
-    else:
-        data = logs.describe_log_streams(logGroupName=log_group)
+    data = null
+    try:
+        if token:
+            data = logs.describe_log_streams(logGroupName=log_group, nextToken=token)
+        else:
+            data = logs.describe_log_streams(logGroupName=log_group)
+    except:
+        pass
 
+    if not data: #data will be None upon exception above
+        print('No streams found for log group {}'.format(log_group))
+        return
     streams = list(filter(valid_stream, data['logStreams']))
     if len(streams) > 0 or 'nextToken' not in data:
         return streams
@@ -74,7 +81,7 @@ def find_events(logs, log_group, stream, token, last_token, start,end):
 
     for event in list(filter(valid_event, data['events'])):
         msg = process_msg(event['message'].strip())
-        print('{}'.format(msg))
+        print('{}:{}'.format(log_group,msg))
 
     if data['nextForwardToken'] != last_token:
         time.sleep(0.5) # rate limiting
@@ -91,6 +98,7 @@ def main():
     parser.add_argument("--profile","-p",default=None, help="AWS credentials file profile to use.")
     parser.add_argument('--region','-r',action='store',default='us-west-2',help='AWS Region log is in')
     parser.add_argument('--delete',action='store_true',default=False,help='Delete streams once downloaded')
+    parser.add_argument('--deleteOnly',action='store_true',default=False,help='Delete streams once downloaded')
     args = parser.parse_args()
     profile = args.profile
     aws_region = args.region
@@ -119,8 +127,9 @@ def main():
 
     streams = [stream['logStreamName'] for stream in find_streams(logs,log_group,None,start,end)]
     for stream in streams:
-        find_events(logs, log_group, stream, None, None, start,end)
-        if args.delete:
+        if not args.deleteOnly:
+            find_events(logs, log_group, stream, None, None, start,end)
+        if args.delete or args.deleteOnly:
             logs.delete_log_stream(logGroupName=log_group,logStreamName=stream)
 
 if __name__ == "__main__":
