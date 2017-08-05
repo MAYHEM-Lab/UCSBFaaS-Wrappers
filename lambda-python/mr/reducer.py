@@ -72,10 +72,6 @@ def handler(event, context):
             print(e)
 
     time_in_secs = (time.time() - start_time)
-    #print("HERE in reducer")
-    #timeTaken = time_in_secs * 1000000000 # in 10^9 
-    #s3DownloadTime = 0
-    #totalProcessingTime = 0 
     pret = [len(reducer_keys), line_count, time_in_secs]
     print("Reducer output", pret)
 
@@ -92,17 +88,13 @@ def handler(event, context):
                }
 
     write_to_s3(job_bucket, fname, json.dumps(results), metadata)
+    if n_reducers == 1: #final reducer
+        #need to let coordinator know by writing to the TASK_REDUCER_PREFIX
+        fname = "%s/%s/done" % (job_id, TASK_REDUCER_PREFIX)
+        metadata = {
+                    "linecount":  '%s' % line_count,
+                    "processingtime": '%s' % time_in_secs,
+                    "memoryUsage": '%s' % resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+               }
+        write_to_s3(job_bucket, fname, json.dumps(results), metadata)
     return pret
-
-'''
-ev = {
-    "bucket": "-useast-1",
-    "jobBucket": "-useast-1",
-    "jobId": "py-biglambda-1node-3",
-    "nReducers": 1,
-    "keys": ["py-biglambda-1node-3/task/mapper/1"],
-    "reducerId": 1, 
-    "stepId" : 1
-}
-lambda_handler(ev, {});
-'''

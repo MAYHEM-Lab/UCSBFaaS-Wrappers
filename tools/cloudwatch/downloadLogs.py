@@ -14,7 +14,7 @@ def find_streams(logs,log_group,token,start,end):
         lets = stream['lastEventTimestamp'] 
         return cts >= start and lets <= end 
 
-    data = null
+    data = None
     try:
         if token:
             data = logs.describe_log_streams(logGroupName=log_group, nextToken=token)
@@ -25,7 +25,7 @@ def find_streams(logs,log_group,token,start,end):
 
     if not data: #data will be None upon exception above
         print('No streams found for log group {}'.format(log_group))
-        return
+        return None
     streams = list(filter(valid_stream, data['logStreams']))
     if len(streams) > 0 or 'nextToken' not in data:
         return streams
@@ -125,12 +125,14 @@ def main():
         boto3.setup_default_session(profile_name=profile)
     logs = boto3.client('logs', region_name=aws_region)
 
-    streams = [stream['logStreamName'] for stream in find_streams(logs,log_group,None,start,end)]
-    for stream in streams:
-        if not args.deleteOnly:
-            find_events(logs, log_group, stream, None, None, start,end)
-        if args.delete or args.deleteOnly:
-            logs.delete_log_stream(logGroupName=log_group,logStreamName=stream)
+    full_streams = find_streams(logs,log_group,None,start,end)
+    if full_streams:
+        streams = [stream['logStreamName'] for stream in full_streams]
+        for stream in streams:
+            if not args.deleteOnly:
+                find_events(logs, log_group, stream, None, None, start,end)
+            if args.delete or args.deleteOnly:
+                logs.delete_log_stream(logGroupName=log_group,logStreamName=stream)
 
 if __name__ == "__main__":
     main()

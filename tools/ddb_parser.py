@@ -1,61 +1,163 @@
 import json,time,os,sys,argparse
+import ast
+from graphviz import Digraph
 from pprint import pprint
 from enum import Enum
 
 DEBUG = True
 Names = Enum('Names','FN S3R S3W DBR DBW SNS GW')
+invokes = 0
 def getName(n):
+    global invokes
+    if n.startswith('Invoke:'):
+        invokes += 1 #just count, don't create
     if n == 'entry' or n.startswith('Invoke:'):
-        return DictEle.Names.FN
+        return Names.FN
     if n.startswith('GetObject:') or n.startswith('ListObjects:'):
-        return DictEle.Names.S3R
+        return Names.S3R
     if n.startswith('PutObject:'):
-        return DictEle.Names.S3W
+        return Names.S3W
     if n.startswith('PutItem:'):
-        return DictEle.Names.DBW
+        return Names.DBW
     if n.startswith('GetItem:'):
-        return DictEle.Names.DBR
+        return Names.DBR
     if n.startswith('Publish:'):
-        return DictEle.Names.SNS
+        return Names.SNS
     return None
 
-def makeEle(blob,nm):
+countit = 0
+def makeEle(blob,req,nm,reqStr):
+    global countit
+    name = None
     es = blob['eventSource']['S']
-    if es.find('int:invokeCLI') or es.find('lib:invokeCLI'):
-        print('Found one! {}'.format(es))
+    ts = int(blob['ts']['N'])
+    msg = blob['message']['S']
+    preq = None
     if nm == Names.FN:
-        pass
+        if reqStr == 'entry':
+            #who invoked this function?
+            if es.find('ext:invokeCLI') != -1:  #external agent
+                arn = blob['thisFnARN']['S'].split(':')
+                name = 'FN:{}:{}'.format(arn[6],req)
+            else:
+                #eventOp = 'invoke' if an invoke event (only used in debugging)
+                idx = es.find('lib:invokeCLI:') #lib call from another lambda
+                if idx != -1: 
+                    tmp1 = es[idx+14:].split(':')
+                    caller_fname = 'FN:{}'.format(tmp1[0])
+                    preq = '{}'.format(tmp1[2])
+                    arn = blob['thisFnARN']['S'].split(':')
+                    name = 'FN:{}:{}'.format(arn[6],req)
+                else:
+                    print('Error: expected to find invokeCli in msg: {}'.format(msg))
+            print('FOUND AN ENTRY~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+            countit += 1
+        else:
+            idx = msg.find('SW:FunctionName:')
+            if idx != -1:
+                name = 'FN:{}'.format(msg[idx+16:])
+            else:
+                print('Error: expected to find FunctionName in msg: {}'.format(msg))
+
     elif nm == Names.S3R:
-        pass
+        idx = msg.find('SW:Bkt:')
+        if idx != -1:
+            idx2 = msg.find(':Key:')
+            if idx2 != -1:
+                name = 'S3R:{}:{}'.format(msg[idx+7:idx2],msg[idx2+6:])
+            else:
+                print('Error: expected to find :Key: in msg: {}'.format(msg))
+        else:
+            idx = msg.find('ListObjects:')
+            if idx != -1:
+                rest = msg[idx+12:]
+                rest = ast.literal_eval(rest)
+                name = 'S3R:{}:{}'.format(rest['Bucket'],rest['Prefix'])
+            else:
+                print('Error: expected to find SW:Bkt or :ListObjects: in msg: {}'.format(msg))
+		
     elif nm == Names.S3W:
-        pass
+        idx = msg.find('SW:Bkt:')
+        if idx != -1:
+            idx2 = msg.find(':Key:')
+            if idx2 != -1:
+                name = 'S3W:{}:{}'.format(msg[idx+7:idx2],msg[idx2+5:])
+            else:
+                print('Error2: expected to find :Key: in msg: {}'.format(msg))
+        else:
+            print('Error2: expected to find SW:Bkt: in msg: {}'.format(msg))
     elif nm == Names.DBR:
-        pass
+        idx = msg.find('SW:TableName:')
+        if idx != -1:
+            idx = msg.find(':Key:')
+            if idx != -1:
+                name = 'DBR:{}:{}'.format(msg[idx+13:idx2],msg[idx2+5:])
+            else:
+                print('Error3: expected to find Key: in msg: {}'.format(msg))
+        else:
+            print('Error3: expected to find SW:TableName: in msg: {}'.format(msg))
     elif nm == Names.DBW:
-        pass
+        idx = msg.find('SW:TableName:')
+        if idx != -1:
+            idx = msg.find(':Item:')
+            if idx != -1:
+                name = 'DBW:{}:{}'.format(msg[idx+13:idx2],msg[idx2+6:])
+            else:
+                print('Error4: expected to find Item: in msg: {}'.format(msg))
+        else:
+            print('Error4: expected to find SW:TableName: in msg: {}'.format(msg))
     elif nm == Names.SNS:
-        pass
+        idx = msg.find('SW:sns:Publish:Topic:arn:aws:sns:')
+        if idx != -1:
+            idx = msg.find(':Subject:')
+            if idx != -1:
+                name = 'SNS:{}:{}'.format(msg[idx+33:idx2],msg[idx2+9:])
+            else:
+                name = 'SNS:{}'.format(msg[idx+33:])
+        else:
+            print('Error5: expected to find SW:sns:Publish:Topic: in msg: {}'.format(msg))
     elif nm == Names.GW:
         pass
     else:
         assert False
-    ele = DictEle(item,nm)
-    return ele
+    if name:
+        ele = DictEle(blob,req,name)
+    else:
+        ele = DictEle(blob,req,nm)
+    return ele,preq
 
+def makeDot(reqDict):
+    dot = Digraph(comment='Spot',format='pdf')
+    for key in reqDict:
+        obj = reqDict[key]
+        p = str(obj.getSeqNo())
+        p1 = str(obj.getName())
+        dot.node(p,p1)
+        for lst in obj.children_lists:
+            childlist = obj.children_lists[lst]
+            for child in childlist:
+                c = str(child.getSeqNo())
+                c1 = str(child.getName())
+                dot.node(c,c1)
+                dot.edge(p,c)
+        dot.render('spotgraph', view=True)
+        return
+            
+         
 def parseIt(event):
-    OK = False
-    fname = schema = None
+    fname = None
     reqDict = {} #dictionary holding request (DictEle) objects by requestID
 
     #check that the file is available 
+    fname = None
     if 'fname' in event:
         fname = event['fname']
-        print('processing file: {}'.format(fname))
-        if os.path.exists(fname) and os.path.isfile(fname):
-            OK = True
-    if not OK: 
-        print('Unable to find/open file in parseIt: {}'.format(fname))
+        if not os.path.exists(fname) or not os.path.isfile(fname):
+            fname = None
+    if not fname:
+        print('Unable to find/open file in parseIt')
         return
+    print('processing file: {}'.format(fname))
 
     #decode the json file
     data = None
@@ -67,8 +169,14 @@ def parseIt(event):
     count = data['Count']
     #put them in sorted order by timestamp
     reqs = sorted(data['Items'], key=lambda k: k['ts'].get('N', 0))
-    #pprint(reqs)
+    counter = 0
+    missed_count = 0
     for item in reqs:
+        counter += 1
+        #if counter > 10:
+            #break
+        if countit > 2:
+            break
         if DEBUG:
             print(item)
         reqblob = item['requestID']['S'].split(':')
@@ -80,51 +188,74 @@ def parseIt(event):
         ts = float(item['ts']['N'])
 
         nm = getName(reqStr)
-        if not nm: #process the exit
-            assert reqStr == 'exit'
+        if not nm: #process the exit or its an invoke (just count it)
             assert req in reqDict
-            #update timings only
-            ele = reqDict[req]
-            ele.endTime(item['duration'])
+            if reqStr == 'exit': 
+                #update timings only
+                ele = reqDict[req]
+                ele.endTime(item['duration'])
+            else:
+                missed_count += 1
+            continue
 
         if req not in reqDict:
             assert reqStr == 'entry'
-            ele = DictEle(item,nm)
+            ele,parent_req = makeEle(item,req,nm,reqStr)
+            if parent_req:
+                print('FOUND a function with a parent! p:{} and c:{}'.format(parent_req,req))
+                if parent_req not in reqDict:
+                    print('ERROR, found a function with a parent not in dictionary! c{}\n{}'.format(req,item))
+                    sys.exit(1)
+                pele = reqDict[parent_req]
+                pele.addChild(ele,nm)
             reqDict[req] = ele
+            obj = ele
         else:
             assert reqStr != 'entry'
-            child = DictEle(item,nm)
+            assert reqStr != 'exit'
+            child,_ = makeEle(item,req,nm,reqStr)
             ele = reqDict[req]
-            ele.addChild(child)
-            if reqStr == 'exit':
-                pass #update timings only
+            ele.addChild(child,nm)
+            obj = child
+        if DEBUG:
+            print(reqStr,nm,req,obj.getSeqNo())
+
+    makeDot(reqDict)
+    print("missed_count: {}, invoke events: {}".format(missed_count,invokes))
 
 class DictEle:
     __seqNo = 0
-    Names = Enum('Names','FN S3R S3W DBR DBW SNS GW')
 
-    def addChild(self,child):
-        self.children.append(child)
+    def addChild(self,child,childtype):
+        if childtype not in self.children_lists:
+            self.children_lists[childtype] = []
+        self.children_lists[childtype].append(child)
     def endTime(self,duration):
         self.duration = duration
+    def getBlob(self):
+        return self.ele
+    def getName(self):
+        return self.name
+    def getSeqNo(self):
+        return self.seq
+    def getReqId(self):
+        return self.reqID
 
-    def __init__(self,blob,name):
-        self.children = [] #list of DictEles
-        self.seq = self.getSeqNo()
-        self.incrSeqNo()
+    def __init__(self,blob,reqID,name):
+        self.children_lists = {} #list of DictEles per Names.enum
+        self.seq = self.getAndIncrSeqNo()
+        print('set seq {}'.format(self.seq))
         self.name = name
+        self.reqID = reqID
         self.duration = 0
         self.ele = blob
 
     @staticmethod
-    def getSeqNo():
-        return DictEle.__seqNo
-
-    @staticmethod
-    def incrSeqNo(incr=1):
+    def getAndIncrSeqNo(incr=1):
+        seqno =  DictEle.__seqNo
         DictEle.__seqNo += incr
+        return seqno
 
-        
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DynamoDB spotFns Table data Parser')
     parser.add_argument('fname',action='store',help='filename to process')

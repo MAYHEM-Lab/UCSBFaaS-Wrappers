@@ -64,7 +64,6 @@ def get_reducer_batch_size(keys):
     return max(batch_size, 2) # At least 2 in a batch - Condition for termination
 
 def check_job_done(files):
-    # TODO: USE re
     for f in files:
         if "result" in f["Key"]:
             return True
@@ -122,7 +121,6 @@ def handler(event, context):
     key = event['Records'][0]['s3']['object']['key']
     print("Received event: {}:{}".format(bucket,key))
    
-    #config = json.loads(open('./jobinfo.json', "r").read()) #local files won't work, get it from s3
     idx = key.find('/')
     tmpdir = key[:idx]
     obj = s3.Object(bucket, '{}/jobinfo.json'.format(tmpdir))
@@ -141,7 +139,6 @@ def handler(event, context):
 
     if check_job_done(files) == True:
         print("Job done!!! Check the result file")
-        # TODO:  Delete reducer and coordinator lambdas
         return
     else:
         ### Stateless Coordinator logic
@@ -201,14 +198,3 @@ def handler(event, context):
         else:
             print("Still waiting for all the mappers or reducers (if count > total_jobs (Num. of Mappers reported by driver)) to finish ..")
 
-'''
-ev = {
-    "Records": [{'s3': {'bucket': {'name': "smallya-useast-1"}}}],
-    "bucket": "smallya-useast-1",
-    "jobId": "jobid134",
-    "mapCount": 1,
-    "reducerFunctionName": "shell-exec",
-    "reducerHandler": "index.handler"
-}
-lambda_handler(ev, {})
-'''
