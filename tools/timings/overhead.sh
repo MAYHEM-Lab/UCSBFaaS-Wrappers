@@ -1,17 +1,17 @@
 #! /bin/bash
-ACCT = XXX
-PROF = YYY
-MRBKT = spot-mr-bkt #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run without --no_spotwrap
-MRBKTNS = spot-mr-bkt-ns #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
-JOBID = job3000  #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run without --no_spotwrap
-JOBIDNS = jobNS300 #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run with --no_spotwrap
-PREFIX = /Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
-LAMDIR = ${PREFIX}/lambda-python
-DYNDBDIR = ${PREFIX}/tools/dynamodb
-CWDIR = ${PREFIX}/tools/cloudwatch
-TOOLSDIR = ${PREFIX}/tools/timings
-MRDIR = ${PREFIX}/lambda-python/mr
-SPOTTABLE = spotFns #must match tablename used by SpotWrap.py.template
+ACCT=XXX
+PROF=YYY
+MRBKT=spot-mr-bkt #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run without --no_spotwrap
+MRBKTNS=spot-mr-bkt-ns #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
+JOBID=job3000  #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run without --no_spotwrap
+JOBIDNS=jobNS300 #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run with --no_spotwrap
+PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
+LAMDIR=${PREFIX}/lambda-python
+DYNDBDIR=${PREFIX}/tools/dynamodb
+CWDIR=${PREFIX}/tools/cloudwatch
+TOOLSDIR=${PREFIX}/tools/timings
+MRDIR=${PREFIX}/lambda-python/mr
+SPOTTABLE=spotFns #must match tablename used by SpotWrap.py.template
 
 #delete db entries
 cd ${DYNDBDIR}
