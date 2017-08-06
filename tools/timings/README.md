@@ -1,8 +1,9 @@
 # Tools to collect timings with and without spotwrap
 
-Pass into each bash script your AWS account ID and your AWS profile, e.g. ```./mr.sh XXXACCTXXXX awsprofile1```.
+Pass into each bash script your AWS account ID and your AWS profile, e.g. ```./mr.sh 1401861965497 awsprofile1```. The large valued argument is an early timestamp (epoch milliseconds). This is the timestamp to go back to when looking for cloudwatch records.
 
-cleanup.sh deletes all files, logs, and database entries.  Use this with caution.  You may need to run this multiple times until all of the running jobs complete and write out their data and logs (e.g. if you stopped/killed a job midstream!)... until you see ```Table 'spotFns' is empty.``` repeatedly, keep retrying after some time delay.
+cleanup.sh deletes all files, logs, database entries, and all outputs from overhead.sh and overheadNS.sh.  Use this with caution.  You may need to run this multiple times until all of the running jobs complete and write out their data and logs (e.g. if you stopped/killed a job midstream!)... until you see ```Table 'spotFns' is empty.``` repeatedly, keep retrying after some time delay.
+---cleanupAWS.sh does the same except it does NOT delete overhead.sh and overheadNS.sh output files
 
 overhead.sh runs the map/reduce job with SpotWrap support 10 times and collects the results in lambda-python/mr/{1..10}, tools/cloudwatch/{1..10}, and tools/dynamodb/{1..10}.  This job assumes that the lambda names are mapper, reducer, reducerCoordinator, and driver (set in setupconfig.json for setupApps.py installation).
 

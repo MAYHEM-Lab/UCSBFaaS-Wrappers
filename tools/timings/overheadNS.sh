@@ -1,6 +1,6 @@
 #! /bin/bash
-ACCT=$1
-PROF=$2
+if [ -z ${1+x} ]; then echo 'Unset args. Set and rerun. Exiting...!'; exit 1; fi
+PROF=$1
 MRBKT=spot-mr-bkt #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run without --no_spotwrap
 MRBKTNS=spot-mr-bkt-ns #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
 JOBID=job3000  #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run without --no_spotwrap
@@ -12,6 +12,7 @@ CWDIR=${PREFIX}/tools/cloudwatch
 TOOLSDIR=${PREFIX}/tools/timings
 MRDIR=${PREFIX}/lambda-python/mr
 SPOTTABLE=spotFns #must match tablename used by SpotWrap.py.template
+TS=1401861965497 #some early date
 
 #delete db entries
 cd ${DYNDBDIR}
@@ -22,10 +23,10 @@ deactivate
 cd ${LAMDIR}
 . ./venv/bin/activate
 cd ${CWDIR}
-python downloadLogs.py "/aws/lambda/mapperNS" ${ACCT} -p ${PROF} --deleteOnly
-python downloadLogs.py "/aws/lambda/reducerNS" ${ACCT} -p ${PROF} --deleteOnly
-python downloadLogs.py "/aws/lambda/driverNS" ${ACCT} -p ${PROF} --deleteOnly
-python downloadLogs.py "/aws/lambda/reducerCoordinatorNS" ${ACCT} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/mapperNS" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/reducerNS" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/driverNS" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/reducerCoordinatorNS" ${TS} -p ${PROF} --deleteOnly
 deactivate
 
 #do the same for no spotwrap
@@ -45,10 +46,10 @@ do
     #download cloudwatch logs (and delete them)
     cd ${CWDIR}
     mkdir -p $i/NS
-    python downloadLogs.py "/aws/lambda/mapperNS" ${ACCT} -p ${PROF} --delete  > $i/NS/map.log
-    python downloadLogs.py "/aws/lambda/reducerNS" ${ACCT} -p ${PROF} --delete  > $i/NS/red.log
-    python downloadLogs.py "/aws/lambda/driverNS" ${ACCT} -p ${PROF} --delete  > $i/NS/driv.log
-    python downloadLogs.py "/aws/lambda/reducerCoordinatorNS" ${ACCT} -p ${PROF} --delete  > $i/NS/coord.log
+    python downloadLogs.py "/aws/lambda/mapperNS" ${TS} -p ${PROF} --delete  > $i/NS/map.log
+    python downloadLogs.py "/aws/lambda/reducerNS" ${TS} -p ${PROF} --delete  > $i/NS/red.log
+    python downloadLogs.py "/aws/lambda/driverNS" ${TS} -p ${PROF} --delete  > $i/NS/driv.log
+    python downloadLogs.py "/aws/lambda/reducerCoordinatorNS" ${TS} -p ${PROF} --delete  > $i/NS/coord.log
     deactivate
     
     #download the db and then delete its entries
