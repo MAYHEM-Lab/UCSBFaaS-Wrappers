@@ -25,9 +25,7 @@ def getName(n):
         return Names.SNS
     return None
 
-countit = 0
 def makeEle(blob,req,nm,reqStr):
-    global countit
     name = None
     es = blob['eventSource']['S']
     ts = int(blob['ts']['N'])
@@ -45,13 +43,11 @@ def makeEle(blob,req,nm,reqStr):
                 if idx != -1: 
                     tmp1 = es[idx+14:].split(':')
                     caller_fname = 'FN:{}'.format(tmp1[0])
-                    preq = '{}'.format(tmp1[2])
+                    preq = '{}'.format(tmp1[1])
                     arn = blob['thisFnARN']['S'].split(':')
                     name = 'FN:{}:{}'.format(arn[6],req)
                 else:
                     print('Error: expected to find invokeCli in msg: {}'.format(msg))
-            print('FOUND AN ENTRY~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
-            countit += 1
         else:
             idx = msg.find('SW:FunctionName:')
             if idx != -1:
@@ -171,12 +167,11 @@ def parseIt(event):
     reqs = sorted(data['Items'], key=lambda k: k['ts'].get('N', 0))
     counter = 0
     missed_count = 0
+    missing = {}
     for item in reqs:
         counter += 1
         #if counter > 10:
             #break
-        if countit > 2:
-            break
         if DEBUG:
             print(item)
         reqblob = item['requestID']['S'].split(':')
@@ -199,10 +194,11 @@ def parseIt(event):
             continue
 
         if req not in reqDict:
-            assert reqStr == 'entry'
+            if reqStr != 'entry': #we haven't see the entry of this one yet... timestamp misalignment perhaps
+                missing[req] = reqStr
+
             ele,parent_req = makeEle(item,req,nm,reqStr)
             if parent_req:
-                print('FOUND a function with a parent! p:{} and c:{}'.format(parent_req,req))
                 if parent_req not in reqDict:
                     print('ERROR, found a function with a parent not in dictionary! c{}\n{}'.format(req,item))
                     sys.exit(1)
@@ -211,17 +207,28 @@ def parseIt(event):
             reqDict[req] = ele
             obj = ele
         else:
-            assert reqStr != 'entry'
-            assert reqStr != 'exit'
-            child,_ = makeEle(item,req,nm,reqStr)
-            ele = reqDict[req]
-            ele.addChild(child,nm)
-            obj = child
+            if reqStr == 'entry': #entry is coming after an entry's event, not good
+                ele,parent_req = makeEle(item,req,nm,reqStr)
+                if parent_req:
+                    if parent_req not in reqDict:
+                        print('ERROR, found a function with a parent not in dictionary! c{}\n{}'.format(req,item))
+                        sys.exit(1)
+                    pele = reqDict[parent_req]
+                    pele.addChild(ele,nm)
+                reqDict[req] = ele
+                obj = ele
+                missing.pop(req, None) #remove it from missing
+            else:
+                assert reqStr != 'exit'
+                child,_ = makeEle(item,req,nm,reqStr)
+                ele = reqDict[req]
+                ele.addChild(child,nm)
+                obj = child
         if DEBUG:
             print(reqStr,nm,req,obj.getSeqNo())
 
     makeDot(reqDict)
-    print("missed_count: {}, invoke events: {}".format(missed_count,invokes))
+    print("missed_count: {}, invoke events: {}, objs missing {}".format(missed_count,invokes,len(missing)))
 
 class DictEle:
     __seqNo = 0
