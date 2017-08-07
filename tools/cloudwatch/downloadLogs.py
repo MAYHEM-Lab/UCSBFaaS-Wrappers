@@ -15,6 +15,7 @@ def find_streams(logs,log_group,token,start,end):
         return cts >= start and lets <= end 
 
     data = None
+    #print('Processing {}...'.format(log_group))
     try:
         if token:
             data = logs.describe_log_streams(logGroupName=log_group, nextToken=token)
@@ -51,8 +52,13 @@ def process_msg(msg):
         reqid = m[2]
         if 'INVOKE' in msg: #spotwrap invoker app entry
             m = m[3].split(':')
-            duration_call = float(m[12])
-            duration = float(m[15])
+            if len(m) == 5: #SpotTemplatePy
+                duration_call = float(m[4])
+                duration = float(m[2])
+            else :
+                assert len(m) == 16 #FnInvokerPy
+                duration_call = float(m[12])
+                duration = float(m[15])
             status=202
             retn = '{}:{}:{}:{}'.format(reqid,duration,duration_call,status)
         else:

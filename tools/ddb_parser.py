@@ -6,12 +6,14 @@ from enum import Enum
 
 DEBUG = True
 Names = Enum('Names','FN S3R S3W DBR DBW SNS GW')
-
-################# processNonEvent #################
-def processNonEvent(n,msg):
-    global invokes
+invokes = 0
+invoke_calls = 0
+################# processAPICall #################
+def processAPICall(n,msg):
+    global invoke_calls
+    #use 2 letter prefix for name entry for easy acces to key eg SN instead of SNS and S3 for reads/writes,
+    #the object carries the more specific type in nm
     nm = None
-    name = None
     if n.startswith('GetObject:') or n.startswith('ListObjects:'): 
         nm = Names.S3R
     elif n.startswith('PutObject:'):
@@ -23,73 +25,84 @@ def processNonEvent(n,msg):
     elif n.startswith('Publish:'):
         nm =  Names.SNS
     elif n.startswith('Invoke:'):
-        invokes += 1
+        invoke_calls += 1
         nm =  Names.FN
     else:
-        assert True
+        assert False
     ######## process nm #########
+    name = None
     if nm == Names.FN:
         idx = msg.find('SW:FunctionName:')
         if idx != -1:
             name = 'FN:{}'.format(msg[idx+16:])
         else:
             print('Error: expected to find FunctionName in msg: {}'.format(msg))
+            assert False
     elif nm == Names.S3R:
         idx = msg.find('SW:Bkt:')
         if idx != -1:
             idx2 = msg.find(':Key:')
             if idx2 != -1:
-                name = 'S3R:{}:{}'.format(msg[idx+7:idx2],msg[idx2+6:])
+                name = 'S3:{}:{}'.format(msg[idx+7:idx2],msg[idx2+5:])
             else:
                 print('Error: expected to find :Key: in msg: {}'.format(msg))
+                assert False
         else:
             idx = msg.find('ListObjects:')
             if idx != -1:
                 rest = msg[idx+12:]
-                rest = ast.literal_eval(rest)
-                name = 'S3R:{}:{}'.format(rest['Bucket'],rest['Prefix'])
+                rest = ast.literal_eval(rest) #turn it into a dictionary
+                name = 'S3:{}:{}'.format(rest['Bucket'],rest['Prefix'])
             else:
                 print('Error: expected to find SW:Bkt or :ListObjects: in msg: {}'.format(msg))
+                assert False
     elif nm == Names.S3W:
         idx = msg.find('SW:Bkt:')
         if idx != -1:
             idx2 = msg.find(':Key:')
             if idx2 != -1:
-                name = 'S3W:{}:{}'.format(msg[idx+7:idx2],msg[idx2+5:])
+                name = 'S3:{}:{}'.format(msg[idx+7:idx2],msg[idx2+5:])
             else:
                 print('Error2: expected to find :Key: in msg: {}'.format(msg))
+                assert False
         else:
             print('Error2: expected to find SW:Bkt: in msg: {}'.format(msg))
+            assert False
     elif nm == Names.DBR:
         idx = msg.find('SW:TableName:')
         if idx != -1:
             idx = msg.find(':Key:')
             if idx != -1:
-                name = 'DBR:{}:{}'.format(msg[idx+13:idx2],msg[idx2+5:])
+                name = 'DB:{}:{}'.format(msg[idx+13:idx2],msg[idx2+5:])
             else:
                 print('Error3: expected to find Key: in msg: {}'.format(msg))
+                assert False
         else:
             print('Error3: expected to find SW:TableName: in msg: {}'.format(msg))
+            assert False
     elif nm == Names.DBW:
         idx = msg.find('SW:TableName:')
         if idx != -1:
             idx = msg.find(':Item:')
             if idx != -1:
-                name = 'DBW:{}:{}'.format(msg[idx+13:idx2],msg[idx2+6:])
+                name = 'DB:{}:{}'.format(msg[idx+13:idx2],msg[idx2+6:])
             else:
                 print('Error4: expected to find Item: in msg: {}'.format(msg))
+                assert False
         else:
             print('Error4: expected to find SW:TableName: in msg: {}'.format(msg))
+            assert False
     elif nm == Names.SNS:
         idx = msg.find('SW:sns:Publish:Topic:arn:aws:sns:')
         if idx != -1:
             idx = msg.find(':Subject:')
             if idx != -1:
-                name = 'SNS:{}:{}'.format(msg[idx+33:idx2],msg[idx2+9:])
+                name = 'SN:{}:{}'.format(msg[idx+33:idx2],msg[idx2+9:])
             else:
-                name = 'SNS:{}'.format(msg[idx+33:])
+                name = 'SN:{}'.format(msg[idx+33:])
         else:
             print('Error5: expected to find SW:sns:Publish:Topic: in msg: {}'.format(msg))
+            assert False
     #elif nm == Names.GW:
         #pass
     else:
@@ -97,7 +110,8 @@ def processNonEvent(n,msg):
     return nm,name
 
 ################# process #################
-def process(obj,reqDict):
+def process(obj,reqDict,SEQs,KEYs):
+    global invokes
     reqblob = obj['requestID']['S'].split(':')
     req = reqblob[0]
     reqStr = reqblob[1]
@@ -111,180 +125,116 @@ def process(obj,reqDict):
     msg = obj['message']['S']
 
     #extract reqID,nm,item,ip
-    parent_req = None
-    exit = False
+    parent_obj = None
+    nm = None
     name = 'unknown'
     ip = 'unknown'
+    skipInvoke = False
     duration = 0
     if reqStr == 'exit': 
-        exit = True
         duration = obj['duration']
     elif reqStr == 'entry': 
+        nm = Names.FN            
         if 'thisFnARN' in obj:
             arn = obj['thisFnARN']['S'].split(':')
             name = 'FN:{}:{}'.format(arn[6],req)
         if 'sourceIP' in obj:
             ip = obj['sourceIP']
         if eventOp.startswith('ObjectCreated:'):
-            nm = Names.S3W            
+            #link to existing Names.S3W object
             msg = obj['message']['S'].split(':')
-            item = '{}:{}'.format(msg[0],msg[1])
+            name = 'S3W:{}:{}'.format(msg[0],msg[1])
+            assert name in KEYs
+            eleTuple = KEYs.pop(name,None)
+            source_name = name #for debugging
+            assert eleTuple[1] in SEQs
+            parent_obj = SEQs[eleTuple[1]]
         elif eventOp.startswith('lib:invokeCLI:'):
-            #invoke from fn_name fn_reqid
-            nm = Names.FN            
+            #link to existing Names.FN
             idx = es.find('lib:invokeCLI:') #lib call from another lambda
+            invokes += 1
             if idx != -1: 
                 tmp1 = es[idx+14:].split(':')
-                source_fname = 'FN:{}'.format(tmp1[0])
+                source_name = 'FN:{}'.format(tmp1[0]) #for debugging
                 parent_req = '{}'.format(tmp1[1])
+                assert parent_req in reqDict
+                parent_obj = reqDict[parent_req]
             else:
                 print('Error: expected to find invokeCli in msg: {}'.format(msg))
+                assert False
         elif eventOp.startswith('ext:invokeCLI'):
             #invoke from command line (aws tools remotely)
             nm = Names.FN            
         else:
             print('Error: unhandled entry type: {} {}'.format(reqStr,eventOp))
-            sys.exit(1)
+            assert False
     else: #other event, record it to build trace
-        print(req,reqStr,obj)
-        nm ,name = processNonEvent(reqStr, msg)
-        print(nm,name)
+        print('APICall:',req,reqStr,obj)
+        nm ,name = processAPICall(reqStr, msg)
+        if nm == Names.S3W or nm == Names.DBW or nm == Names.SNS:
+            #possible function trigger (writes only trigger lambdas in S3, DynamoDB, and SNS
+            #store them in KEYs but just keep the last one (most recent) as events are in order
+            ele = DictEle(obj,req,name,nm,ts)
+            seq = ele.getSeqNo()
+            assert seq not in SEQs
+            SEQs[seq] = ele #keep map by seqNo
+            assert req in reqDict
+            parent_obj = reqDict['req']
+            parent_obj.addChild(ele)
+            KEYs[name] = ele #store for later use, overwrite last key (processing in sequence order)
 
-    print('Name: {}, NM: {}, IP: {}'.format(name,nm,ip))
-    if req in reqDict:
-        assert exit
-        ele = reqDict[req]
-        old_duration = ele.getDuration(duration)
-        if old_duration != 0:
-            print('Error: duration aleady set!: {}'.format(duration))
-            sys.exit(1)
-        ele.setDuration(duration)
-    else:
-        ele = DictEle(obj,req,name)
-        reqDict[req] = ele
+        print('\t',nm,name)
+        if nm == Names.FN:
+            skipInvoke = True
+        else: #get parent object
+            #assert req in reqDict #if processing in order, this must be true, skip for now HERE CJK
+            if req in reqDict: 
+                parent_obj = reqDict[req]
 
-################# unused? #################
-def getName(n,obj):
-    eventOp = item['eventOp']['S'] #will be set on receipt of an API call
-    if n.startswith('Invoke:'):
-        invokes += 1 #just count, don't create
-        return None
-    if n.startswith('GetObject:') or n.startswith('ListObjects:') or n.startswith('PutObject:') or n.startswith('PutItem:') or n.startswith('GetItem:') or n.startswith('Publish:') or n.startswith('Invoke:'):
-        #API call
-        return None
-    #if n == 'entry' or n.startswith('Invoke:'):
-    if n == 'entry': 
-        if ev.startswith('ObjectCreated:'):
-            pass
-        if n.startswith('GetObject:'):
-            return Names.S3R
-        if n.startswith('PutObject:'):
-            return Names.S3W
-        if n.startswith('PutItem:'):
-            return Names.DBW
-        if n.startswith('GetItem:'):
-            return Names.DBR
-        if n.startswith('Publish:'):
-            return Names.SNS
-    return None
-
-def makeEle(blob,req,nm,reqStr):
-    name = None
-    es = blob['eventSource']['S']
-    ts = int(blob['ts']['N'])
-    msg = blob['message']['S']
-    preq = None
-    if nm == Names.FN:
-        if reqStr == 'entry':
-            #who invoked this function?
-            if es.find('ext:invokeCLI') != -1:  #external agent
-                arn = blob['thisFnARN']['S'].split(':')
-                name = 'FN:{}:{}'.format(arn[6],req)
+    if not skipInvoke: #skip API calls to invoke as we capture requestID of caller in callee header
+        if req in reqDict:
+            #a non-entry (other event) or exit
+            oldele = reqDict[req]
+            if reqStr == 'exit':
+                assert parent_obj is None
+                old_duration = oldele.getDuration()
+                assert old_duration == 0
+                oldele.setDuration(duration)
+                print('EXIT: Name: {}, NM: {}, IP: {}'.format(name,nm,ip))
             else:
-                #eventOp = 'invoke' if an invoke event (only used in debugging)
-                idx = es.find('lib:invokeCLI:') #lib call from another lambda
-                if idx != -1: 
-                    tmp1 = es[idx+14:].split(':')
-                    caller_fname = 'FN:{}'.format(tmp1[0])
-                    preq = '{}'.format(tmp1[1])
-                    arn = blob['thisFnARN']['S'].split(':')
-                    name = 'FN:{}:{}'.format(arn[6],req)
+                assert reqStr != 'entry'
+                ele = DictEle(obj,req,name,nm,ts)
+                oldele.addChild(ele)
+                seq = ele.getSeqNo()
+                assert seq not in SEQs
+                SEQs[seq] = ele #keep map by seqNo
+                if name not in KEYs:
+                    KEYs[name] = (ele,seq) #keep map by keyname, make seqNo and ts easy to retrieve
                 else:
-                    print('Error: expected to find invokeCli in msg: {}'.format(es))
+                    assert False # more than one with the same key, get the one earliest in time
+            print('EVENT: Name: {}, NM: {}, IP: {}'.format(name,nm,ip))
         else:
-            idx = msg.find('SW:FunctionName:')
-            if idx != -1:
-                name = 'FN:{}'.format(msg[idx+16:])
+            assert reqStr != 'exit'
+            ele = DictEle(obj,req,name,nm,ts)
+            seq = ele.getSeqNo()
+            assert seq not in SEQs
+            SEQs[seq] = ele #keep map by seqNo
+            reqDict[req] = ele
+            if reqStr == 'entry': 
+                print('ENTRY: Name: {}, NM: {}, IP: {}'.format(name,nm,ip))
+                if parent_obj:
+                    parent_obj.addChild(ele)
+                    print('\tENTRY: adding parent {}'.format(parent_obj.getName()))
             else:
-                print('Error: expected to find FunctionName in msg: {}'.format(msg))
-
-    elif nm == Names.S3R:
-        idx = msg.find('SW:Bkt:')
-        if idx != -1:
-            idx2 = msg.find(':Key:')
-            if idx2 != -1:
-                name = 'S3R:{}:{}'.format(msg[idx+7:idx2],msg[idx2+6:])
-            else:
-                print('Error: expected to find :Key: in msg: {}'.format(msg))
-        else:
-            idx = msg.find('ListObjects:')
-            if idx != -1:
-                rest = msg[idx+12:]
-                rest = ast.literal_eval(rest)
-                name = 'S3R:{}:{}'.format(rest['Bucket'],rest['Prefix'])
-            else:
-                print('Error: expected to find SW:Bkt or :ListObjects: in msg: {}'.format(msg))
-		
-    elif nm == Names.S3W:
-        idx = msg.find('SW:Bkt:')
-        if idx != -1:
-            idx2 = msg.find(':Key:')
-            if idx2 != -1:
-                name = 'S3W:{}:{}'.format(msg[idx+7:idx2],msg[idx2+5:])
-            else:
-                print('Error2: expected to find :Key: in msg: {}'.format(msg))
-        else:
-            print('Error2: expected to find SW:Bkt: in msg: {}'.format(msg))
-    elif nm == Names.DBR:
-        idx = msg.find('SW:TableName:')
-        if idx != -1:
-            idx = msg.find(':Key:')
-            if idx != -1:
-                name = 'DBR:{}:{}'.format(msg[idx+13:idx2],msg[idx2+5:])
-            else:
-                print('Error3: expected to find Key: in msg: {}'.format(msg))
-        else:
-            print('Error3: expected to find SW:TableName: in msg: {}'.format(msg))
-    elif nm == Names.DBW:
-        idx = msg.find('SW:TableName:')
-        if idx != -1:
-            idx = msg.find(':Item:')
-            if idx != -1:
-                name = 'DBW:{}:{}'.format(msg[idx+13:idx2],msg[idx2+6:])
-            else:
-                print('Error4: expected to find Item: in msg: {}'.format(msg))
-        else:
-            print('Error4: expected to find SW:TableName: in msg: {}'.format(msg))
-    elif nm == Names.SNS:
-        idx = msg.find('SW:sns:Publish:Topic:arn:aws:sns:')
-        if idx != -1:
-            idx = msg.find(':Subject:')
-            if idx != -1:
-                name = 'SNS:{}:{}'.format(msg[idx+33:idx2],msg[idx2+9:])
-            else:
-                name = 'SNS:{}'.format(msg[idx+33:])
-        else:
-            print('Error5: expected to find SW:sns:Publish:Topic: in msg: {}'.format(msg))
-    elif nm == Names.GW:
-        pass
-    else:
-        assert False
-    if name:
-        ele = DictEle(blob,req,name)
-    else:
-        ele = DictEle(blob,req,nm)
-    return ele,preq
-
+                if parent_obj is None:
+                    #this shouldn't happen if processing in order, handle for now HERE CJK
+                    assert name not in KEYs
+                    KEYs[name] = (ele,seq)
+                else:
+                    print('EVENT: Name: {}, NM: {}, IP: {}'.format(name,nm,ip))
+                    assert parent_obj is not None
+                    parent_obj.addChild(ele)
+    
 def makeDot(reqDict):
     dot = Digraph(comment='Spot',format='pdf')
     for key in reqDict:
@@ -305,7 +255,8 @@ def makeDot(reqDict):
 def parseIt(event):
     fname = None
     reqDict = {} #dictionary holding request (DictEle) objects by requestID
-
+    SEQs = {} #dictionary by seqID holding DictEles, for easy traversal by seqNo
+    KEYs = {} #dictionary by name (key) for events holding (DictEle,req,seq,ts), popped when assigned by earliest ts
     #check that the file is available 
     fname = None
     if 'fname' in event:
@@ -317,16 +268,31 @@ def parseIt(event):
         return
     print('processing file: {}'.format(fname))
 
-    #decode the json file
     data = None
-    with open(fname) as data_file:    
-        data = json.load(data_file)
-    if not data:
-        return
+    reqs = []
+    count = 0
+    if 'oldversion' in event:
+        #decode the json file
+        with open(fname) as data_file:    
+            data = json.load(data_file)
+        if not data:
+            return
+        #put them in sorted order by timestamp
+        reqs = sorted(data['Items'], key=lambda k: k['ts'].get('N', 0))
+    else:
+        with open(fname) as data_file:    
+            for line in data_file:
+                if line.startswith('SHARD'):
+                    continue #skip it
+                #get item object xxx:INSERT:yyy:{item}
+                if ':INSERT:' in line: #skip the REMOVE entries
+                    idx = line.find(':')
+                    idx = line.find(':',idx+1)
+                    idx = line.find(':',idx+1)
+                    rest = ast.literal_eval(line[idx+1:]) #turn it into a dictionary
+                    reqs.append(rest)
 
-    count = data['Count']
-    #put them in sorted order by timestamp
-    reqs = sorted(data['Items'], key=lambda k: k['ts'].get('N', 0))
+    count = len(reqs)
     counter = 0
     missed_count = 0
     missing = {}
@@ -336,7 +302,7 @@ def parseIt(event):
             #break
         if DEBUG:
             print(item)
-        ele = process(item,reqDict)
+        process(item,reqDict,SEQs,KEYs)
 
 
         '''
@@ -398,35 +364,48 @@ def parseIt(event):
 
     makeDot(reqDict)
     print("missed_count: {}, objs missing {}".format(missed_count,len(missing)))
+    print("invoked_count: {}, invokes {}".format(invoke_calls,invokes))
 
 class DictEle:
     __seqNo = 0
 
-    def addChild(self,child,childtype):
-        if childtype not in self.children_lists:
-            self.children_lists[childtype] = []
-        self.children_lists[childtype].append(child)
+    #def addChild(self,child,childtype):
+        #if childtype not in self.__children_lists:
+            #self.__children_lists[childtype] = []
+        #self.__children_lists[childtype].append(child)
+    def addChild(self,child):
+        if child not in self.__children:
+            self.__children.append(child)
     def setDuration(self,duration):
-        self.duration = duration
+        self.__duration = duration
     def getDuration(self):
-        return self.duration
+        return self.__duration
     def getBlob(self):
-        return self.ele
+        return self.__ele
     def getName(self):
-        return self.name
+        return self.__name
     def getSeqNo(self):
-        return self.seq
+        return self.__seq
     def getReqId(self):
-        return self.reqID
+        return self.__reqID
+    def getNM(self):
+        return self.__nm
+    def getSourceIP(self):
+        if 'sourceIP' in self.__blob:
+            return self.__blob['sourceIP']
+        else:
+            return None
 
-    def __init__(self,blob,reqID,name):
-        self.children_lists = {} #list of DictEles per Names.enum
-        self.seq = self.getAndIncrSeqNo()
-        print('set seq {}'.format(self.seq))
-        self.name = name
-        self.reqID = reqID
-        self.duration = 0
-        self.ele = blob
+    def __init__(self,blob,reqID,name,nm,ts):
+        #self.__children_lists = {} #list of DictEles per Names.enum
+        self.__children = []
+        self.__seq = self.getAndIncrSeqNo()
+        self.__ts = ts
+        self.__nm = nm
+        self.__name = name
+        self.__reqID = reqID
+        self.__duration = 0
+        self.__ele = blob
 
     @staticmethod
     def getAndIncrSeqNo(incr=1):
@@ -437,10 +416,13 @@ class DictEle:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DynamoDB spotFns Table data Parser')
     parser.add_argument('fname',action='store',help='filename to process')
+    parser.add_argument('--fname_is_dbdump',action='store_true',default=False,help='file is dbdump file')
     #parser.add_argument('schema',action='store',help='schema of file to process')
     args = parser.parse_args()
     event = {}
     event['fname'] = args.fname
+    if args.fname_is_dbdump:
+        event['oldversion'] = 'any text will work'
     #event['schema'] = args.schema
     parseIt(event)
 
