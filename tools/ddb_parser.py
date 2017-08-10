@@ -43,7 +43,7 @@ def processAPICall(n,msg):
         if idx != -1:
             idx2 = msg.find(':Key:')
             if idx2 != -1:
-                name = 'S3:{}:{}'.format(msg[idx+7:idx2],msg[idx2+5:])
+                name = 'S3R:{}:{}'.format(msg[idx+7:idx2],msg[idx2+5:])
             else:
                 print('Error: expected to find :Key: in msg: {}'.format(msg))
                 assert False
@@ -52,7 +52,7 @@ def processAPICall(n,msg):
             if idx != -1:
                 rest = msg[idx+12:]
                 rest = ast.literal_eval(rest) #turn it into a dictionary
-                name = 'S3:{}:{}'.format(rest['Bucket'],rest['Prefix'])
+                name = 'S3R:{}:{}'.format(rest['Bucket'],rest['Prefix'])
             else:
                 print('Error: expected to find SW:Bkt or :ListObjects: in msg: {}'.format(msg))
                 assert False
@@ -61,7 +61,7 @@ def processAPICall(n,msg):
         if idx != -1:
             idx2 = msg.find(':Key:')
             if idx2 != -1:
-                name = 'S3:{}:{}'.format(msg[idx+7:idx2],msg[idx2+5:])
+                name = 'S3W:{}:{}'.format(msg[idx+7:idx2],msg[idx2+5:])
             else:
                 print('Error2: expected to find :Key: in msg: {}'.format(msg))
                 assert False
@@ -71,8 +71,8 @@ def processAPICall(n,msg):
     elif nm == Names.DBR:
         idx = msg.find('SW:TableName:')
         if idx != -1:
-            idx = msg.find(':Key:')
-            if idx != -1:
+            idx2 = msg.find(':Key:')
+            if idx2 != -1:
                 name = 'DB:{}:{}'.format(msg[idx+13:idx2],msg[idx2+5:])
             else:
                 print('Error3: expected to find Key: in msg: {}'.format(msg))
@@ -83,8 +83,8 @@ def processAPICall(n,msg):
     elif nm == Names.DBW:
         idx = msg.find('SW:TableName:')
         if idx != -1:
-            idx = msg.find(':Item:')
-            if idx != -1:
+            idx2 = msg.find(':Item:')
+            if idx2 != -1:
                 name = 'DB:{}:{}'.format(msg[idx+13:idx2],msg[idx2+6:])
             else:
                 print('Error4: expected to find Item: in msg: {}'.format(msg))
@@ -93,13 +93,15 @@ def processAPICall(n,msg):
             print('Error4: expected to find SW:TableName: in msg: {}'.format(msg))
             assert False
     elif nm == Names.SNS:
-        idx = msg.find('SW:sns:Publish:Topic:arn:aws:sns:')
+        #idx = msg.find('SW:sns:Publish:Topic:arn:aws:sns:')
+        idx = msg.find('SWsns:Publish:Topic:arn:aws:sns:')
+        #TODO fix this
         if idx != -1:
-            idx = msg.find(':Subject:')
-            if idx != -1:
-                name = 'SN:{}:{}'.format(msg[idx+33:idx2],msg[idx2+9:])
+            idx2 = msg.find(':Subject:')
+            if idx2 != -1:
+                name = 'SN:{}:{}'.format(msg[idx+32:idx2],msg[idx2+9:])
             else:
-                name = 'SN:{}'.format(msg[idx+33:])
+                name = 'SN:{}'.format(msg[idx+32:])
         else:
             print('Error5: expected to find SW:sns:Publish:Topic: in msg: {}'.format(msg))
             assert False
@@ -133,22 +135,34 @@ def process(obj,reqDict,SEQs,KEYs):
     duration = 0
     if reqStr == 'exit': 
         duration = obj['duration']
-    elif reqStr == 'entry': 
+        assert req in reqDict
+        parent_obj = reqDict[req]
+        assert parent_obj.getDuration() == 0
+        parent_obj.setDuration(duration)
+        print('EXIT: Name: {}, NM: {}, IP: {}'.format(parent_obj.getName(),parent_obj.getNM(),parent_obj.getSourceIP()))
+    elif reqStr == 'entry':  ############ function entry ##################
         nm = Names.FN            
         if 'thisFnARN' in obj:
             arn = obj['thisFnARN']['S'].split(':')
             name = 'FN:{}:{}'.format(arn[6],req)
         if 'sourceIP' in obj:
             ip = obj['sourceIP']
+        ele = DictEle(obj,req,name,nm,ts)
+        seq = ele.getSeqNo()
+        assert seq not in SEQs
+        SEQs[seq] = ele #keep map by seqNo
+        reqDict[req] = ele
+        print('ENTRY: Name: {}, NM: {}, IP: {}'.format(ele.getName(),ele.getNM(),ele.getSourceIP()))
         if eventOp.startswith('ObjectCreated:'):
             #link to existing Names.S3W object
             msg = obj['message']['S'].split(':')
             name = 'S3W:{}:{}'.format(msg[0],msg[1])
+            print('name {}'.format(name))
             assert name in KEYs
-            eleTuple = KEYs.pop(name,None)
+            parent_obj = KEYs.pop(name,None) #assumes 1 S3W apicall triggers only 1 function, todo fix this!
             source_name = name #for debugging
-            assert eleTuple[1] in SEQs
-            parent_obj = SEQs[eleTuple[1]]
+            print('Adding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
+            parent_obj.addChild(ele)
         elif eventOp.startswith('lib:invokeCLI:'):
             #link to existing Names.FN
             idx = es.find('lib:invokeCLI:') #lib call from another lambda
@@ -159,61 +173,43 @@ def process(obj,reqDict,SEQs,KEYs):
                 parent_req = '{}'.format(tmp1[1])
                 assert parent_req in reqDict
                 parent_obj = reqDict[parent_req]
+                parent_obj.addChild(ele)
+                print('Adding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
             else:
                 print('Error: expected to find invokeCli in msg: {}'.format(msg))
                 assert False
-        elif eventOp.startswith('ext:invokeCLI'):
-            #invoke from command line (aws tools remotely)
+        elif eventOp.startswith('ext:invokeCLI') or es.find('ext:invokeCLI') != -1:
+            #invoke from command line (aws tools remotely), there is no parent
             nm = Names.FN            
         else:
             print('Error: unhandled entry type: {} {}'.format(reqStr,eventOp))
-            assert False
+            #todo fix this, why doesn't mapper have a source? because we called it from driverNS instead of driver; so this case will happen for any function without a source
+            #assert False
+            nm = Names.FN            
     else: #other event, record it to build trace
-        print('APICall:',req,reqStr,obj)
         nm ,name = processAPICall(reqStr, msg)
+        assert req in reqDict
+        parent_obj = reqDict[req]
         if nm == Names.S3W or nm == Names.DBW or nm == Names.SNS:
+            print('APICall:',req,reqStr,nm,name)
             #possible function trigger (writes only trigger lambdas in S3, DynamoDB, and SNS
             #store them in KEYs but just keep the last one (most recent) as events are in order
+            #if processed from the stream
             ele = DictEle(obj,req,name,nm,ts)
             seq = ele.getSeqNo()
             assert seq not in SEQs
             SEQs[seq] = ele #keep map by seqNo
-            assert req in reqDict
-            parent_obj = reqDict['req']
             parent_obj.addChild(ele)
+            print('Adding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
+            #assert name not in KEYs #if exact key and value is in dict, overwrite it with more recent ele
+            #if no function consumed the event, we must move on
             KEYs[name] = ele #store for later use, overwrite last key (processing in sequence order)
 
-        print('\t',nm,name)
         if nm == Names.FN:
             skipInvoke = True
-        else: #get parent object
-            #assert req in reqDict #if processing in order, this must be true, skip for now HERE CJK
-            if req in reqDict: 
-                parent_obj = reqDict[req]
 
+    '''
     if not skipInvoke: #skip API calls to invoke as we capture requestID of caller in callee header
-        if req in reqDict:
-            #a non-entry (other event) or exit
-            oldele = reqDict[req]
-            if reqStr == 'exit':
-                assert parent_obj is None
-                old_duration = oldele.getDuration()
-                assert old_duration == 0
-                oldele.setDuration(duration)
-                print('EXIT: Name: {}, NM: {}, IP: {}'.format(name,nm,ip))
-            else:
-                assert reqStr != 'entry'
-                ele = DictEle(obj,req,name,nm,ts)
-                oldele.addChild(ele)
-                seq = ele.getSeqNo()
-                assert seq not in SEQs
-                SEQs[seq] = ele #keep map by seqNo
-                if name not in KEYs:
-                    KEYs[name] = (ele,seq) #keep map by keyname, make seqNo and ts easy to retrieve
-                else:
-                    assert False # more than one with the same key, get the one earliest in time
-            print('EVENT: Name: {}, NM: {}, IP: {}'.format(name,nm,ip))
-        else:
             assert reqStr != 'exit'
             ele = DictEle(obj,req,name,nm,ts)
             seq = ele.getSeqNo()
@@ -234,6 +230,7 @@ def process(obj,reqDict,SEQs,KEYs):
                     print('EVENT: Name: {}, NM: {}, IP: {}'.format(name,nm,ip))
                     assert parent_obj is not None
                     parent_obj.addChild(ele)
+    '''
     
 def makeDot(reqDict):
     dot = Digraph(comment='Spot',format='pdf')
@@ -242,13 +239,12 @@ def makeDot(reqDict):
         p = str(obj.getSeqNo())
         p1 = str(obj.getName())
         dot.node(p,p1)
-        for lst in obj.children_lists:
-            childlist = obj.children_lists[lst]
-            for child in childlist:
-                c = str(child.getSeqNo())
-                c1 = str(child.getName())
-                dot.node(c,c1)
-                dot.edge(p,c)
+        childlist = obj.getChildren()
+        for child in childlist:
+            c = str(child.getSeqNo())
+            c1 = str(child.getName())
+            dot.node(c,c1)
+            dot.edge(p,c)
         dot.render('spotgraph', view=True)
         return
          
@@ -256,7 +252,7 @@ def parseIt(event):
     fname = None
     reqDict = {} #dictionary holding request (DictEle) objects by requestID
     SEQs = {} #dictionary by seqID holding DictEles, for easy traversal by seqNo
-    KEYs = {} #dictionary by name (key) for events holding (DictEle,req,seq,ts), popped when assigned by earliest ts
+    KEYs = {} #dictionary by name (key) for DictEles, popped when assigned by earliest ts
     #check that the file is available 
     fname = None
     if 'fname' in event:
@@ -390,11 +386,13 @@ class DictEle:
         return self.__reqID
     def getNM(self):
         return self.__nm
+    def getChildren(self):
+        return self.__children
     def getSourceIP(self):
-        if 'sourceIP' in self.__blob:
-            return self.__blob['sourceIP']
+        if 'sourceIP' in self.__ele:
+            return self.__ele['sourceIP']['S']
         else:
-            return None
+            return "unknown"
 
     def __init__(self,blob,reqID,name,nm,ts):
         #self.__children_lists = {} #list of DictEles per Names.enum
