@@ -37,7 +37,7 @@ do
     . ../venv/bin/activate
     #run the driver
     aws lambda invoke --invocation-type Event --function-name driver --region us-west-2 --profile ${PROF} --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","job_id":"${JOBID}","mapper":"mapper","reducer":"reducer","bucket":"big-data-benchmark","jobBucket":"${MRBKT}","region":"us-west-2","full_async":"yes"}' outputfile
-    sleep 15m
+    /bin/sleep 900 #seconds, so 15mins
 done
 
 #download cloudwatch logs (and delete them)
