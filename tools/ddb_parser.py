@@ -6,6 +6,7 @@ from enum import Enum
 
 DEBUG = True
 Names = Enum('Names','FN S3R S3W DBR DBW SNS GW')
+Color = Enum('Color','WHITE GRAY BLACK')
 invokes = 0
 invoke_calls = 0
 ################# processAPICall #################
@@ -139,7 +140,8 @@ def process(obj,reqDict,SEQs,KEYs):
         parent_obj = reqDict[req]
         assert parent_obj.getDuration() == 0
         parent_obj.setDuration(duration)
-        print('EXIT: Name: {}, NM: {}, IP: {}'.format(parent_obj.getName(),parent_obj.getNM(),parent_obj.getSourceIP()))
+        if DEBUG: 
+            print('EXIT: Name: {}, NM: {}, IP: {}'.format(parent_obj.getName(),parent_obj.getNM(),parent_obj.getSourceIP()))
     elif reqStr == 'entry':  ############ function entry ##################
         nm = Names.FN            
         if 'thisFnARN' in obj:
@@ -151,17 +153,19 @@ def process(obj,reqDict,SEQs,KEYs):
         seq = ele.getSeqNo()
         assert seq not in SEQs
         SEQs[seq] = ele #keep map by seqNo
+        #only insert it into reqDict if it doesn't have a parent!
         reqDict[req] = ele
-        print('ENTRY: Name: {}, NM: {}, IP: {}'.format(ele.getName(),ele.getNM(),ele.getSourceIP()))
+        if DEBUG:
+            print('ENTRY: Name: {}, NM: {}, IP: {}'.format(ele.getName(),ele.getNM(),ele.getSourceIP()))
         if eventOp.startswith('ObjectCreated:'):
             #link to existing Names.S3W object
             msg = obj['message']['S'].split(':')
             name = 'S3W:{}:{}'.format(msg[0],msg[1])
-            print('name {}'.format(name))
             assert name in KEYs
             parent_obj = KEYs.pop(name,None) #assumes 1 S3W apicall triggers only 1 function, todo fix this!
             source_name = name #for debugging
-            print('Adding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
+            if DEBUG:
+                print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
             parent_obj.addChild(ele)
         elif eventOp.startswith('lib:invokeCLI:'):
             #link to existing Names.FN
@@ -174,24 +178,37 @@ def process(obj,reqDict,SEQs,KEYs):
                 assert parent_req in reqDict
                 parent_obj = reqDict[parent_req]
                 parent_obj.addChild(ele)
-                print('Adding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
+                if DEBUG:
+                    print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
             else:
                 print('Error: expected to find invokeCli in msg: {}'.format(msg))
                 assert False
         elif eventOp.startswith('ext:invokeCLI') or es.find('ext:invokeCLI') != -1:
             #invoke from command line (aws tools remotely), there is no parent
-            nm = Names.FN            
+            pass
+        elif eventOp.startswith('Notification'):
+            #invoke from SNS notification
+            arn = es.split(':') #arn
+            idx = msg.find(':') #subject:rest
+            subject = msg[0:idx]
+            message = msg[idx+1:]
+            #SN:region:acct:topic:subject:Message:msg
+            name = 'SN:{}:{}:{}:{}:Message:{}'.format(arn[3],arn[4],arn[5],subject,message)
+            assert name in KEYs
+            parent_obj = KEYs.pop(name,None) #assumes 1 SNS apicall triggers only 1 function, todo fix this!
+            source_name = name #for debugging
+            if DEBUG:
+                print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
+            parent_obj.addChild(ele)
         else:
-            print('Error: unhandled entry type: {} {}'.format(reqStr,eventOp))
-            #todo fix this, why doesn't mapper have a source? because we called it from driverNS instead of driver; so this case will happen for any function without a source
+            print('WARNING: function has no parent! {} {}'.format(reqStr,eventOp))
             #assert False
-            nm = Names.FN            
     else: #other event, record it to build trace
         nm ,name = processAPICall(reqStr, msg)
         assert req in reqDict
         parent_obj = reqDict[req]
         if nm == Names.S3W or nm == Names.DBW or nm == Names.SNS:
-            print('APICall:',req,reqStr,nm,name)
+            print('\tAPICall:',req,reqStr,nm,name)
             #possible function trigger (writes only trigger lambdas in S3, DynamoDB, and SNS
             #store them in KEYs but just keep the last one (most recent) as events are in order
             #if processed from the stream
@@ -200,54 +217,45 @@ def process(obj,reqDict,SEQs,KEYs):
             assert seq not in SEQs
             SEQs[seq] = ele #keep map by seqNo
             parent_obj.addChild(ele)
-            print('Adding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
+            if DEBUG:
+                print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
             #assert name not in KEYs #if exact key and value is in dict, overwrite it with more recent ele
             #if no function consumed the event, we must move on
             KEYs[name] = ele #store for later use, overwrite last key (processing in sequence order)
 
         if nm == Names.FN:
             skipInvoke = True
-
-    '''
-    if not skipInvoke: #skip API calls to invoke as we capture requestID of caller in callee header
-            assert reqStr != 'exit'
-            ele = DictEle(obj,req,name,nm,ts)
-            seq = ele.getSeqNo()
-            assert seq not in SEQs
-            SEQs[seq] = ele #keep map by seqNo
-            reqDict[req] = ele
-            if reqStr == 'entry': 
-                print('ENTRY: Name: {}, NM: {}, IP: {}'.format(name,nm,ip))
-                if parent_obj:
-                    parent_obj.addChild(ele)
-                    print('\tENTRY: adding parent {}'.format(parent_obj.getName()))
-            else:
-                if parent_obj is None:
-                    #this shouldn't happen if processing in order, handle for now HERE CJK
-                    assert name not in KEYs
-                    KEYs[name] = (ele,seq)
-                else:
-                    print('EVENT: Name: {}, NM: {}, IP: {}'.format(name,nm,ip))
-                    assert parent_obj is not None
-                    parent_obj.addChild(ele)
-    '''
     
+def dotGen(dot,obj,reqDict):
+        eleID = str(obj.getSeqNo())
+        eleName = str(obj.getName())
+        if obj.isUnmarked():
+            obj.markObject()
+            dot.node(eleID,eleName)
+            childlist = obj.getChildren()
+            for child in childlist:
+                c1 = str(child.getName())
+                c = dotGen(dot,child,reqDict)
+                dot.edge(eleID,c)
+        return eleID
+
 def makeDot(reqDict):
     dot = Digraph(comment='Spot',format='pdf')
     for key in reqDict:
         obj = reqDict[key]
         p = str(obj.getSeqNo())
         p1 = str(obj.getName())
-        dot.node(p,p1)
-        childlist = obj.getChildren()
-        for child in childlist:
-            c = str(child.getSeqNo())
-            c1 = str(child.getName())
-            dot.node(c,c1)
-            dot.edge(p,c)
-        dot.render('spotgraph', view=True)
-        return
-         
+        if obj.isUnmarked():
+            obj.markObject()
+            dot.node(p,p1)
+            childlist = obj.getChildren()
+            for child in childlist:
+                c1 = str(child.getName())
+                c = dotGen(dot,child,reqDict)
+                dot.edge(p,c)
+    dot.render('spotgraph', view=True)
+    return
+
 def parseIt(event):
     fname = None
     reqDict = {} #dictionary holding request (DictEle) objects by requestID
@@ -262,7 +270,8 @@ def parseIt(event):
     if not fname:
         print('Unable to find/open file in parseIt')
         return
-    print('processing file: {}'.format(fname))
+    if DEBUG:
+        print('processing file: {}'.format(fname))
 
     data = None
     reqs = []
@@ -296,68 +305,9 @@ def parseIt(event):
         counter += 1
         #if counter > 10:
             #break
-        if DEBUG:
-            print(item)
+        #if DEBUG:
+            #print(item)
         process(item,reqDict,SEQs,KEYs)
-
-
-        '''
-        reqblob = item['requestID']['S'].split(':')
-        req = reqblob[0]
-        reqStr = reqblob[1]
-        if len(reqblob) > 2:
-            reqStr += ':{}'.format(reqblob[2])
-            assert len(reqblob)<=3
-
-        ts = float(item['ts']['N'])
-        eventOp = item['eventOp']['S'] #will be set on receipt of an API call
-
-        #nm = getName(reqStr,item)
-        if not nm: #process the exit or its an API call like invoke (just count it)
-            assert req in reqDict
-            if reqStr == 'exit': 
-                #update timings only
-                ele = reqDict[req]
-                #ele.endTime(item['duration'])
-            else:
-                missed_count += 1
-            continue
-
-        if req not in reqDict:
-            if reqStr != 'entry': #we haven't see the entry of this one yet... timestamp misalignment perhaps
-                missing[req] = reqStr
-
-            ele,parent_req = makeEle(item,req,nm,reqStr)
-            if parent_req:
-                if parent_req not in reqDict:
-                    print('ERROR, found a function with a parent not in dictionary! c{}\n{}'.format(req,item))
-                    sys.exit(1)
-                pele = reqDict[parent_req]
-                pele.addChild(ele,nm)
-            reqDict[req] = ele
-            obj = ele
-        else:
-            if reqStr == 'entry': #entry is coming after an entry's event, not good
-                ele,parent_req = makeEle(item,req,nm,reqStr)
-                if parent_req:
-                    if parent_req not in reqDict:
-                        print('ERROR, found a function with a parent not in dictionary! c{}\n{}'.format(req,item))
-                        sys.exit(1)
-                    pele = reqDict[parent_req]
-                    pele.addChild(ele,nm)
-                reqDict[req] = ele
-                obj = ele
-                missing.pop(req, None) #remove it from missing
-            else:
-                assert reqStr != 'exit'
-                child,_ = makeEle(item,req,nm,reqStr)
-                ele = reqDict[req]
-                ele.addChild(child,nm)
-                obj = child
-        if DEBUG:
-            print(reqStr,nm,req,obj.getSeqNo())
-        '''
-
     makeDot(reqDict)
     print("missed_count: {}, objs missing {}".format(missed_count,len(missing)))
     print("invoked_count: {}, invokes {}".format(invoke_calls,invokes))
@@ -372,6 +322,12 @@ class DictEle:
     def addChild(self,child):
         if child not in self.__children:
             self.__children.append(child)
+    def markObject(self):
+        self.__color = Color.BLACK
+    def unmarkObject(self):
+        self.__color = Color.WHITE
+    def isUnmarked(self):
+        return self.__color == Color.WHITE
     def setDuration(self,duration):
         self.__duration = duration
     def getDuration(self):
@@ -396,6 +352,7 @@ class DictEle:
 
     def __init__(self,blob,reqID,name,nm,ts):
         #self.__children_lists = {} #list of DictEles per Names.enum
+        self.__color = Color.WHITE
         self.__children = []
         self.__seq = self.getAndIncrSeqNo()
         self.__ts = ts
