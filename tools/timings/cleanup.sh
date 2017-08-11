@@ -48,15 +48,20 @@ python downloadLogs.py "/aws/lambda/FnInvokerPyNS" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/SpotTemplatePyNS" ${TS} -p ${PROF} --deleteOnly
 deactivate
 
-#cleanup mapreduce job output
-cd ${MRDIR}
-rm -f 1/overhead.out 2/overhead.out 3/overhead.out 4/overhead.out 5/overhead.out 6/overhead.out 7/overhead.out 8/overhead.out 9/overhead.out 10/overhead.out
-rm -f 1/NS/overhead.out 2/NS/overhead.out 3/NS/overhead.out 4/NS/overhead.out 5/NS/overhead.out 6/NS/overhead.out 7/NS/overhead.out 8/NS/overhead.out 9/NS/overhead.out 10/NS/overhead.out
-#cleanup mapreduce job output: cloudwatch downloads
-cd ${CWDIR}
-rm -f 1/*.log 1/NS/*.log 2/*.log 2/NS/*.log 3/*.log 3/NS/*.log 4/*.log 4/NS/*.log 5/*.log 5/NS/*.log 6/*.log 6/NS/*.log 7/*.log 7/NS/*.log 8/*.log 8/NS/*.log 9/*.log 9/NS/*.log 10/*.log 10/NS/*.log
-#cleanup mapreduce job output: dynamodb downloads
-cd ${DYNDBDIR}
-rm -rf 1/dump 1/NS/dump 2/dump 2/NS/dump 3/dump 3/NS/dump 4/dump 4/NS/dump 5/dump 5/NS/dump 6/dump 6/NS/dump 7/dump 7/NS/dump 8/dump 8/NS/dump 9/dump 9/NS/dump 10/dump 10/NS/dump
-cd ${TOOLSDIR}
-
+for i in `seq 1 10`;
+do
+    #cleanup mapreduce job output
+    cd ${MRDIR}
+    rm -f ${i}/overhead.out
+    rm -f ${i}/NS/overhead.out
+    #cleanup mapreduce job output: cloudwatch downloads
+    cd ${CWDIR}
+    rm -f ${i}/*.log
+    rm -f ${i}/NS/*.log
+    rm -f ${i}/MR/*.log
+    #cleanup mapreduce job output: dynamodb downloads
+    cd ${DYNDBDIR}
+    rm -rf ${i}/dump ${i}/NS/dump ${i}/MR/dump
+    cd ${TOOLSDIR}
+done
+    
