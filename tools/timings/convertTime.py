@@ -6,6 +6,7 @@
 import boto3,argparse,sys,time
 from pprint import pprint
 from datetime import datetime
+from datetime import timezone
 
 ############ main ##################
 def main():
@@ -44,8 +45,10 @@ def main():
         except:
             print('Unable to convert string to datetime, please retry with using the format "%Y-%m-%d %H:%M:%S"')
             sys.exit(1)
+        ts = dt.replace(tzinfo=timezone.utc).timestamp()
+        print("GMT Epoch: {}secs {}msecs".format(ts,ts*1000))
         ts = dt.timestamp()
-        print("Epoch: {}secs {}msecs".format(ts,ts*1000))
+        print("Local Epoch: {}secs {}msecs".format(ts,ts*1000))
 
 if __name__ == "__main__":
     main()

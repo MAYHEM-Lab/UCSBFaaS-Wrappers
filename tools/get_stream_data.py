@@ -9,6 +9,8 @@ def get_stream(event):
         profile = event['profile']
     if 'region' in event:
         region = event['region']
+    if 'seqno' in event:
+        seqno = event['seqno']
     if 'arn' in event:
         arn = event['arn']
     else: 
@@ -24,6 +26,7 @@ def get_stream(event):
         Limit=100 #use max
     )['StreamDescription']
 
+    #processing the most recent first (same as walking parent backwards)
     shards = sorted(stream['Shards'], key=lambda k: k['SequenceNumberRange'].get('StartingSequenceNumber', 0),reverse=True)
     for shard in shards:
         if 'EndingSequenceNumber' not in shard['SequenceNumberRange']:
@@ -47,6 +50,10 @@ def get_stream(event):
                 Limit=1000
             )
             recs = response['Records']
+            if len(recs) == 0:
+                print('RECORDS=0')
+                break
+            print('RECORDS={}'.format(len(recs)))
             for rec in recs:
                 eid = rec['eventID']
                 en = rec['eventName']
@@ -67,10 +74,13 @@ if __name__ == "__main__":
     parser.add_argument('streamARN',action='store',help='DynamoDB table stream ARN')
     parser.add_argument('--profile','-p',action='store',default='cjk1',help='AWS profile to use')
     parser.add_argument('--region','-r',action='store',default='us-west-2',help='AWS region to use')
+    parser.add_argument('--seqno',action='store',default=None,help='seq number to start with')
     args = parser.parse_args()
     event = {}
     event['profile'] = args.profile
     event['arn'] = args.streamARN
     event['region'] = args.region
+    if args.seqno:
+        event['seqno'] = args.seqno
     get_stream(event)
 
