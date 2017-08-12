@@ -1,7 +1,7 @@
 import boto3,json,time,os,sys,argparse
 from pprint import pprint
 
-DEBUG = True
+DEBUG = False
 def get_stream(event):
     profile = None
     region = None
@@ -35,7 +35,8 @@ def get_stream(event):
             endSeqNo = shard['SequenceNumberRange']['EndingSequenceNumber']
         startSeqNo = shard['SequenceNumberRange']['StartingSequenceNumber']
         shard_id = shard['ShardId']
-        print('SHARD:{}:{}:{}'.format(shard_id,startSeqNo,endSeqNo))
+        if DEBUG: 
+            print('SHARD:{}:{}:{}'.format(shard_id,startSeqNo,endSeqNo))
         response = client.get_shard_iterator(
             StreamArn=arn,
             ShardId=shard_id,
@@ -51,9 +52,9 @@ def get_stream(event):
             )
             recs = response['Records']
             if len(recs) == 0:
-                print('RECORDS=0')
+                if DEBUG: 
+                    print('NO_RECORDS')
                 break
-            print('RECORDS={}'.format(len(recs)))
             for rec in recs:
                 eid = rec['eventID']
                 en = rec['eventName']
@@ -62,10 +63,11 @@ def get_stream(event):
                 ele = None
                 if 'NewImage' in entry:
                     ele = entry['NewImage']
-                print('{}:{}:{}:{}'.format(seqno,en,eid,ele))
+                print('{} {}:{}:{}'.format(seqno,en,eid,ele))
                 
             if 'NextShardIterator' not in response:
-                print('END_OF_SHARD_ITERATOR')
+                if DEBUG: 
+                    print('END_OF_SHARD_ITERATOR')
                 break
             shard_iter = response['NextShardIterator']
     

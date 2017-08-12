@@ -16,8 +16,8 @@ TS=1401861965497 #some early date
 
 cd ${TOOLSDIR}
 #delete s3 entries for map/reduce jobs
-aws s3 rm s3://${MRBKT}/${JOBID} --recursive --profile ${PROF}
-aws s3 rm s3://${MRBKTNS}/${JOBIDNS} --recursive --profile ${PROF}
+aws s3 rm s3://${MRBKT}/ --recursive --profile ${PROF}
+aws s3 rm s3://${MRBKTNS}/ --recursive --profile ${PROF}
 #delete dynamodb entries in table ${SPOTTABLE}
 cd ${DYNDBDIR}
 . venv/bin/activate

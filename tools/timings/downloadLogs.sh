@@ -4,8 +4,6 @@ if [ -z ${2+x} ]; then echo 'Unset args. Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
 MRBKT=spot-mr-bkt #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run without --no_spotwrap
 MRBKTNS=spot-mr-bkt-ns #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
-JOBID=job3000  #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run without --no_spotwrap
-JOBIDNS=jobNS300 #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run with --no_spotwrap
 PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 LAMDIR=${PREFIX}/lambda-python
 DYNDBDIR=${PREFIX}/tools/dynamodb

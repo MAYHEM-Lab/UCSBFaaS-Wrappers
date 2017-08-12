@@ -4,7 +4,7 @@ from graphviz import Digraph
 from pprint import pprint
 from enum import Enum
 
-DEBUG = False
+DEBUG = True
 Names = Enum('Names','FN S3R S3W DBR DBW SNS GW')
 Color = Enum('Color','WHITE GRAY BLACK')
 invokes = 0
@@ -95,18 +95,24 @@ def processAPICall(n,msg):
             print('Error4: expected to find SW:TableName: in msg: {}'.format(msg))
             assert False
     elif nm == Names.SNS:
-        #idx = msg.find('SW:sns:Publish:Topic:arn:aws:sns:')
-        idx = msg.find('SWsns:Publish:Topic:arn:aws:sns:')
-        #TODO fix this
+        idx = msg.find('SW:sns:Publish:Topic:arn:aws:sns:')
         if idx != -1:
             idx2 = msg.find(':Subject:')
             if idx2 != -1:
-                name = 'SN:{}:{}'.format(msg[idx+32:idx2],msg[idx2+9:])
+                name = 'SN:{}:{}'.format(msg[idx+33:idx2],msg[idx2+9:])
             else:
-                name = 'SN:{}'.format(msg[idx+32:])
+                name = 'SN:{}'.format(msg[idx+33:])
         else:
-            print('Error5: expected to find SW:sns:Publish:Topic: in msg: {}'.format(msg))
-            assert False
+            idx = msg.find('SWsns:Publish:Topic:arn:aws:sns:')  #remove this after entries roll over
+            if idx != -1:
+                idx2 = msg.find(':Subject:')
+                if idx2 != -1:
+                    name = 'SN:{}:{}'.format(msg[idx+32:idx2],msg[idx2+9:])
+                else:
+                    name = 'SN:{}'.format(msg[idx+32:])
+            else:
+                print('Error5: expected to find SW:sns:Publish:Topic: in msg: {}'.format(msg))
+                assert False
     #elif nm == Names.GW:
         #pass
     else:
@@ -143,6 +149,7 @@ def process(obj,reqDict,SEQs,KEYs):
         parent_obj = reqDict[req]
         assert parent_obj.getDuration() == 0
         parent_obj.setDuration(duration)
+        parent_obj.setExitTS(ts)
         #check for error and note it
         err = obj['error']['S']
         if 'SpotWrap_exception' in err:
@@ -238,8 +245,7 @@ def process(obj,reqDict,SEQs,KEYs):
             if DEBUG:
                 print('\tAPICall:',req,reqStr,nm,name)
             #possible function trigger (writes only trigger lambdas in S3, DynamoDB, and SNS
-            #store them in KEYs even if they are duplicate
-            #if processed from the stream
+            #store them in KEYs even if they are duplicate (we will distinguished by sequence No)
             ele = DictEle(obj,req,name,nm,ts)
             seq = ele.getSeqNo()
             assert seq not in SEQs
@@ -252,29 +258,37 @@ def process(obj,reqDict,SEQs,KEYs):
         if nm == Names.FN:
             skipInvoke = True
     
-def dotGen(dot,obj,reqDict,KEYs):
+def dotGen(dot,obj,reqDict,KEYs,parent):
     global max_seq_no
     eleSeqNo = obj.getSeqNo()
     eleID = str(eleSeqNo)
-    eleName = '{}:{}'.format(obj.getName(),eleID)
     if obj.isUnmarked():
         obj.markObject()
         cleanup = False
-        if obj.getErr() != '': #will be an entry node
-            dot.node(eleID,eleName,color='red')
-            cleanup = True
-        else:
-            dot.node(eleID,eleName)
         childlist = obj.getChildren()
         for child in childlist:
             cname = str(child.getName())
-            c = dotGen(dot,child,reqDict,KEYs)
+            child_dur = obj.getDuration()
+            c = dotGen(dot,child,reqDict,KEYs,obj)
             dot.edge(eleID,c)
             if cleanup:
                 assert cname in KEYs
                 eleList = KEYs[cname]
                 tempele = eleList[0]
                 eleList.remove(tempele)
+        duration = obj.getDuration()
+        if duration == 0:
+            me = obj.getTS()
+            entry_to_me = int(me - parent.getTS())
+            me_to_exit = int(parent.getExitTS() - me)
+            eleName = '{}:{}\\nb4:{}ms:after:{}ms'.format(obj.getName(),eleID,entry_to_me,me_to_exit)
+        else:
+            eleName = '{}:{}\\ndur:{}ms'.format(obj.getName(),eleID,duration)
+        if obj.getErr() != '': #will be an entry node
+            dot.node(eleID,eleName,color='red')
+            cleanup = True
+        else:
+            dot.node(eleID,eleName)
     if max_seq_no < eleSeqNo:
         max_seq_no = eleSeqNo
     return eleID
@@ -291,14 +305,15 @@ def makeDot(reqDict,KEYs):
             cleanup = False
             childlist = obj.getChildren()
             for child in childlist:
-                cID = dotGen(dot,child,reqDict,KEYs)
+                cID = dotGen(dot,child,reqDict,KEYs,obj)
                 dot.edge(pID,cID)
                 cname = child.getName()
                 if cleanup: #remove name from KEYs so that we don't count it as an unused_write
                     assert cname in KEYs
                     eleList = KEYs[cname]
                     tempele = eleList[0]
-                    eleList.remove(tempele)
+                    eleList.remove(tempele) 
+            #root notes are functions and so they have a duration
             node_name = '{}\\nseq:{}-{},dur:{}ms'.format(obj.getName(),pID,max_seq_no,obj.getDuration())
             if obj.getErr() != '':
                 dot.node(pID,node_name,color='red')
@@ -314,6 +329,9 @@ def parseIt(event):
     SEQs = {} #dictionary by seqID holding DictEles, for easy traversal by seqNo
     KEYs = {} #dictionary by name (key) for DictEles, popped when assigned by earliest ts
     #check that the file is available 
+    processAll = False
+    if 'process_all' in event:
+        processAll = True
     fname = None
     if 'fname' in event:
         fname = event['fname']
@@ -328,27 +346,33 @@ def parseIt(event):
     data = None
     reqs = []
     count = 0
-    if 'oldversion' in event:
-        #decode the json file
+    last_remove_count = -1
+    if not processAll:
         with open(fname) as data_file:    
-            data = json.load(data_file)
-        if not data:
-            return
-        #put them in sorted order by timestamp
-        reqs = sorted(data['Items'], key=lambda k: k['ts'].get('N', 0))
-    else:
-        with open(fname) as data_file:    
+            #first check for modifies and find the last remove entry
             for line in data_file:
-                if line.startswith('SHARD'):
-                    continue #skip it
-                #get item object xxx:INSERT:yyy:{item}
-                if ':INSERT:' in line: #skip the REMOVE entries
-                    idx = line.find(':')
-                    idx = line.find(':',idx+1)
-                    idx = line.find(':',idx+1)
-                    rest = ast.literal_eval(line[idx+1:]) #turn it into a dictionary
+                count += 1
+                if 'MODIFY' in line:
+                    print("ERROR, there should be no modifies!:")
+                    print(line)
+                if 'REMOVE' in line:
+                    last_remove_count = count
+        print('last_remove_count: {}'.format(last_remove_count))
+            
+    with open(fname) as data_file:    
+        count = 0
+        for line in data_file:
+            count += 1
+            if processAll or count >= last_remove_count:
+                #get item object = seqNo INSERT:yyy:{item}
+                idx = line.find('INSERT:') 
+                if idx != -1: #skip the REMOVE entries
+                    ln = line[idx:]
+                    idx = ln.find(':')
+                    idx = ln.find(':',idx+1)
+                    rest = ast.literal_eval(ln[idx+1:]) #turn it into a dictionary
                     reqs.append(rest)
-
+    
     count = len(reqs)
     counter = 0
     missed_count = 0
@@ -381,14 +405,9 @@ def get_key(key):
     except ValueError:
         return key
     
-
 class DictEle:
     __seqNo = 0
 
-    #def addChild(self,child,childtype):
-        #if childtype not in self.__children_lists:
-            #self.__children_lists[childtype] = []
-        #self.__children_lists[childtype].append(child)
     def addChild(self,child):
         if child not in self.__children:
             self.__children.append(child)
@@ -398,6 +417,12 @@ class DictEle:
         self.__color = Color.WHITE
     def isUnmarked(self):
         return self.__color == Color.WHITE
+    def setExitTS(self,ts):
+        self.__exit_ts = ts
+    def getExitTS(self):
+        return self.__exit_ts
+    def getTS(self):
+        return self.__ts
     def setDuration(self,duration):
         self.__duration = duration
     def getDuration(self):
@@ -435,6 +460,7 @@ class DictEle:
         self.__reqID = reqID
         self.__duration = 0
         self.__error = ''
+        self.__exit_ts = 0
         self.__ele = blob
 
     @staticmethod
@@ -446,6 +472,7 @@ class DictEle:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DynamoDB spotFns Table data Parser')
     parser.add_argument('fname',action='store',help='filename to process')
+    parser.add_argument('--process_entire_file',action='store_true',default=False,help='process the entire file instead of skipping to right after the last REMOVE entry which results from the clean')
     parser.add_argument('--fname_is_dbdump',action='store_true',default=False,help='file is dbdump file')
     #parser.add_argument('schema',action='store',help='schema of file to process')
     args = parser.parse_args()
@@ -453,6 +480,7 @@ if __name__ == "__main__":
     event['fname'] = args.fname
     if args.fname_is_dbdump: #use the dbdump file instead of the DB event stream
         event['oldversion'] = 'any text will work'
-    #event['schema'] = args.schema
+    if args.process_entire_file: 
+        event['process_all'] = 'any text will work'
     parseIt(event)
 
