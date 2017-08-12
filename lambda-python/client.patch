@@ -1,5 +1,5 @@
 --- client.py	2017-08-03 11:19:40.000000000 -0700
-+++ client.py.new	2017-08-03 11:22:47.000000000 -0700
++++ client.py.new	2017-08-12 10:53:36.000000000 -0700
 @@ -10,7 +10,8 @@
  # distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
  # ANY KIND, either express or implied. See the License for the specific
@@ -10,26 +10,28 @@
  import functools
  
  from botocore import waiter, xform_name
-@@ -41,6 +42,18 @@
+@@ -41,6 +42,20 @@
  
  logger = logging.getLogger(__name__)
  
-+def fixup_kwargs(kwargs,arn,replace,noPayload=False):
++def fixup_kwargs(kwargs,arn,reqID,replace,noPayload=False):
 +    if noPayload:
 +        js = {}
 +        replace = False #insurance
 +    else:
 +        js = json.loads(kwargs['Payload'])
 +
++    sarn = arn.split(":")
++    arn = sarn[6]
 +    if replace:
-+        js['eventSource'] += 'lib:invokeCLI:{}'.format(arn)
++        js['eventSource'] += 'lib:invokeCLI:{}:{}'.format(arn,reqID)
 +    else:
-+        js['eventSource'] = 'lib:invokeCLI:{}'.format(arn)
++        js['eventSource'] = 'lib:invokeCLI:{}:{}'.format(arn,reqID)
 +    kwargs['Payload'] = json.dumps(js)
  
  class ClientCreator(object):
      """Creates client objects for a service."""
-@@ -306,6 +319,77 @@
+@@ -306,6 +321,79 @@
              if args:
                  raise TypeError(
                      "%s() only accepts keyword arguments." % py_operation_name)
@@ -41,6 +43,7 @@
 +            #skip if its a write to the dynamodb spot table (infinite loop)
 +            if not(reqID == 'unknown' or (operation_name == 'PutItem' and kwargs['TableName'] == 'spotFns')): 
 +                myArn = 'unknown'
++                eventSource = 'unknown'
 +                if 'myArn' in os.environ:
 +                    myArn = os.environ['myArn']
 +                dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
@@ -68,14 +71,15 @@
 +		    #also: kwargs['Payload']
 +                    if 'Payload' in kwargs:
 +                        if 'eventSource' in kwargs['Payload']:
-+                            fixup_kwargs(kwargs,myArn,True)
++                            fixup_kwargs(kwargs,myArn,reqID,True)
 +                        else: 
-+                            fixup_kwargs(kwargs,myArn,False)
++                            fixup_kwargs(kwargs,myArn,reqID,False)
 +                    else:
-+                        fixup_kwargs(kwargs,myArn,False,True)
++                        fixup_kwargs(kwargs,myArn,reqID,False,True)
++                    eventSource = 'lib:invokeCLI:{}:{}'.format(myArn,reqID)
 +                elif operation_name == 'Publish':
 +                    eventOp = 'sns_publish'
-+                    msg += 'sns:Publish'
++                    msg += ':sns:Publish'
 +                    if 'TopicArn' in kwargs:
 +                        msg += ':Topic:{}'.format(kwargs['TopicArn'])
 +                    if 'Subject' in kwargs:
@@ -83,7 +87,7 @@
 +                    if 'Message' in kwargs:
 +                        msg += ':Message:{}'.format(kwargs['Message'])
 +                else:
-+                    msg += 'SpotWrapError:unknown_op:{}:{}'.format(operation_name,str(kwargs))
++                    msg += ':SpotWrapError:unknown_op:{}:{}'.format(operation_name,str(kwargs))
 +                reqID += ':{}:{}'.format(operation_name,str(uuid.uuid4())[:8])
 +                ts = time.time() * 1000 #msecs
 +                tsint = int(round(ts))
@@ -92,7 +96,7 @@
 +                    'requestID': reqID,
 +                    'thisFnARN': myArn,
 +                    'caller': 'unknown',
-+                    'eventSource': 'unknown',
++                    'eventSource': eventSource,
 +                    'eventOp': eventOp,
 +                    'region': 'unknown',
 +                    'accountID': 'unknown',
