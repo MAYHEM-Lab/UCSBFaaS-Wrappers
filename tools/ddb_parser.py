@@ -4,11 +4,12 @@ from graphviz import Digraph
 from pprint import pprint
 from enum import Enum
 
-DEBUG = True
+DEBUG = False
 Names = Enum('Names','FN S3R S3W DBR DBW SNS GW')
 Color = Enum('Color','WHITE GRAY BLACK')
 invokes = 0
 invoke_calls = 0
+max_seq_no = 0
 ################# processAPICall #################
 def processAPICall(n,msg):
     global invoke_calls
@@ -115,6 +116,8 @@ def processAPICall(n,msg):
 ################# process #################
 def process(obj,reqDict,SEQs,KEYs):
     global invokes
+    if 'requestID' not in obj:
+        return
     reqblob = obj['requestID']['S'].split(':')
     req = reqblob[0]
     reqStr = reqblob[1]
@@ -135,11 +138,15 @@ def process(obj,reqDict,SEQs,KEYs):
     skipInvoke = False
     duration = 0
     if reqStr == 'exit': 
-        duration = obj['duration']
+        duration = obj['duration']['N']
         assert req in reqDict
         parent_obj = reqDict[req]
         assert parent_obj.getDuration() == 0
         parent_obj.setDuration(duration)
+        #check for error and note it
+        err = obj['error']['S']
+        if 'SpotWrap_exception' in err:
+            parent_obj.setErr(err)
         if DEBUG: 
             print('EXIT: Name: {}, NM: {}, IP: {}'.format(parent_obj.getName(),parent_obj.getNM(),parent_obj.getSourceIP()))
     elif reqStr == 'entry':  ############ function entry ##################
@@ -162,7 +169,17 @@ def process(obj,reqDict,SEQs,KEYs):
             msg = obj['message']['S'].split(':')
             name = 'S3W:{}:{}'.format(msg[0],msg[1])
             assert name in KEYs
-            parent_obj = KEYs.pop(name,None) #assumes 1 S3W apicall triggers only 1 function, todo fix this!
+            eleList = KEYs[name]
+            parent_obj = None
+            for tempele in eleList:
+                if not parent_obj:
+                    parent_obj = tempele
+                else:
+                    if tempele.getSeqNo() < parent_obj.getSeqNo():
+                        #tempele occured earlier than parent_obj, so use tempele instead
+                        parent_obj = tempele
+            assert parent_obj is not None
+            eleList.remove(parent_obj)
             source_name = name #for debugging
             if DEBUG:
                 print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
@@ -195,7 +212,17 @@ def process(obj,reqDict,SEQs,KEYs):
             #SN:region:acct:topic:subject:Message:msg
             name = 'SN:{}:{}:{}:{}:Message:{}'.format(arn[3],arn[4],arn[5],subject,message)
             assert name in KEYs
-            parent_obj = KEYs.pop(name,None) #assumes 1 SNS apicall triggers only 1 function, todo fix this!
+            eleList = KEYs[name]
+            parent_obj = None
+            for tempele in eleList:
+                if not parent_obj:
+                    parent_obj = tempele
+                else:
+                    if tempele.getSeqNo() < parent_obj.getSeqNo():
+                        #tempele occured earlier than parent_obj, so use tempele instead
+                        parent_obj = tempele
+            assert parent_obj is not None
+            eleList.remove(parent_obj)
             source_name = name #for debugging
             if DEBUG:
                 print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
@@ -208,9 +235,10 @@ def process(obj,reqDict,SEQs,KEYs):
         assert req in reqDict
         parent_obj = reqDict[req]
         if nm == Names.S3W or nm == Names.DBW or nm == Names.SNS:
-            print('\tAPICall:',req,reqStr,nm,name)
+            if DEBUG:
+                print('\tAPICall:',req,reqStr,nm,name)
             #possible function trigger (writes only trigger lambdas in S3, DynamoDB, and SNS
-            #store them in KEYs but just keep the last one (most recent) as events are in order
+            #store them in KEYs even if they are duplicate
             #if processed from the stream
             ele = DictEle(obj,req,name,nm,ts)
             seq = ele.getSeqNo()
@@ -219,40 +247,64 @@ def process(obj,reqDict,SEQs,KEYs):
             parent_obj.addChild(ele)
             if DEBUG:
                 print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
-            #assert name not in KEYs #if exact key and value is in dict, overwrite it with more recent ele
-            #if no function consumed the event, we must move on
-            KEYs[name] = ele #store for later use, overwrite last key (processing in sequence order)
+            KEYs.setdefault(name,[]).append(ele) #store duplicates if any
 
         if nm == Names.FN:
             skipInvoke = True
     
-def dotGen(dot,obj,reqDict):
-        eleID = str(obj.getSeqNo())
-        eleName = str(obj.getName())
-        if obj.isUnmarked():
-            obj.markObject()
+def dotGen(dot,obj,reqDict,KEYs):
+    global max_seq_no
+    eleSeqNo = obj.getSeqNo()
+    eleID = str(eleSeqNo)
+    eleName = '{}:{}'.format(obj.getName(),eleID)
+    if obj.isUnmarked():
+        obj.markObject()
+        cleanup = False
+        if obj.getErr() != '': #will be an entry node
+            dot.node(eleID,eleName,color='red')
+            cleanup = True
+        else:
             dot.node(eleID,eleName)
-            childlist = obj.getChildren()
-            for child in childlist:
-                c1 = str(child.getName())
-                c = dotGen(dot,child,reqDict)
-                dot.edge(eleID,c)
-        return eleID
+        childlist = obj.getChildren()
+        for child in childlist:
+            cname = str(child.getName())
+            c = dotGen(dot,child,reqDict,KEYs)
+            dot.edge(eleID,c)
+            if cleanup:
+                assert cname in KEYs
+                eleList = KEYs[cname]
+                tempele = eleList[0]
+                eleList.remove(tempele)
+    if max_seq_no < eleSeqNo:
+        max_seq_no = eleSeqNo
+    return eleID
 
-def makeDot(reqDict):
+def makeDot(reqDict,KEYs):
+    global max_seq_no
     dot = Digraph(comment='Spot',format='pdf')
     for key in reqDict:
         obj = reqDict[key]
-        p = str(obj.getSeqNo())
-        p1 = str(obj.getName())
+        max_seq_no = obj.getSeqNo() #set the min seq number for this subtree
+        pID = str(max_seq_no)
         if obj.isUnmarked():
             obj.markObject()
-            dot.node(p,p1)
+            cleanup = False
             childlist = obj.getChildren()
             for child in childlist:
-                c1 = str(child.getName())
-                c = dotGen(dot,child,reqDict)
-                dot.edge(p,c)
+                cID = dotGen(dot,child,reqDict,KEYs)
+                dot.edge(pID,cID)
+                cname = child.getName()
+                if cleanup: #remove name from KEYs so that we don't count it as an unused_write
+                    assert cname in KEYs
+                    eleList = KEYs[cname]
+                    tempele = eleList[0]
+                    eleList.remove(tempele)
+            node_name = '{}\\nseq:{}-{},dur:{}ms'.format(obj.getName(),pID,max_seq_no,obj.getDuration())
+            if obj.getErr() != '':
+                dot.node(pID,node_name,color='red')
+                cleanup = True
+            else:
+                dot.node(pID,node_name)
     dot.render('spotgraph', view=True)
     return
 
@@ -303,14 +355,32 @@ def parseIt(event):
     missing = {}
     for item in reqs:
         counter += 1
-        #if counter > 10:
-            #break
-        #if DEBUG:
-            #print(item)
         process(item,reqDict,SEQs,KEYs)
-    makeDot(reqDict)
-    print("missed_count: {}, objs missing {}".format(missed_count,len(missing)))
-    print("invoked_count: {}, invokes {}".format(invoke_calls,invokes))
+    makeDot(reqDict,KEYs)
+    if missed_count != 0 or len(missing) != 0:
+        print("missed_count: {}, objs missing {}".format(missed_count,len(missing)))
+    if invoke_calls != invokes:
+        print("invoked_count: {}, invokes {}".format(invoke_calls,invokes))
+    print("requests_count: {}".format(counter))
+    print("unused_writes:")
+    counter = 0
+    for key in KEYs:
+        eleList = KEYs[key]
+        for ele in eleList:
+            print("\t{}:{}".format(key,ele.getSeqNo(),ele.getName()))
+            counter += 1
+    print("unused_writes: {}".format(counter))
+    print("total_order:")
+    for pair in sorted(SEQs.items(), key=lambda t: get_key(t[0])):
+        ele = pair[1]
+        print(pair[0],ele.getName())
+
+def get_key(key):
+    try:
+        return int(key)
+    except ValueError:
+        return key
+    
 
 class DictEle:
     __seqNo = 0
@@ -332,6 +402,10 @@ class DictEle:
         self.__duration = duration
     def getDuration(self):
         return self.__duration
+    def setErr(self,error):
+        self.__error = error
+    def getErr(self):
+        return self.__error
     def getBlob(self):
         return self.__ele
     def getName(self):
@@ -360,6 +434,7 @@ class DictEle:
         self.__name = name
         self.__reqID = reqID
         self.__duration = 0
+        self.__error = ''
         self.__ele = blob
 
     @staticmethod
@@ -376,7 +451,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     event = {}
     event['fname'] = args.fname
-    if args.fname_is_dbdump:
+    if args.fname_is_dbdump: #use the dbdump file instead of the DB event stream
         event['oldversion'] = 'any text will work'
     #event['schema'] = args.schema
     parseIt(event)
