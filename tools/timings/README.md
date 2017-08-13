@@ -31,6 +31,11 @@ sort -n -k 1 new_stream > spotFn.stream.base
 
 #cleanup cloudwatch logs
 cd ../../lambda-python
+deactivate; source venv/bin/activate
+#set your AWS Lambda Role (see IAM Management Console / Roles and change XXX and YYY below)
+#if you need to create a role, use apps/mr/setup/create-role.py
+export AWSRole=arn:aws:iam::AWS_ACCT:role/AWS_INVOKE_LAMBDA_ROLE 
+
 python setupApps.py --profile aws_profile --deleteAll -f scns.json
 python setupApps.py --profile aws_profile --deleteAll -f scns-noSpot.json
 python setupApps.py --profile aws_profile --deleteAll -f setupconfig-noSpot.json

@@ -23,7 +23,7 @@ python create-role.py --profile YOUR_PROFILE_NAME ROLENAME POLICYNAME
 4. Use the output ARN from the script (or get it from the IAM Management Console under Roles). 
 Set the serverless_mapreduce_role environment variable (replace MY_ACCOUNT_ID with your AWS account ID):   
 
-   $ export serverless_mapreduce_role=arn:aws:iam::MY-ACCOUNT-ID:role/ROLENAME
+   $ export AWSRole=arn:aws:iam::MY-ACCOUNT-ID:role/ROLENAME
 
 5. The app consists of 4 lambda functions: driver, mapper, reducer, and reducerCoordinator.  The driver starts the process and invokes mappers in parallel either asynchronously (Event) or synchronously (RequestResponse) -- (see settings for this are below). Mappers get their data from the input data bucket ("bucket" argument) from the big data benchmark suite.  It processes data that have the prefix ("prefix" argument) specified and generates files in MY-BUCKET-NAME ("jobBucket" argument) under JOBID/task/mapper/.  Generation of these files triggers the reducerCoordinator which spawns the reducers once the mappers are done ("Mappers Done so far" message in logs equals max mappers).  The reducerCoordinator reports "Job done!!! Check the result file" when everything has completed.
 
