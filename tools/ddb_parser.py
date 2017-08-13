@@ -334,14 +334,16 @@ def dotGen(dot,obj,reqDict,KEYs,parent):
     global max_seq_no
     eleSeqNo = obj.getSeqNo()
     eleID = str(eleSeqNo)
+    skipFlag = False #this gets set if INCLUDE_READS is False and we are returning a read node (used to skip making the edge assignment)
     if obj.isUnmarked():
         obj.markObject()
         cleanup = False
         childlist = obj.getChildren()
         for child in childlist:
             cname = str(child.getName())
-            c = dotGen(dot,child,reqDict,KEYs,obj)
-            dot.edge(eleID,c)
+            c,skipEdge = dotGen(dot,child,reqDict,KEYs,obj)
+            if not skipEdge:
+                dot.edge(eleID,c)
             if cleanup:
                 assert cname in KEYs
                 eleList = KEYs[cname]
@@ -362,22 +364,16 @@ def dotGen(dot,obj,reqDict,KEYs,parent):
             eleName = '{}:{}\\ndur:{}ms:tsdur:{}ms'.format(obj.getName(),eleID,duration,int(end_ts-start_ts))
             obj.setDurationTS(int(end_ts-start_ts))
         nm = obj.getNM()
-        if obj.getErr() != '': #will be an entry node
-            if nm == Names.S3R or nm == Names.DBR or nm == Names.INV:
-                if INCLUDE_READS:
-                    dot.node(eleID,eleName,color='red',fillcolor='gray',style='filled')
+        if nm == Names.S3R or nm == Names.DBR or nm == Names.INV:
+            if INCLUDE_READS:
+                dot.node(eleID,eleName,fillcolor='gray',style='filled')
             else:
-                dot.node(eleID,eleName,color='red')
-            cleanup = True
+                skipFlag = True
         else:
-            if nm == Names.S3R or nm == Names.DBR or nm == Names.INV:
-                if INCLUDE_READS:
-                    dot.node(eleID,eleName,fillcolor='gray',style='filled')
-            else:
-                dot.node(eleID,eleName)
+            dot.node(eleID,eleName)
     if max_seq_no < eleSeqNo:
         max_seq_no = eleSeqNo
-    return eleID
+    return eleID,skipFlag
 
 def makeDot(reqDict,KEYs):
     global max_seq_no
@@ -391,8 +387,9 @@ def makeDot(reqDict,KEYs):
             cleanup = False
             childlist = obj.getChildren()
             for child in childlist:
-                cID = dotGen(dot,child,reqDict,KEYs,obj)
-                dot.edge(pID,cID)
+                cID,skipEdge = dotGen(dot,child,reqDict,KEYs,obj)
+                if not skipEdge:
+                    dot.edge(pID,cID)
                 cname = child.getName()
                 if cleanup: #remove name from KEYs so that we don't count it as an unused_write
                     assert cname in KEYs
@@ -401,7 +398,7 @@ def makeDot(reqDict,KEYs):
                     eleList.remove(tempele) 
             #root notes are functions and so they have a duration
             node_name = '{}\\nseq:{}-{},dur:{}ms'.format(obj.getName(),pID,max_seq_no,obj.getDuration())
-            if obj.getErr() != '':
+            if obj.getErr() != '': #only set for entry nodes
                 dot.node(pID,node_name,color='red')
                 cleanup = True
             else:

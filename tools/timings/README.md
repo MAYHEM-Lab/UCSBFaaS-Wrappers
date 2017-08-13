@@ -123,6 +123,9 @@ python ddb_parser.py spotFn.stream.base --process_entire_file
 #duration is instead the time between the entry and this trigger (prefixed by b4)
 #and the time between this and the exit (prefixed by af)
 
+#use this instead to also include read events (non-triggers) in output files
+python ddb_parser.py spotFn.stream.base --include_reads
+
 #std out contains total order of sequence numbers and any events which did not trigger other lambdas
 ```
 
