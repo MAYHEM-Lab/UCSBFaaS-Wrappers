@@ -4,7 +4,7 @@ from graphviz import Digraph
 from pprint import pprint
 from enum import Enum
 
-DEBUG = True
+DEBUG = False
 Names = Enum('Names','FN S3R S3W DBR DBW SNS GW')
 Color = Enum('Color','WHITE GRAY BLACK')
 invokes = 0
@@ -131,7 +131,8 @@ def processAPICall(n,msg):
 
 ################# process #################
 def process(obj,reqDict,SEQs,KEYs):
-    print("processing: {}".format(repr(obj)))
+    if DEBUG:
+        print("processing: {}".format(repr(obj)))
     global invokes
     if 'requestID' not in obj:
         return
@@ -353,10 +354,13 @@ def dotGen(dot,obj,reqDict,KEYs,parent):
             entry_to_me = int(me - parent.getTS())
             me_to_exit = int(parent.getExitTS() - me)
             eleName = '{}:{}\\nb4:{}ms:after:{}ms'.format(obj.getName(),eleID,entry_to_me,me_to_exit)
+            obj.setDurationTS(entry_to_me)
+            obj.setDurationTSExit(me_to_exit)
         else:
             start_ts = obj.getTS()
             end_ts = obj.getExitTS()
             eleName = '{}:{}\\ndur:{}ms:tsdur:{}ms'.format(obj.getName(),eleID,duration,int(end_ts-start_ts))
+            obj.setDurationTS(int(end_ts-start_ts))
         if obj.getErr() != '': #will be an entry node
             dot.node(eleID,eleName,color='red')
             cleanup = True
@@ -470,7 +474,7 @@ def parseIt(event):
     print("total_order:")
     for pair in sorted(SEQs.items(), key=lambda t: get_key(t[0])):
         ele = pair[1]
-        print(pair[0],ele.getName())
+        print('{}:{}:{}:{}:{}'.format(pair[0],ele.getName(),ele.getDuration(),ele.getDurationTS(),ele.getDurationTSExit()))
 
 def get_key(key):
     try:
@@ -500,6 +504,14 @@ class DictEle:
         self.__duration = duration
     def getDuration(self):
         return self.__duration
+    def setDurationTS(self,duration):
+        self.__duration_ts = duration
+    def getDurationTS(self):
+        return self.__duration_ts
+    def setDurationTSExit(self,duration):
+        self.__duration_tsexit = duration
+    def getDurationTSExit(self):
+        return self.__duration_tsexit
     def setErr(self,error):
         self.__error = error
     def getErr(self):
@@ -532,6 +544,8 @@ class DictEle:
         self.__name = name
         self.__reqID = reqID
         self.__duration = 0
+        self.__duration_ts = 0
+        self.__duration_tsexit = 0
         self.__error = ''
         self.__exit_ts = 0
         self.__ele = blob
