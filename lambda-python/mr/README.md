@@ -1,4 +1,4 @@
-# MapReduce in Lambda
+#one with contents  MapReduce in Lambda
 The original application from which this benchmark has been created can be found here: https://github.com/awslabs/lambda-refarch-mapreduce
 We include the license from this original application.  All modifications fall under the repo license found here: https://github.com/MAYHEM-Lab/UCSBFaaS-Wrappers/blob/master/LICENSE
 
@@ -33,7 +33,7 @@ Use the "dryrun":"yes" key/value pair as an argument to only run the driver and 
 
 lambdaMemory for mapper and reducer functions must be 1536.  
 
-The lambda timeout (300s) for the driver may be exceeded when run in synchronous mode.  In this case, the total timings will not be report but most likely all mappers will be spawned.  To see the timings, you can run the driver locally via ```python driver.py MY-BUCKET-NAME JOBID --wait4reducers --mapper_function mapperNS --reducer_function reducerNS``` replacing MY-BUCKET-NAME and JOBID.  Remove the NS from the mapper and reducer lambda function names to run the app with spotwrap support (assuming the functions have been uploaded with SpotWrap support via setupApps.py -- more on this below).
+The lambda timeout (300s) for the driver may be exceeded when run in synchronous mode.  In this case, the total timings will not be report but most likely all mappers will be spawned.  To see the timings, you can run the driver locally via ```python driver.py MY-BUCKET-NAME JOBID mapperNS reducerNS --wait4reducers``` replacing MY-BUCKET-NAME and JOBID.  Remove the NS from the mapper and reducer lambda function names to run the app with spotwrap support (assuming the functions have been uploaded with SpotWrap support via setupApps.py -- more on this below).
 
 Upload the functions to Lambda using the following. 
 ```
@@ -87,7 +87,7 @@ cat scns.json    #replace MY-BUCKET-NAME for reduceCoordinator
 }
 ```
 6. **Run It**. Replace MY-BUCKET-NAME and job_id.
-Make sure that job_id value below matches the prefix in the reducerCoordinator configuration entry above (job1000).  The job takes approximately 5 minutes to complete and can be run synchronously (mappers are in parallel) or fully asynchronous (omit the "full_async" argument).  
+Make sure that job_id value below matches the prefix in the reducerCoordinator configuration entry above (job1000).  The job takes approximately 10 minutes to complete and can be run synchronously (mappers are in parallel) or fully asynchronous (if you add the "full_async" argument or omit the --wait4reducers CLI flag).  
 "Job done!!! Check the result file" in one of the reducerCoordinator logs signals app completion.  
 
 The region argument must match that in the setupApps configuration above. Replace awsprofile1 below with your AWS IAM profile. Keep the settings for prefix and bucket as that is where the original datasets from the big data benchmark are located.
@@ -96,15 +96,16 @@ The region argument must match that in the setupApps configuration above. Replac
 #dry run only (count mappers)
 python driver.py MY-BUCKET-NAME JOBID --dryrun
 #run short and synchronously
-python driver.py MY-BUCKET-NAME JOBID --mapper_function MAPPER_FN_NAME --reducer_function REDUCER_FN_NAME --wait4reducers --endearly 2
+python driver.py MY-BUCKET-NAME JOBID MAPPER_FN_NAME REDUCER_FN_NAME --wait4reducers --endearly 2
 #run short and asynchronously
-python driver.py MY-BUCKET-NAME JOBID --mapper_function MAPPER_FN_NAME --reducer_function REDUCER_FN_NAME --full-async --endearly 2
-#run full
-python driver.py MY-BUCKET-NAME JOBID --mapper_function MAPPER_FN_NAME --reducer_function REDUCER_FN_NAME
+python driver.py MY-BUCKET-NAME JOBID MAPPER_FN_NAME REDUCER_FN_NAME --endearly 2
+#run full and asynchrously
+python driver.py MY-BUCKET-NAME JOBID MAPPER_FN_NAME REDUCER_FN_NAME
 
 #or use invoke to execute the driver in AWS Lambda and pass in the flags as JSON args:
 #driver name must match "name" of driver.py entry in config file.
 #region must match the region of the functions in the config file.
+#mapper and reducer must be lambda functions in AWS; use full_async set to anything to run asynchronously
 #leave off the endearly option to run the full version (here it says run just 2 mappers/reducers).
 #eventSource will be ignored if SpotWrap not in use
 #remove NS if you wish to run the lambdas with spotwrap support, but don't mix and match
@@ -122,7 +123,7 @@ aws lambda invoke --invocation-type Event --function-name driverNS --region us-w
 #asynchronously
 #remove NS if you wish to run the lambdas with spotwrap support, but don't mix and match
 aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile awsprofile1 --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","bucket":"big-data-benchmark","job_id":"JOBID","jobBucket":"MY-BUCKET-NAME","region":"us-west-2","full_async":"yes","mapper":"mapperNS","reducer":"reducerNS"}' outputfile
-//Wait for two reducerNS CloudWatch logs to complete, one with contents "
+//Wait for two reducerNS CloudWatch logs to complete (for "Job done!")
 ```
 
 7. Clean up (delete everything: lambdas, logs, bucket contents)
@@ -210,4 +211,4 @@ python setupApps.py --profile cjk1 -f scns.json
    ```
    Update your the file with the your CODEBUCKET (and bucket with read/write access), MY-BUCKET-NAME, and JOBID.
    * If your app goes rogue in AWS Lambda and you want to kill it midstream, use ```python setupApps.py --profile cjk1 -f scns.json --deleteAll``` repeatedly and everything will eventually stop and be deleted (running functions must complete).  Its a good idea to change the JOBID when this happens so that you are sure that nothing old is being triggered.  Do this after running deleteAll, then change the configuration (reducerCoordinator object), and then rerun setupApps to reload new lambdas.  Then use the updated JOBID on the commandline (locallay or in AWS Lambda).
-   * If you want to run a short version of this app, use the ```endearly``` flad set to some integer lower than 29.  The app will only execute this many mappers (and reducers).  E.g., ```python driver.py MY-BUCKET-NAME JOBID --wait4reducers --endearly 2``` for two mappers/reducers.  To do the same but running the driver in AWS Lambda, use ```aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile cjk1 --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","job_id":"JOBID","bucket":"big-data-benchmark","jobBucket":"MY-BUCKET-NAME","full_async":"yes","endearly":2,"mapper":"mapperNS","reducer":"reducerNS"}' outputfile```
+   * If you want to run a short version of this app, use the ```endearly``` flag set to some integer lower than 29.  The app will only execute this many mappers (and reducers).  E.g., ```python driver.py MY-BUCKET-NAME JOBID mapperNS reducerNS --endearly 2``` for two mappers/reducers.  To do the same through the driver in AWS Lambda, use ```aws lambda invoke --invocation-type Event --function-name driverNS --region us-west-2 --profile cjk1 --payload '{"eventSource":"ext:invokeCLI","prefix":"pavlo/text/1node/uservisits/","job_id":"JOBID","bucket":"big-data-benchmark","jobBucket":"MY-BUCKET-NAME","full_async":"yes","endearly":2,"mapper":"mapperNS","reducer":"reducerNS"}' outputfile```
