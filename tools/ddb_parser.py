@@ -72,22 +72,32 @@ def processAPICall(n,msg):
             assert False
     elif nm == Names.DBR:
         idx = msg.find('SW:TableName:')
+        tmp = msg[idx+13:]
+        idx = tmp.find(':')
+        tname = tmp[:idx]
         if idx != -1:
             idx2 = msg.find(':Key:')
             if idx2 != -1:
-                name = 'DB:{}:{}'.format(msg[idx+13:idx2],msg[idx2+5:])
+                name = 'DB:{}:{}:{}'.format(tname,msg[idx+13:idx2],msg[idx2+5:])
             else:
                 print('Error3: expected to find Key: in msg: {}'.format(msg))
                 assert False
         else:
             print('Error3: expected to find SW:TableName: in msg: {}'.format(msg))
             assert False
-    elif nm == Names.DBW:
+    elif nm == Names.DBW: #not sure if this will work for a delete (TODO)
         idx = msg.find('SW:TableName:')
+        tmp = msg[idx+13:]
+        idx = tmp.find(':')
+        tname = tmp[:idx]
         if idx != -1:
             idx2 = msg.find(':Item:')
             if idx2 != -1:
-                name = 'DB:{}:{}'.format(msg[idx+13:idx2],msg[idx2+6:])
+                rest = ast.literal_eval(msg[idx2+6:]) #turn it into a dictionary
+                name = 'DB:{}'.format(tname)
+                for k in rest:
+                    val = rest[k]
+                    name += ':{}:{}'.format(k,val)
             else:
                 print('Error4: expected to find Item: in msg: {}'.format(msg))
                 assert False
@@ -121,6 +131,7 @@ def processAPICall(n,msg):
 
 ################# process #################
 def process(obj,reqDict,SEQs,KEYs):
+    print("processing: {}".format(repr(obj)))
     global invokes
     if 'requestID' not in obj:
         return
@@ -171,7 +182,7 @@ def process(obj,reqDict,SEQs,KEYs):
         reqDict[req] = ele
         if DEBUG:
             print('ENTRY: Name: {}, NM: {}, IP: {}'.format(ele.getName(),ele.getNM(),ele.getSourceIP()))
-        if eventOp.startswith('ObjectCreated:'):
+        if eventOp.startswith('ObjectRemoved:') or eventOp.startswith('ObjectCreated:'):
             #link to existing Names.S3W object
             msg = obj['message']['S'].split(':')
             name = 'S3W:{}:{}'.format(msg[0],msg[1])
@@ -191,7 +202,7 @@ def process(obj,reqDict,SEQs,KEYs):
             if DEBUG:
                 print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
             parent_obj.addChild(ele)
-        elif eventOp.startswith('lib:invokeCLI:'):
+        elif 'lib:invokeCLI' in es:
             #link to existing Names.FN
             idx = es.find('lib:invokeCLI:') #lib call from another lambda
             invokes += 1
@@ -210,6 +221,66 @@ def process(obj,reqDict,SEQs,KEYs):
         elif eventOp.startswith('ext:invokeCLI') or es.find('ext:invokeCLI') != -1:
             #invoke from command line (aws tools remotely), there is no parent
             pass
+        elif eventOp.startswith('UPDATE'):
+            print('DB Update not handled')
+            sys.exit(1)
+        elif eventOp.startswith('INSERT') or eventOp.startswith('REMOVE') or eventOp.startswith('MODIFY'):
+            #"New:{'name': {'S': 'cjkFInfPy29726'}, 'age': {'S': '18640'}}"
+            #":Old:{'name': {'S': 'newkeycjk'}, 'age': {'S': '315'}}"}
+            #{'S': "New:{'name': {'S': 'cjkDBModPy1'}, 'age': {'S': '6953'}}:Old:{'name': {'S': 'cjkDBModPy1'}, 'age': {'S': '9943'}}"}
+            #'eventSource': {'S': 'arn:aws:dynamodb:us-west-2:443592014519:table/triggerTable/stream/2017-07-30T18:38:23.171'}
+            idx = es.find('table/')
+            assert idx != -1
+            tmp = es[idx+6:]
+            idx = tmp.find('/')
+            assert idx != -1
+            tname = tmp[:idx]
+            idx = msg.find('New:') 
+            if idx == -1:
+                idx = msg.find('Old:') 
+            if eventOp.startswith('MODIFY'):
+                idx2 = msg.find(':Old:') 
+                rest = ast.literal_eval(msg[idx+4:idx2]) #turn it into a dictionary
+            else:    
+                rest = ast.literal_eval(msg[idx+4:]) #turn it into a dictionary
+            name = 'DB:{}'.format(tname)
+            for k in rest:
+                val = rest[k]
+                if 'S' in val:
+                    name += ':{}:{}'.format(k,val['S'])
+                elif 'N' in val:
+                    name += ':{}:{}'.format(k,val['N'])
+                else:
+                    print("ERROR: unhandled dynamoDB type: {}".format(val))
+                    sys.exit(1)
+            if name not in KEYs:
+                print('ERROR: DBW without a DBR: {} {}'.format(name,req))
+                #make a DB entry as parent to this node, remove this node from reqDict
+                child = reqDict.pop(req,None)
+                ele = DictEle(obj,req,name,Names.DBW,ts)
+                seq = ele.getSeqNo()
+                assert seq not in SEQs
+                SEQs[seq] = ele #keep map by seqNo
+                #only insert it into reqDict if it doesn't have a parent!
+                reqDict[req] = ele
+                ele.addChild(child)
+            else:
+                assert name in KEYs #keep this for when we remove the above guard if we do
+                eleList = KEYs[name]
+                parent_obj = None
+                for tempele in eleList:
+                    if not parent_obj:
+                        parent_obj = tempele
+                    else:
+                        if tempele.getSeqNo() < parent_obj.getSeqNo():
+                            #tempele occured earlier than parent_obj, so use tempele instead
+                            parent_obj = tempele
+                assert parent_obj is not None
+                eleList.remove(parent_obj)
+                source_name = name #for debugging
+                if DEBUG:
+                    print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
+                parent_obj.addChild(ele)
         elif eventOp.startswith('Notification'):
             #invoke from SNS notification
             arn = es.split(':') #arn
@@ -268,7 +339,6 @@ def dotGen(dot,obj,reqDict,KEYs,parent):
         childlist = obj.getChildren()
         for child in childlist:
             cname = str(child.getName())
-            child_dur = obj.getDuration()
             c = dotGen(dot,child,reqDict,KEYs,obj)
             dot.edge(eleID,c)
             if cleanup:
@@ -277,13 +347,16 @@ def dotGen(dot,obj,reqDict,KEYs,parent):
                 tempele = eleList[0]
                 eleList.remove(tempele)
         duration = obj.getDuration()
-        if duration == 0:
+        if duration == 0: #for all non-entries this will be 0
             me = obj.getTS()
+            #print("TS: {}, entry:{}, me:{}, exit:{}".format(obj.getReqId(),parent.getTS(),me,parent.getExitTS()))
             entry_to_me = int(me - parent.getTS())
             me_to_exit = int(parent.getExitTS() - me)
             eleName = '{}:{}\\nb4:{}ms:after:{}ms'.format(obj.getName(),eleID,entry_to_me,me_to_exit)
         else:
-            eleName = '{}:{}\\ndur:{}ms'.format(obj.getName(),eleID,duration)
+            start_ts = obj.getTS()
+            end_ts = obj.getExitTS()
+            eleName = '{}:{}\\ndur:{}ms:tsdur:{}ms'.format(obj.getName(),eleID,duration,int(end_ts-start_ts))
         if obj.getErr() != '': #will be an entry node
             dot.node(eleID,eleName,color='red')
             cleanup = True
@@ -352,9 +425,6 @@ def parseIt(event):
             #first check for modifies and find the last remove entry
             for line in data_file:
                 count += 1
-                if 'MODIFY' in line:
-                    print("ERROR, there should be no modifies!:")
-                    print(line)
                 if 'REMOVE' in line:
                     last_remove_count = count
         print('last_remove_count: {}'.format(last_remove_count))
@@ -364,6 +434,9 @@ def parseIt(event):
         for line in data_file:
             count += 1
             if processAll or count >= last_remove_count:
+                if 'MODIFY:' in line:
+                    print("ERROR, there should be no modifies!:")
+                    print(line)
                 #get item object = seqNo INSERT:yyy:{item}
                 idx = line.find('INSERT:') 
                 if idx != -1: #skip the REMOVE entries

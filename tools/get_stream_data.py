@@ -9,8 +9,9 @@ def get_stream(event):
         profile = event['profile']
     if 'region' in event:
         region = event['region']
+    stop_seqno = -1
     if 'seqno' in event:
-        seqno = event['seqno']
+        stop_seqno = int(event['seqno'])
     if 'arn' in event:
         arn = event['arn']
     else: 
@@ -37,6 +38,11 @@ def get_stream(event):
         shard_id = shard['ShardId']
         if DEBUG: 
             print('SHARD:{}:{}:{}'.format(shard_id,startSeqNo,endSeqNo))
+        if stop_seqno > int(startSeqNo):
+            if DEBUG: 
+                print('End of Sequence Number Range')
+            break
+
         response = client.get_shard_iterator(
             StreamArn=arn,
             ShardId=shard_id,
@@ -51,9 +57,9 @@ def get_stream(event):
                 Limit=1000
             )
             recs = response['Records']
+            if DEBUG: 
+                print('{} RECORDS'.format(len(recs)))
             if len(recs) == 0:
-                if DEBUG: 
-                    print('NO_RECORDS')
                 break
             for rec in recs:
                 eid = rec['eventID']

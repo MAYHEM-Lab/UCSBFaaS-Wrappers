@@ -1,4 +1,4 @@
-import boto3, json, logging, argparse, time, os, shutil, importlib
+import boto3, json, logging, argparse, time, os, shutil, importlib,uuid
 
 def handler(event, context):
     entry = time.time() * 1000
@@ -12,7 +12,7 @@ def handler(event, context):
         session = boto3.Session(profile_name='cjk1') #replace with your profile
         dynamodb = session.resource('dynamodb', region_name='us-west-2')
     tablename = 'triggerTable'
-    key = 'from:dbMod' #won't trigger function b/c no write if already in table
+    key = str(uuid.uuid4())[:4]
     val = 17
     if event:
         if 'mykey' in event:

@@ -27,21 +27,40 @@ def handler(event,context):
     if fn and fn != me:
         msg = {}
         now = time.time() * 1000
-        msg['msg'] = 'from {} at {}'.format(me,now)
+        msg['msg'] = 'from:{}:at:{}'.format(me,now)
         msg['requestId'] = reqID
         if event and 'eventSource' in event and me == 'unknown': 
             msg['eventSource'] = event['eventSource']
         else:
             msg['eventSource'] = 'int:invokeCLI:{}'.format(me)
         #TODO: send remaining inputs
+        #sending only the ones used in the other apps
+        if 'tablename' in event: 
+            msg['tablename'] = event['tablename']
+        if 'mykey' in event: 
+            msg['mykey'] = event['mykey']
+        if 'myval' in event: 
+            msg['myval'] = event['myval']
+        if 'bkt' in event: 
+            msg['bkt'] = event['bkt']
+        if 'prefix' in event: 
+            msg['prefix'] = event['prefix']
+        if 'fname' in event: 
+            msg['fname'] = event['fname']
+        if 'file_content' in event: 
+            msg['file_content'] = event['file_content']
+        if 'topic' in event: 
+            msg['topic'] = event['topic']
+        if 'subject' in event: 
+            msg['subject'] = event['subject']
+        if 'msg' in event: 
+            msg['msg'] += ":{}".format(event['msg'])
 
         for x in range(count):
             payload=json.dumps(msg)
             now = time.time() * 1000
-            #invoke_response = lambda_client.invoke(FunctionName=fn,
-                #InvocationType='Event', Payload=payload) #Event type says invoke asynchronously
             invoke_response = lambda_client.invoke(FunctionName=fn,
-                InvocationType='Event') #Event type says invoke asynchronously
+                InvocationType='Event', Payload=payload) #Event type says invoke asynchronously
             nowtmp = time.time() * 1000
             delta = nowtmp-now
             me_str = 'REQ:{}:{}:{}:TIMER:INVOKE:{}'.format(reqID,me,count,delta)
