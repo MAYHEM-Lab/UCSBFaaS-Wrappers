@@ -74,6 +74,11 @@ deactivate
 #modify mr.sh to update JOBID and JOBIDNS to match the new job_id values if you changed them
 ./mr.sh aws_profile
 
+#output files:
+cd /Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/tools/cloudwatch
+see 1/MR/map.log,red.log,driv.log,coord.log
+
+
 #generate the dependencies and total ordering (replace STREAM_ARN and aws_profile
 python get_stream_data.py STREAM_ARN -p aws_profile | sort -n -k 1 >  new_stream
 #append new_stream entries to base
@@ -82,6 +87,7 @@ cat grot >> spotFn.stream.base
 
 #process the entries since the last call to cleanup
 python ddb_parser.py spotFn.stream.base
+#see spotgraph.pdf for graph and stdout for total order
 
 #run this instead to process the entire file
 	python ddb_parser.py spotFn.stream.base --process_entire_file
