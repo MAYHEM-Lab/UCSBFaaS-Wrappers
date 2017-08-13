@@ -86,9 +86,9 @@ def invokeCLI(event,context,logger):
         nowtmp = time.time() * 1000
         delta = nowtmp-now
         ms = int(round(delta))
-        me_str = 'REQ:{}:TIMER:CALL:{}:{}'.format(reqID,me,ms)
+        me_str = 'TIMER:CALL:{}'.format(ms)
     else:
-        me_str = 'No context, no functionName, or call will cause recursion: {}:fn:{}'.format(me,fn)
+        me_str = 'no_functionName_or_recursive:fn:{}'.format(fn)
     
     if invoke_response:
         reqID = 'unknown'
@@ -105,7 +105,7 @@ def invokeCLI(event,context,logger):
             status = invoke_response['StatusCode']
         logger.warn('{} invoke_response: reqId:{} statusCode:{}'.format(me,reqID,status))
 
-    logger.warn('SpotTemplatePy::handler returning: {}'.format(me_str))
+    logger.warn('SpotTemplatePy::handler_returning:{}'.format(me_str))
     return me_str
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ from pprint import pprint
 from enum import Enum
 
 DEBUG = False
-Names = Enum('Names','FN S3R S3W DBR DBW SNS GW')
+Names = Enum('Names','INV FN S3R S3W DBR DBW SNS GW')
 Color = Enum('Color','WHITE GRAY BLACK')
 invokes = 0
 invoke_calls = 0
@@ -28,15 +28,15 @@ def processAPICall(n,msg):
         nm =  Names.SNS
     elif n.startswith('Invoke:'):
         invoke_calls += 1
-        nm =  Names.FN
+        nm =  Names.INV
     else:
         assert False
     ######## process nm #########
     name = None
-    if nm == Names.FN:
+    if nm == Names.INV:
         idx = msg.find('SW:FunctionName:')
         if idx != -1:
-            name = 'FN:{}'.format(msg[idx+16:])
+            name = 'INV:{}'.format(msg[idx+16:])
         else:
             print('Error: expected to find FunctionName in msg: {}'.format(msg))
             assert False
@@ -209,7 +209,6 @@ def process(obj,reqDict,SEQs,KEYs):
             invokes += 1
             if idx != -1: 
                 tmp1 = es[idx+14:].split(':')
-                source_name = 'FN:{}'.format(tmp1[0]) #for debugging
                 parent_req = '{}'.format(tmp1[1])
                 assert parent_req in reqDict
                 parent_obj = reqDict[parent_req]
@@ -313,21 +312,22 @@ def process(obj,reqDict,SEQs,KEYs):
         nm ,name = processAPICall(reqStr, msg)
         assert req in reqDict
         parent_obj = reqDict[req]
-        if nm == Names.S3W or nm == Names.DBW or nm == Names.SNS:
-            if DEBUG:
-                print('\tAPICall:',req,reqStr,nm,name)
-            #possible function trigger (writes only trigger lambdas in S3, DynamoDB, and SNS
-            #store them in KEYs even if they are duplicate (we will distinguished by sequence No)
-            ele = DictEle(obj,req,name,nm,ts)
-            seq = ele.getSeqNo()
-            assert seq not in SEQs
-            SEQs[seq] = ele #keep map by seqNo
-            parent_obj.addChild(ele)
-            if DEBUG:
-                print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
+        #if nm == Names.S3W or nm == Names.DBW or nm == Names.SNS:
+        if DEBUG:
+            print('\tAPICall:',req,reqStr,nm,name)
+        #possible function trigger (writes only trigger lambdas in S3, DynamoDB, and SNS)
+        ele = DictEle(obj,req,name,nm,ts)
+        seq = ele.getSeqNo()
+        assert seq not in SEQs
+        SEQs[seq] = ele #keep map by seqNo
+        parent_obj.addChild(ele)
+        if DEBUG:
+            print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
+        #store them in KEYs even if they are duplicate (we will distinguished by sequence No)
+        if nm != Names.S3R and nm != Names.DBR and nm != Names.INV:
             KEYs.setdefault(name,[]).append(ele) #store duplicates if any
 
-        if nm == Names.FN:
+        if nm == Names.INV:
             skipInvoke = True
     
 def dotGen(dot,obj,reqDict,KEYs,parent):
@@ -361,11 +361,20 @@ def dotGen(dot,obj,reqDict,KEYs,parent):
             end_ts = obj.getExitTS()
             eleName = '{}:{}\\ndur:{}ms:tsdur:{}ms'.format(obj.getName(),eleID,duration,int(end_ts-start_ts))
             obj.setDurationTS(int(end_ts-start_ts))
+        nm = obj.getNM()
         if obj.getErr() != '': #will be an entry node
-            dot.node(eleID,eleName,color='red')
+            if nm == Names.S3R or nm == Names.DBR or nm == Names.INV:
+                if INCLUDE_READS:
+                    dot.node(eleID,eleName,color='red',fillcolor='gray',style='filled')
+            else:
+                dot.node(eleID,eleName,color='red')
             cleanup = True
         else:
-            dot.node(eleID,eleName)
+            if nm == Names.S3R or nm == Names.DBR or nm == Names.INV:
+                if INCLUDE_READS:
+                    dot.node(eleID,eleName,fillcolor='gray',style='filled')
+            else:
+                dot.node(eleID,eleName)
     if max_seq_no < eleSeqNo:
         max_seq_no = eleSeqNo
     return eleID
@@ -474,7 +483,11 @@ def parseIt(event):
     print("total_order:")
     for pair in sorted(SEQs.items(), key=lambda t: get_key(t[0])):
         ele = pair[1]
-        print('{}:{}:{}:{}:{}'.format(pair[0],ele.getName(),ele.getDuration(),ele.getDurationTS(),ele.getDurationTSExit()))
+        nm = ele.getNM()
+        if not INCLUDE_READS and (nm == Names.S3R or nm == Names.DBR or nm == Names.INV):
+            continue
+        print('{}:{}:{}:{}:{}:{}'.format(pair[0],ele.getName(),nm,ele.getDuration(),ele.getDurationTS(),ele.getDurationTSExit()))
+        
 
 def get_key(key):
     try:
@@ -557,13 +570,16 @@ class DictEle:
         return seqno
 
 if __name__ == "__main__":
+    global INCLUDE_READS
     parser = argparse.ArgumentParser(description='DynamoDB spotFns Table data Parser')
     parser.add_argument('fname',action='store',help='filename to process')
     parser.add_argument('--process_entire_file',action='store_true',default=False,help='process the entire file instead of skipping to right after the last REMOVE entry which results from the clean')
     parser.add_argument('--fname_is_dbdump',action='store_true',default=False,help='file is dbdump file')
+    parser.add_argument('--include_reads',action='store_true',default=False,help='include API reads (non-triggers) in output')
     #parser.add_argument('schema',action='store',help='schema of file to process')
     args = parser.parse_args()
     event = {}
+    INCLUDE_READS = args.include_reads
     event['fname'] = args.fname
     if args.fname_is_dbdump: #use the dbdump file instead of the DB event stream
         event['oldversion'] = 'any text will work'
