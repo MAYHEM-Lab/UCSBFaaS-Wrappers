@@ -32,7 +32,7 @@ deactivate
 for i in `seq 1 1`;
 do
     #delete the bucket contents for the job
-    aws s3 rm s3://${MRBKT}/${JOBID} --recursive --profile ${PROF}
+    aws s3 rm s3://${MRBKT}/ --recursive --profile ${PROF}
 
     cd ${MRDIR}
     . ../venv/bin/activate
