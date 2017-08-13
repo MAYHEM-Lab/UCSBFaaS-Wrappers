@@ -66,7 +66,6 @@ Example:
 JOB: BOTH
 NStotal:10,map_avg:92.43821298665014:map_stdev:10.481580849877783:map_count:29:dsize:26186978239.0:keys:202
 SPOTtotal:10,map_avg:94.52861484823556:map_stdev:10.937622376671214:map_count:29:dsize:26186978239.0:keys:202
-processCW failed, exiting...
 
 ############################################################
 #run apps: collect data for dependency analysis
