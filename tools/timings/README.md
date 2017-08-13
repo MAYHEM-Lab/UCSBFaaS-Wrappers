@@ -27,7 +27,7 @@ cd ${PREFIX}/tools/timings
 #generate the base log file if you don't have one (stream starting point), replace the arn with your STREAM arn for the spot functions table in dynamodb (dyndb management console)
 cd .. 
 python get_stream_data.py STREAM_ARN -p aws_profile >& new_stream
-sort -n -k 1 new_stream > spotFn.stream.base
+sort -n -k 1 new_stream |awk 'NF' > spotFn.stream.base
 
 #cleanup cloudwatch logs
 cd ../../lambda-python
@@ -87,7 +87,7 @@ see 1/MR/map.log,red.log,driv.log,coord.log
 #generate the dependencies and total ordering (replace STREAM_ARN and aws_profile
 python get_stream_data.py STREAM_ARN -p aws_profile | sort -n -k 1 >  new_stream
 #append new_stream entries to base
-diff -b -B spotFn.stream.base new_stream | awk -F"> " '{print $2}' > grot
+diff -b -B spotFn.stream.base new_stream | awk -F"> " '{print $2}' | awk 'NF' > grot
 cat grot >> spotFn.stream.base
 
 #process the entries since the last call to cleanup
