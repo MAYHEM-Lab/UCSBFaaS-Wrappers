@@ -31,6 +31,7 @@ sort -n -k 1 new_stream > spotFn.stream.base
 
 #cleanup cloudwatch logs
 cd ../../lambda-python
+export AWSRole=arn:aws:iam::AWS_ACCT:role/AWS_INVOKE_LAMBDA_ROLE 
 python setupApps.py --profile aws_profile --deleteAll -f scns.json
 python setupApps.py --profile aws_profile --deleteAll -f scns-noSpot.json
 python setupApps.py --profile aws_profile --deleteAll -f setupconfig-noSpot.json
