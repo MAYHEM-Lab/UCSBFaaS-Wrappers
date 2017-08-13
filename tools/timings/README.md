@@ -90,14 +90,28 @@ python get_stream_data.py STREAM_ARN -p aws_profile | sort -n -k 1 >  new_stream
 diff -b -B spotFn.stream.base new_stream | awk -F"> " '{print $2}' | awk 'NF' > grot
 cat grot >> spotFn.stream.base
 
-#process the entries since the last call to cleanup
+#if you prefer to process just the most recent stream entries, edit get_stream_data.py 
+#and set DEBUG to true. Then run   
+python get_stream_data.py STREAM_ARN -p aws_profile 
+#to see the sequence numbers.  Pick an end sequence number at which you want to stop:
+...
+SHARD:shardId-00000001502645848152-8747f222:51502500000000023987600700:51643800000000024001872971
+#use it on the command line to expedite the stream acquisition process:
+python get_stream_data.py STREAM_ARN -p aws_profile --seqid 51643800000000024001872971 | sort -n -k 1 >  new_stream
+#then process the new data:
+python ddb_parser.py new_stream
+#see spotgraph.pdf for graph and stdout for total order
+
+#or process the entries since the last call to cleanup, i.e. since last set 
+#of REMOVES due to python dynamodelete.py -p ${PROF} ${SPOTTABLE}
 python ddb_parser.py spotFn.stream.base
 #see spotgraph.pdf for graph and stdout for total order
 
 #run this instead to process the entire file
-	python ddb_parser.py spotFn.stream.base --process_entire_file
+python ddb_parser.py spotFn.stream.base --process_entire_file
+#see spotgraph.pdf for graph and stdout for total order
 
-#either of the above produces spotgraph.pdf in this directory (red nodes indicate errors); 
+#ddb_parser produces spotgraph.pdf in this directory (red nodes indicate errors); 
 #node names in graph are as follows
 #for parent-less nodes (duration in msecs):  
 	request_type:name_and_req_ID:seq  
