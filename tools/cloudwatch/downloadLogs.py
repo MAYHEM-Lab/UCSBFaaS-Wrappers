@@ -11,6 +11,8 @@ from datetime import datetime
 def find_streams(logs,log_group,token,start,end):
     def valid_stream(stream):
         cts = stream['creationTime'] 
+        if 'lastEventTimestamp' not in stream:
+            return False
         lets = stream['lastEventTimestamp'] 
         return cts >= start and lets <= end 
 
@@ -46,6 +48,7 @@ def process_msg(msg):
         duration = float(m[5])
         duration_call = float(m[7])
         status = float(m[9])
+        #Fn:reqID:duration_measured_for_this_fn:status_reported_by_call
         retn = '{}:{}:{}:{}'.format(reqid,duration,duration_call,status)
     elif 'TIMER' in msg: #spotwrap app entry
         m = msg.split('\t')
@@ -60,10 +63,14 @@ def process_msg(msg):
                 duration_call = float(m[12])
                 duration = float(m[15])
             status=202
+            #Fn:reqID:duration_measured_for_this_fn:duration_measured_for_invoke:status=202
             retn = '{}:{}:{}:{}'.format(reqid,duration,duration_call,status)
         else:
             m = m[3].split(':')
-            duration = float(m[2])
+            if 'SpotTemplatePy' in msg:
+                duration = float(m[5])
+            else: 
+                duration = float(m[2])
             retn = '{}:{}'.format(reqid,duration)
     else: #Cloudwatch Report entry
         assert 'REPORT' in msg
@@ -71,7 +78,7 @@ def process_msg(msg):
         reqid = m[2].split('\t')[0]
         duration = float(m[3])
         mem = float(m[14])
-        retn = '{}:{}:{}'.format(reqid,duration,mem)
+        retn = '{}:{}:{}'.format(reqid,duration,mem) #Fn:reqID:duration_billed:mem_used
     return retn        
 
 ############ find_events ##################
