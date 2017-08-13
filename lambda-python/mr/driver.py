@@ -210,7 +210,7 @@ if __name__ == "__main__":
     parser.add_argument('--databkt',action='store',default='big-data-benchmark',help='input data bucket')
     parser.add_argument('--prefix',action='store',default='pavlo/text/1node/uservisits/',help='prefix of data files in input data bucket')
     parser.add_argument('--region',action='store',default='us-west-2',help='job bucket')
-    parser.add_argument('--wait4reducers',action='store_false',default=True,help='Wait 4 reducers to finish and report their timings')
+    parser.add_argument('--wait4reducers',action='store_true',default=False,help='Wait 4 reducers to finish and report their timings')
     parser.add_argument('--dryrun',action='store_true',default=False,help='see how many mappers are needed then exit (do not run the mapreduce job)')
     parser.add_argument('--endearly',action='store',default=0,help='For debugging, start endearly mappers then stop')
     args = parser.parse_args()
@@ -224,7 +224,7 @@ if __name__ == "__main__":
     event['endearly'] = args.endearly
     event['mapper'] = args.mapper_function
     event['reducer'] = args.reducer_function
-    if args.wait4reducers:
+    if not args.wait4reducers:
         event['full_async'] = "set_anything_here"
     if args.dryrun:
         event['dryrun'] = "set_anything_here"
