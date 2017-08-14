@@ -397,7 +397,10 @@ def makeDot(reqDict,KEYs):
                     tempele = eleList[0]
                     eleList.remove(tempele) 
             #root notes are functions and so they have a duration
-            node_name = '{}\\nseq:{}-{},dur:{}ms'.format(obj.getName(),pID,max_seq_no,obj.getDuration())
+            start_ts = obj.getTS()
+            end_ts = obj.getExitTS()
+            node_name = '{}\\nseq:{}-{},dur:{}ms,tsdur:{}ms'.format(obj.getName(),pID,max_seq_no,obj.getDuration(),int(end_ts-start_ts))
+            obj.setDurationTS(int(end_ts-start_ts))
             if obj.getErr() != '': #only set for entry nodes
                 dot.node(pID,node_name,color='red')
                 cleanup = True
