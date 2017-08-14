@@ -127,6 +127,15 @@ python ddb_parser.py spotFn.stream.base --process_entire_file
 python ddb_parser.py spotFn.stream.base --include_reads
 
 #std out contains total order of sequence numbers and any events which did not trigger other lambdas
+total order output lines =  A:B:C:D:E:F:G:H   
+        A: sequence number in total order
+        B: name (includes colons so be careful here)
+        C: Names (nm) value (NAMES enum in ddb_parser.py)
+        D: duration as reported by exit (entry nodes only)
+        E: if D != 0, this is duration as reported by difference in timestamps of start/exit
+           if D == 0, this is duration between entry timestamp and this event's timestamp
+        F: if D != 0, this is 0
+           if D == 0, this is duration between exit timestamp and this event's timestamp
 ```
 
 **Please NOTE:**   

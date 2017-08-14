@@ -481,7 +481,7 @@ def parseIt(event):
             counter += 1
     print("unused_writes: {}".format(counter))
     print("total_order:")
-    for pair in sorted(SEQs.items(), key=lambda t: get_key(t[0])):
+    for pair in sorted(SEQs.items(), key=lambda t: get_key(t[0])): #(seqNo,DictEle) pairs sorted by seqNo
         ele = pair[1]
         nm = ele.getNM()
         if not INCLUDE_READS and (nm == Names.S3R or nm == Names.DBR or nm == Names.INV):
