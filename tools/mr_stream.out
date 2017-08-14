@@ -9,28 +9,28 @@ unused_writes:
 	S3W:spot-mr-bkt:job4000/result:440
 unused_writes: 6
 total_order:
-0:FN:driver:e5e9fcda-8077-11e7-a327-8fb02064ea25:Names.FN:20779:0:0
+0:FN:driver:e5e9fcda-8077-11e7-a327-8fb02064ea25:Names.FN:20779:21100:0
 1:S3R:big-data-benchmark:pavlo/text/1node/uservisits/:Names.S3R:0:802:20298
-2:FN:SNSPy:e666a684-8077-11e7-b856-cf11914a0194:Names.FN:604:0:0
-3:FN:S3ModPy:e6d40ec7-8077-11e7-98bb-172f485f0506:Names.FN:1438:0:0
+2:FN:SNSPy:e666a684-8077-11e7-b856-cf11914a0194:Names.FN:604:1018:0
+3:FN:S3ModPy:e6d40ec7-8077-11e7-98bb-172f485f0506:Names.FN:1438:1845:0
 4:SN:us-west-2:443592014519:testtopic:zoego:Message:1:Names.SNS:0:459:559
 5:S3W:cjklambdatrigger:PythonLambda/todo1.txt:Names.S3W:0:475:1370
-6:FN:DBModPy:e748a21a-8077-11e7-9c08-2f6f0bbbefdf:Names.FN:1188:0:0
+6:FN:DBModPy:e748a21a-8077-11e7-9c08-2f6f0bbbefdf:Names.FN:1188:1563:0
 7:S3R:cjklambdatrigger:PythonLambda/todo1.txt:Names.S3R:0:1134:711
 8:DB:testTable::{'name': 'cjkDBModPy1'}:Names.DBR:0:563:1000
-9:FN:DBModPy:e7aeb7b6-8077-11e7-a2b6-21ce2c66ace4:Names.FN:1103:0:0
+9:FN:DBModPy:e7aeb7b6-8077-11e7-a2b6-21ce2c66ace4:Names.FN:1103:1476:0
 10:DB:testTable:name:cjkDBModPy1:age:6939:Names.DBW:0:1139:424
 11:DB:triggerTable::{'name': 'cjkDBModPy1'}:Names.DBR:0:477:999
-12:FN:FnInvokerPy:e8120d8d-8077-11e7-9ee7-a192dc6f5b1d:Names.FN:908:0:0
+12:FN:FnInvokerPy:e8120d8d-8077-11e7-9ee7-a192dc6f5b1d:Names.FN:908:1240:0
 13:S3W:spot-mr-bkt:job4000/jobdata:Names.S3W:0:3838:17262
 14:DB:triggerTable:name:cjkDBModPy1:age:11831:Names.DBW:0:1096:380
 15:INV:arn:aws:lambda:us-west-2:443592014519:function:DBModPy:Names.INV:0:495:745
 16:S3W:spot-mr-bkt:job4000/jobinfo.json:Names.S3W:0:4318:16782
-17:FN:FnInvokerPy:e88baa30-8077-11e7-88e4-1f6dc9b15c3d:Names.FN:879:0:0
+17:FN:FnInvokerPy:e88baa30-8077-11e7-88e4-1f6dc9b15c3d:Names.FN:879:1456:0
 18:FN:DBModPy:ec5de7e8-8077-11e7-8c22-7da055bce6de:Names.FN:1117:1446:0
 19:INV:arn:aws:lambda:us-west-2:443592014519:function:SpotTemplatePy:Names.INV:0:517:939
 20:INV:mapper:Names.INV:0:4859:16241
-21:FN:SpotTemplatePy:e8f2d063-8077-11e7-98bb-172f485f0506:Names.FN:1028:0:0
+21:FN:SpotTemplatePy:e8f2d063-8077-11e7-98bb-172f485f0506:Names.FN:1028:1325:0
 22:DB:triggerTable::{'name': 'cjkFInfPy13131'}:Names.DBR:0:351:1095
 23:INV:mapper:Names.INV:0:5601:15499
 24:DB:triggerTable:name:cjkFInfPy13131:age:24461:Names.DBW:0:1068:378
