@@ -28,7 +28,7 @@ def get_stream(event):
     )['StreamDescription']
 
     #processing the most recent first (same as walking parent backwards)
-    shards = sorted(stream['Shards'], key=lambda k: k['SequenceNumberRange'].get('StartingSequenceNumber', 0),reverse=True)
+    shards = sorted(stream['Shards'], key=lambda k: k['SequenceNumberRange'].get('StartingSequenceNumber', 0),reverse=False)
     for shard in shards:
         if 'EndingSequenceNumber' not in shard['SequenceNumberRange']:
             endSeqNo = 0
@@ -47,9 +47,9 @@ def get_stream(event):
             StreamArn=arn,
             ShardId=shard_id,
             ShardIteratorType='TRIM_HORIZON'
-            #SequenceNumber='12570400000000014960948147'
         )
         shard_iter = response['ShardIterator']
+        zero_count = 0
         while(True):
             time.sleep(1)
             response = client.get_records(
@@ -59,7 +59,11 @@ def get_stream(event):
             recs = response['Records']
             if DEBUG: 
                 print('{} RECORDS'.format(len(recs)))
+            #when end seq no is 0, the stream is open ended and will not end, so try 10 times and stop
+            #open ended streams may have records beyond the first response, so we must try multiple times
             if len(recs) == 0:
+                zero_count += 1 
+            if zero_count > 10:
                 break
             for rec in recs:
                 eid = rec['eventID']
