@@ -2,7 +2,10 @@ import json,time,os,sys,argparse,statistics
 from pprint import pprint
 from enum import Enum
 
-DEBUG = False
+DEBUG = True
+STATUS_LIST = [200.0,202.0,400.0,500.0]
+#FILE_LIST = ["coord.log","driv.log","map.log","s3mod.log","spottemp.log","dbmod.log","fninv.log","red.log","sns.log"]
+FILE_LIST = ["coord.log","driv.log","map.log","red.log"]
 def check_dir(dir_key,event,job):
     '''
     Check that the dirs and files exist (return True if so, else print error and return False)
@@ -32,62 +35,82 @@ def check_dir(dir_key,event,job):
     return retn
         
 def processCW(dirname,jobcount,NSJob,ofile,skipFirst=False):
-    return
-    fnames = [] #coord.log, driv.log, map.log, red.log
+    '''      coord.log    driv.log     map.log      s3mod.log    spottemp.log
+	     dbmod.log    fninv.log    red.log      sns.log
+    lines: 
+    Fn:reqID:duration_billed:mem_used	//Record
+    Fn:reqID:duration_measured_for_this_fn:status_reported_by_call  //SpotWrap for wrapped fn
+
+    Others:
+    Fn:reqID:duration_measured_for_this_fn:duration_measured_for_invoke:status=202  //SDK Invoke (FnInvoker, SpotTemplatePy)
+    Fn:reqID:duration			//Self (FnInvoker or SpotTemplatePy)
+
+    EX:
+    /aws/lambda/reducerCoordinator:70361a64-7fa3-11e7-87b5-29bd2e211f42:1108.58:67.0
+    '''
+    fnames = [] 
+
     ns_str = '/NS' if NSJob else ''
-    for n in range(2,jobcount):
-        if not skipFirst or n > 1:
+    for n in range(1,jobcount+1):
+        if n > 1 or not skipFirst:
             fnames.append('{}/{}{}/'.format(dirname,n,ns_str)) #dirnames
-    dsize = 0.0
-    keycount = 0
-    keys = 0 #unused
-    lines = 0 #unused
-    timer = 0.0
-    err = None
-    ids = 0
-    tlist = []
-    for fname in fnames:
-        if not os.path.exists(fname):
-            print('processCW: Error: {} not found!'.format(fname))
-            sys.exit(1)
-        ids += 1
-        with open(fname,'r') as f:
-            for line in f:
-                line = line.strip()
-                if DEBUG:
-                    print('{}:{}'.format(fname,line))
-                if line.startswith('Dataset size'):
-                    sline = line.split(' ')
-                    dsize = float(sline[2].strip(','))
-                    keycount = int(sline[4].strip(','))
-                if line.startswith('Num. of Mappers'):
-                    sline = line.split(' ')
-                    mappers = int(sline[6])
-                if line.startswith('mapper output'):
-                    sline = line.split(' ')
-                    if NSJob:
-                        keys = int(sline[2].strip('[,'))
-                        lines = int(sline[3].strip(','))
-                        timer = float(sline[4].strip(','))
-                        err = sline[5].strip("']")
+
+    #for each file, collect job timings for each for jobcount runs
+    for postfix in FILE_LIST:
+        tlist = []
+        swlist = []
+        mlist = []
+        swcount = count = 0
+        for fname in fnames:
+            fname += postfix
+            with open(fname,'r') as f:
+                for line in f:
+                    if line.startswith('No streams'):
+                        break
+                    line = line.strip()
+                    strs = line.split(':')
+                    if len(strs) != 4: #only process Record and SpotWrap values for now
+                        continue
+                    fn = strs[0]
+                    req = strs[1]
+                    if float(strs[3]) in STATUS_LIST:
+                        assert not NSJob
+                        #SpotWrap entry = Fn:reqID:duration_measured_for_this_fn:status_reported_by_call  
+                        if DEBUG:
+                            print('SW Entry')
+                        swlist.append(float(strs[2]))
+                        swcount += 1
                     else:
-                        keys = int(sline[5].strip('[,'))
-                        lines = int(sline[6].strip(','))
-                        timer = float(sline[7].strip(','))
-                        err = sline[8].strip("']}")
-                    if err == '': 
-                        err = None
-                    if not err:
-                        tlist.append(timer)
-    return (ids,statistics.mean(tlist),statistics.stdev(tlist),mappers,dsize,keycount)
+                        #Fn:reqID:duration_billed:mem_used	//Record
+                        tlist.append(float(strs[2]))
+                        mlist.append(float(strs[3]))
+                        count += 1
+                        
+        if count > 0:
+            if swcount > 0: #TODO clean this up once working as swcount will =0 when NSJob is false
+                print('{}:{}:{}:{}:{}:{}:{}:{}'.format(
+                    postfix,count,
+                    statistics.mean(tlist),statistics.stdev(tlist),
+                    statistics.mean(swlist),statistics.stdev(swlist),
+                    statistics.mean(mlist),statistics.stdev(mlist)
+                ))
+            else:
+                print('{}:{}:{}:{}:{}:{}:{}:{}'.format(
+                    postfix,count,
+                    statistics.mean(tlist),statistics.stdev(tlist),0.0,0.0,
+                    statistics.mean(mlist),statistics.stdev(mlist)
+                ))
+        else:
+            print('{}:{}:{}:{}:{}:{}:{}:{}'.format(
+                postfix,0,0.0,0.0,0.0,0.0,0.0,0.0))
 
 def processDB(dirname,jobcount,NSJob,ofile,skipFirst=False):
     pass
 def processMR(dirname,jobcount,NSJob,ofile,skipFirst=False):
     fnames = []
     ns_str = '/NS' if NSJob else ''
-    for n in range(2,jobcount):
-        if not skipFirst or n > 1:
+    for n in range(1,jobcount+1):
+        if n > 1 or not skipFirst:
             fnames.append('{}/{}{}/overhead.out'.format(dirname,n,ns_str)) #file names
     dsize = 0.0
     keycount = 0
@@ -105,8 +128,6 @@ def processMR(dirname,jobcount,NSJob,ofile,skipFirst=False):
         with open(fname,'r') as f:
             for line in f:
                 line = line.strip()
-                if DEBUG:
-                    print('{}:{}'.format(fname,line))
                 if line.startswith('Dataset size'):
                     sline = line.split(' ')
                     dsize = float(sline[2].strip(','))
@@ -144,17 +165,27 @@ def parseIt(event,job='both',skipFirst=False):
         print('no output file name specified, exiting...')
         sys.exit(1)
 
-    print("JOB: {}".format(job))
     with open(event['output_fname'],'w') as ofile: #first to open so overwrite and start fresh
+        print()
         if job=='NS' or job=='BOTH':
             count,avg,stdev,mcount,dsize,keys = processMR(event['mrdir'],event['count'],True,ofile,skipFirst)
             print('NStotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
         if job=='SPOT' or job=='BOTH':
             count,avg,stdev,mcount,dsize,keys = processMR(event['mrdir'],event['count'],False,ofile,skipFirst)
             print('SPOTtotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
-        if not processCW(event['cwdir'],event['count'],job,ofile):
-            print('processCW failed, exiting...')
-        if not processDB(event['dbdir'],event['count'],job,ofile):
+
+        ############### Cloudwatch Log Summaries #################
+        print('\nCloudwatch Log Data\n\tname,count,billed_avg,billed_stdev,inner_avg,inner_stdev,mem_avg,mem_stdev')
+        print('NoSpot:')
+        if job=='NS' or job=='BOTH':
+            processCW(event['cwdir'],event['count'],True,ofile,skipFirst)
+        print('\nSPOT:')
+        if job=='SPOT' or job=='BOTH':
+            processCW(event['cwdir'],event['count'],False,ofile,skipFirst)
+
+        ############### Other #################
+        print()
+        if not processDB(event['dbdir'],event['count'],job,ofile,skipFirst):
             print('processDB failed, exiting...')
 
 if __name__ == "__main__":
