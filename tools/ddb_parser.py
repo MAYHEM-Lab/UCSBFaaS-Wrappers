@@ -513,13 +513,17 @@ def parseIt(event):
             counter += 1
     print("unused_writes: {}".format(counter))
     print("total_order:")
+    counter = 1
     for pair in sorted(SEQs.items(), key=lambda t: get_key(t[0])): #(seqNo,DictEle) pairs sorted by seqNo
         ele = pair[1]
         nm = ele.getNM()
-        if not INCLUDE_READS and (nm == Names.S3R or nm == Names.DBR or nm == Names.INV):
-            continue
-        print('{}:{}:{}:{}:{}:{}:{}'.format(pair[0],ele.getName(),nm,ele.getDuration(),ele.getDurationTS(),ele.getDurationTSExit(),ele.getTrigger()))
-        
+        if INCLUDE_READS:
+            counter = pair[0]
+        else:
+            if nm == Names.S3R or nm == Names.DBR or nm == Names.INV:
+                continue
+            counter += 1 #need to use a counter because pair[0] (the seqNo) includes reads
+        print('{}:{}:{}:{}:{}:{}:{}'.format(counter,ele.getName(),nm,ele.getDuration(),ele.getDurationTS(),ele.getDurationTSExit(),ele.getTrigger()))
 
 def get_key(key):
     try:
