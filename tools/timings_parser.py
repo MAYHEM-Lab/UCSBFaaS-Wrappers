@@ -126,10 +126,8 @@ def parseIt(event,job='both',skipFirst=False):
             print('SPOTtotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
         if not processCW(event['cwdir'],job,ofile):
             print('processCW failed, exiting...')
-            sys.exit(1)
         if not processDB(event['dbdir'],job,ofile):
             print('processDB failed, exiting...')
-            sys.exit(1)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Parser for timings data from overhead.sh and overheadNS.sh')
@@ -137,12 +135,12 @@ if __name__ == "__main__":
     parser.add_argument('cwdir',action='store',help='full path to directory containing dirs named 1-10 under cloudwatch')
     parser.add_argument('dbdir',action='store',help='full path to directory containing dirs named 1-10 under dynamodb')
     parser.add_argument('output_file',action='store',help='output file name')
-    parser.add_argument('--processNSOnly',action='store_true',default=False,help='process the NS subdirectories (a non-SpotWrap job)')
-    parser.add_argument('--processSpotOnly',action='store_true',default=False,help='process the NS subdirectories (a non-SpotWrap job)')
-    parser.add_argument('--skipFirst',action='store_true',default=False,help='skip the first job (warmup)')
+    parser.add_argument('--process_NS_only',action='store_true',default=False,help='process the NS subdirectories (a non-SpotWrap job)')
+    parser.add_argument('--process_spot_only',action='store_true',default=False,help='process the NS subdirectories (a non-SpotWrap job)')
+    parser.add_argument('--skip_first',action='store_true',default=False,help='skip the first job (warmup)')
     args = parser.parse_args()
-    if args.processNSOnly and args.processSpotOnly:
-        print('Error, processNSOnly and processSpotOnly cannot both be set, use one or none and rerun')
+    if args.process_NS_only and args.process_spot_only:
+        print('Error, process_NS_only and process_spot_only cannot both be set, use one or none and rerun')
         sys.exit(1)
     event = {}
     event['mrdir'] = args.mrdir
@@ -150,10 +148,10 @@ if __name__ == "__main__":
     event['dbdir'] = args.dbdir
     event['output_fname'] = args.output_file
     run = 'BOTH'
-    if args.processSpotOnly:
+    if args.process_spot_only:
         run = 'SPOT'
-    elif args.processNSOnly:
+    elif args.process_NS_only:
         run = 'NS'
     
-    parseIt(event,run,args.skipFirst)
+    parseIt(event,run,args.skip_first)
 
