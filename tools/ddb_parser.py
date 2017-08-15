@@ -189,27 +189,30 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
             #link to existing Names.S3W object
             msg = obj['message']['S'].split(':')
             name = 'S3W:{}:{}'.format(msg[0],msg[1])
-            assert name in KEYs
-            eleList = KEYs[name]
-            parent_obj = None
-            for tempele in eleList:
-                if not parent_obj:
-                    parent_obj = tempele
-                else:
-                    if tempele.getSeqNo() < parent_obj.getSeqNo():
-                        #tempele occured earlier than parent_obj, so use tempele instead
-                        parent_obj = tempele
-            assert parent_obj is not None
-            eleList.remove(parent_obj)
-            source_name = name #for debugging
-            if DEBUG:
-                print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
-            parent_obj.addChild(ele)
+            ele.setTrigger('S3W')
+            if name not in KEYs or KEYs[name] == []:
+                print('WARNING: S3W triggered function has no parent! {} {}\n{}'.format(name,eventOp,es))
+            else:
+                eleList = KEYs[name]
+                parent_obj = None
+                for tmpele in eleList:
+                    if not parent_obj:
+                        parent_obj = tmpele
+                    else:
+                        if tmpele.getSeqNo() < parent_obj.getSeqNo():
+                            #tmpele occured earlier than parent_obj, so use tmpele instead
+                            parent_obj = tmpele
+                assert parent_obj is not None
+                eleList.remove(parent_obj)
+                if DEBUG:
+                    print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
+                parent_obj.addChild(ele)
         elif 'lib:invokeCLI' in es:
             #link to existing Names.FN
             idx = es.find('lib:invokeCLI:') #lib call from another lambda
             invokes += 1
             if idx != -1: 
+                ele.setTrigger('libInv')
                 tmp1 = es[idx+14:].split(':')
                 parent_req = '{}'.format(tmp1[1])
                 assert parent_req in reqDict
@@ -223,10 +226,10 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
         elif eventOp.startswith('ext:invokeCLI') or es.find('ext:invokeCLI') != -1:
             #invoke from command line (aws tools remotely), there is no parent
             pass
-        elif eventOp.startswith('UPDATE'):
-            print('DB Update not handled')
-            sys.exit(1)
         elif eventOp.startswith('INSERT') or eventOp.startswith('REMOVE') or eventOp.startswith('MODIFY'):
+            if eventOp.startswith('REMOVE'):
+                print("REMOVE! {} {}".format(es,msg))
+            ele.setTrigger('DBW')
             #"New:{'name': {'S': 'cjkFInfPy29726'}, 'age': {'S': '18640'}}"
             #":Old:{'name': {'S': 'newkeycjk'}, 'age': {'S': '315'}}"}
             #{'S': "New:{'name': {'S': 'cjkDBModPy1'}, 'age': {'S': '6953'}}:Old:{'name': {'S': 'cjkDBModPy1'}, 'age': {'S': '9943'}}"}
@@ -255,37 +258,26 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
                 else:
                     print("ERROR: unhandled dynamoDB type: {}".format(val))
                     sys.exit(1)
-            if name not in KEYs:
+            if name not in KEYs or KEYs[name] == []:
                 print('ERROR: DBW without a DBR: {} {}'.format(name,req))
-                '''  Removing this as it should not happen (only report as ERROR
-                #make a DB entry as parent to this node, remove this node from reqDict
-                child = reqDict.pop(req,None)
-                ele = DictEle(obj,req,name,Names.DBW,ts)
-                seq = ele.getSeqNo()
-                assert seq not in SEQs
-                SEQs[seq] = ele #keep map by seqNo
-                #only insert it into reqDict if it doesn't have a parent!
-                reqDict[req] = ele
-                ele.addChild(child)
-                '''
             else:
-                assert name in KEYs #keep this for when we remove the above guard if we do
                 eleList = KEYs[name]
                 parent_obj = None
-                for tempele in eleList:
+                for tmpele in eleList:
+                    assert tmpele is not None
                     if not parent_obj:
-                        parent_obj = tempele
+                        parent_obj = tmpele
                     else:
-                        if tempele.getSeqNo() < parent_obj.getSeqNo():
-                            #tempele occured earlier than parent_obj, so use tempele instead
-                            parent_obj = tempele
+                        if tmpele.getSeqNo() < parent_obj.getSeqNo():
+                            #tmpele occured earlier than parent_obj, so use tmpele instead
+                            parent_obj = tmpele
                 assert parent_obj is not None
                 eleList.remove(parent_obj)
-                source_name = name #for debugging
                 if DEBUG:
                     print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
                 parent_obj.addChild(ele)
         elif eventOp.startswith('Notification'):
+            ele.setTrigger('SNS')
             #invoke from SNS notification
             arn = es.split(':') #arn
             idx = msg.find(':') #subject:rest
@@ -296,16 +288,15 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
             assert name in KEYs
             eleList = KEYs[name]
             parent_obj = None
-            for tempele in eleList:
+            for tmpele in eleList:
                 if not parent_obj:
-                    parent_obj = tempele
+                    parent_obj = tmpele
                 else:
-                    if tempele.getSeqNo() < parent_obj.getSeqNo():
-                        #tempele occured earlier than parent_obj, so use tempele instead
-                        parent_obj = tempele
+                    if tmpele.getSeqNo() < parent_obj.getSeqNo():
+                        #tmpele occured earlier than parent_obj, so use tmpele instead
+                        parent_obj = tmpele
             assert parent_obj is not None
-            eleList.remove(parent_obj)
-            source_name = name #for debugging
+            eleList.remove(parent_obj) #ok to remove a notification entry
             if DEBUG:
                 print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
             parent_obj.addChild(ele)
@@ -322,9 +313,11 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
             name = 'GW:{}:{}:{}'.format(api,caller,route)
             #create an object from this data and make obj the child of the new object
             child = reqDict.pop(req,None) #remove from reqDict 
+            child.setTrigger('GW')
             oldseq = child.getSeqNo() #get old object's sequence number
             SEQs.pop(oldseq) #remove from SEQs 
             ele = DictEle(obj,caller,name,Names.GW,ts) #get new obj and seqNo
+            ele.setTrigger('HTTP')
             ele.setSourceIP(ip)
             newseq = ele.getSeqNo() 
             #swap sequence numbers because they are out of order
@@ -338,7 +331,7 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
             IMPLIED_PARENT_ELEs[req] = child #need to keep this around in order to update duration via exit
             ele.addChild(child)
         else:
-            print('WARNING: function has no parent! {} {}'.format(reqStr,eventOp))
+            print('WARNING: function has no parent! {} {}\n{}'.format(name,eventOp,es))
             #assert False
     else: #other event, record it to build trace
         nm ,name = processAPICall(reqStr, msg)
@@ -349,6 +342,7 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
             print('\tAPICall:',req,reqStr,nm,name)
         #possible function trigger (writes only trigger lambdas in S3, DynamoDB, and SNS)
         ele = DictEle(obj,req,name,nm,ts)
+        ele.setTrigger('FnSDK')
         seq = ele.getSeqNo()
         assert seq not in SEQs
         SEQs[seq] = ele #keep map by seqNo
@@ -357,6 +351,8 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
             print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
         #store them in KEYs even if they are duplicate (we will distinguished by sequence No)
         if nm != Names.S3R and nm != Names.DBR and nm != Names.INV:
+            assert ele is not None
+            print('appending KEYs with {} {}'.format(name,ele.getSeqNo()))
             KEYs.setdefault(name,[]).append(ele) #store duplicates if any
 
         if nm == Names.INV:
@@ -379,8 +375,8 @@ def dotGen(dot,obj,reqDict,KEYs,parent):
             if cleanup:
                 assert cname in KEYs
                 eleList = KEYs[cname]
-                tempele = eleList[0]
-                eleList.remove(tempele)
+                tmpele = eleList[0]
+                eleList.remove(tmpele)
         duration = obj.getDuration()
         if duration == 0: #for all non-entries this will be 0
             me = obj.getTS()
@@ -429,8 +425,8 @@ def makeDot(reqDict,KEYs):
                 if cleanup: #remove name from KEYs so that we don't count it as an unused_write
                     assert cname in KEYs
                     eleList = KEYs[cname]
-                    tempele = eleList[0]
-                    eleList.remove(tempele) 
+                    tmpele = eleList[0]
+                    eleList.remove(tmpele) #ok to remove at this point
             #root notes are functions and so they have a duration
             start_ts = obj.getTS()
             end_ts = obj.getExitTS()
@@ -525,7 +521,7 @@ def parseIt(event):
         nm = ele.getNM()
         if not INCLUDE_READS and (nm == Names.S3R or nm == Names.DBR or nm == Names.INV):
             continue
-        print('{}:{}:{}:{}:{}:{}'.format(pair[0],ele.getName(),nm,ele.getDuration(),ele.getDurationTS(),ele.getDurationTSExit()))
+        print('{}:{}:{}:{}:{}:{}:{}'.format(pair[0],ele.getName(),nm,ele.getDuration(),ele.getDurationTS(),ele.getDurationTSExit(),ele.getTrigger()))
         
 
 def get_key(key):
@@ -576,6 +572,10 @@ class DictEle:
         return self.__seq
     def setSeqNo(self,seqno):
         self.__seq = seqno
+    def setTrigger(self,trigger):
+        self.__trigger = trigger
+    def getTrigger(self):
+        return self.__trigger
     def getReqId(self):
         return self.__reqID
     def getNM(self):
@@ -592,6 +592,7 @@ class DictEle:
         self.__color = Color.WHITE
         self.__children = []
         self.__seq = self.getAndIncrSeqNo()
+        self.__trigger = None
         self.__ts = ts
         self.__nm = nm
         self.__name = name
