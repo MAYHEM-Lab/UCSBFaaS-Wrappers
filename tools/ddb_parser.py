@@ -4,7 +4,7 @@ from graphviz import Digraph
 from pprint import pprint
 from enum import Enum
 
-DEBUG = True
+DEBUG = False
 Names = Enum('Names','INV FN S3R S3W DBR DBW SNS GW')
 Color = Enum('Color','WHITE GRAY BLACK')
 invokes = 0
@@ -175,7 +175,7 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
             name = 'FN:{}:{}'.format(arn[6],req)
         ip = 'unknown'
         if 'sourceIP' in obj:
-            ip = obj['sourceIP']
+            ip = obj['sourceIP']['S']
         ele = DictEle(obj,req,name,nm,ts)
         ele.setSourceIP(ip)
         seq = ele.getSeqNo()
@@ -316,8 +316,10 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
             caller = obj['caller']['S']
             tmp = es.split(":")
             api = tmp[2]
-            ip = obj['sourceIP']['S']
-            name = 'GW:{}:{}'.format(api,route)
+            ip = 'unknown'
+            if 'sourceIP' in obj:
+                ip = obj['sourceIP']['S']
+            name = 'GW:{}:{}:{}'.format(api,caller,route)
             #create an object from this data and make obj the child of the new object
             child = reqDict.pop(req,None) #remove from reqDict 
             oldseq = child.getSeqNo() #get old object's sequence number
