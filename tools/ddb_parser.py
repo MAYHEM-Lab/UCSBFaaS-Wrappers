@@ -4,7 +4,7 @@ from graphviz import Digraph
 from pprint import pprint
 from enum import Enum
 
-DEBUG = False
+DEBUG = True
 Names = Enum('Names','INV FN S3R S3W DBR DBW SNS GW')
 Color = Enum('Color','WHITE GRAY BLACK')
 invokes = 0
@@ -123,14 +123,12 @@ def processAPICall(n,msg):
             else:
                 print('Error5: expected to find SW:sns:Publish:Topic: in msg: {}'.format(msg))
                 assert False
-    #elif nm == Names.GW:
-        #pass
     else:
         assert False
     return nm,name
 
 ################# process #################
-def process(obj,reqDict,SEQs,KEYs):
+def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
     if DEBUG:
         print("processing: {}".format(repr(obj)))
     global invokes
@@ -157,8 +155,10 @@ def process(obj,reqDict,SEQs,KEYs):
     duration = 0
     if reqStr == 'exit': 
         duration = obj['duration']['N']
-        assert req in reqDict
-        parent_obj = reqDict[req]
+        if req in reqDict:
+            parent_obj = reqDict[req]
+        else:
+            parent_obj = IMPLIED_PARENT_ELEs[req]
         assert parent_obj.getDuration() == 0
         parent_obj.setDuration(duration)
         parent_obj.setExitTS(ts)
@@ -173,9 +173,11 @@ def process(obj,reqDict,SEQs,KEYs):
         if 'thisFnARN' in obj:
             arn = obj['thisFnARN']['S'].split(':')
             name = 'FN:{}:{}'.format(arn[6],req)
+        ip = 'unknown'
         if 'sourceIP' in obj:
             ip = obj['sourceIP']
         ele = DictEle(obj,req,name,nm,ts)
+        ele.setSourceIP(ip)
         seq = ele.getSeqNo()
         assert seq not in SEQs
         SEQs[seq] = ele #keep map by seqNo
@@ -255,6 +257,7 @@ def process(obj,reqDict,SEQs,KEYs):
                     sys.exit(1)
             if name not in KEYs:
                 print('ERROR: DBW without a DBR: {} {}'.format(name,req))
+                '''
                 #make a DB entry as parent to this node, remove this node from reqDict
                 child = reqDict.pop(req,None)
                 ele = DictEle(obj,req,name,Names.DBW,ts)
@@ -264,6 +267,7 @@ def process(obj,reqDict,SEQs,KEYs):
                 #only insert it into reqDict if it doesn't have a parent!
                 reqDict[req] = ele
                 ele.addChild(child)
+                '''
             else:
                 assert name in KEYs #keep this for when we remove the above guard if we do
                 eleList = KEYs[name]
@@ -305,6 +309,32 @@ def process(obj,reqDict,SEQs,KEYs):
             if DEBUG:
                 print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
             parent_obj.addChild(ele)
+        elif es.startswith('aws:APIGateway:'):
+            #was invoked synchronously by API Gateway; async calls look like invokes (undetectable)
+            #{'accountID': {'S': '443592014519'}, 'caller': {'S': 'fd05e16f-812a-11e7-b28c-57b1fcee6bea'}, 'duration': {'N': '0'}, 'error': {'S': 'SpotWrapPython'},'eventOp': {'S': '/test/FnInvokerPy'}, 'eventSource': {'S': 'aws:APIGateway:gf4tjn3199'}, 'message': {'S': 'arn1jb:curl:{ \n    "a":"4",\n    "b":"2",\n    "op":"-"\n}\n'}, 'region': {'S': 'us-west-2'}, 'requestID': {'S': 'fd0a27db-812a-11e7-b727-2d2b9ea53971:entry'}, 'sourceIP': {'S': '98.171.178.234'}, 'thisFnARN': {'S': 'arn:aws:lambda:us-west-2:443592014519:function:FnInvokerPy'}, 'ts': {'N': '1502740733529'}}
+            route = eventOp
+            caller = obj['caller']['S']
+            tmp = es.split(":")
+            api = tmp[2]
+            ip = obj['sourceIP']['S']
+            name = 'GW:{}:{}'.format(api,route)
+            #create an object from this data and make obj the child of the new object
+            child = reqDict.pop(req,None) #remove from reqDict 
+            oldseq = child.getSeqNo() #get old object's sequence number
+            SEQs.pop(oldseq) #remove from SEQs 
+            ele = DictEle(obj,caller,name,Names.GW,ts) #get new obj and seqNo
+            ele.setSourceIP(ip)
+            newseq = ele.getSeqNo() 
+            #swap sequence numbers because they are out of order
+            ele.setSeqNo(oldseq)
+            child.setSeqNo(newseq)
+            SEQs[oldseq] = ele #keep map by seqNo
+            SEQs[newseq] = child #keep map by seqNo
+
+            #only insert it into reqDict if it doesn't have a parent!
+            reqDict[ele] = ele #replace child with caller's seqno
+            IMPLIED_PARENT_ELEs[req] = child #need to keep this around in order to update duration via exit
+            ele.addChild(child)
         else:
             print('WARNING: function has no parent! {} {}'.format(reqStr,eventOp))
             #assert False
@@ -361,8 +391,11 @@ def dotGen(dot,obj,reqDict,KEYs,parent):
         else:
             start_ts = obj.getTS()
             end_ts = obj.getExitTS()
-            eleName = '{}:{}\\ndur:{}ms:tsdur:{}ms'.format(obj.getName(),eleID,duration,int(end_ts-start_ts))
-            obj.setDurationTS(int(end_ts-start_ts))
+            tsdur = int(end_ts-start_ts)
+            if tsdur < 0:
+                tsdur = 0
+            eleName = '{}:{}\\ndur:{}ms:tsdur:{}ms'.format(obj.getName(),eleID,duration,tsdur)
+            obj.setDurationTS(tsdur)
         nm = obj.getNM()
         if nm == Names.S3R or nm == Names.DBR or nm == Names.INV:
             if INCLUDE_READS:
@@ -399,8 +432,11 @@ def makeDot(reqDict,KEYs):
             #root notes are functions and so they have a duration
             start_ts = obj.getTS()
             end_ts = obj.getExitTS()
-            node_name = '{}\\nseq:{}-{},dur:{}ms,tsdur:{}ms'.format(obj.getName(),pID,max_seq_no,obj.getDuration(),int(end_ts-start_ts))
-            obj.setDurationTS(int(end_ts-start_ts))
+            tsdur = int(end_ts-start_ts)
+            if tsdur < 0:
+                tsdur = 0
+            node_name = '{}\\nseq:{}-{},dur:{}ms,tsdur:{}ms'.format(obj.getName(),pID,max_seq_no,obj.getDuration(),tsdur)
+            obj.setDurationTS(tsdur)
             if obj.getErr() != '': #only set for entry nodes
                 dot.node(pID,node_name,color='red')
                 cleanup = True
@@ -413,6 +449,7 @@ def parseIt(event):
     fname = None
     reqDict = {} #dictionary holding request (DictEle) objects by requestID
     SEQs = {} #dictionary by seqID holding DictEles, for easy traversal by seqNo
+    IMPLIED_PARENT_ELEs = {} #dictionary by req holding DictEles for those for which we make new parents (APIGatway objects and 
     KEYs = {} #dictionary by name (key) for DictEles, popped when assigned by earliest ts
     #check that the file is available 
     processAll = False
@@ -465,7 +502,7 @@ def parseIt(event):
     missing = {}
     for item in reqs:
         counter += 1
-        process(item,reqDict,SEQs,KEYs)
+        process(item,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs)
     makeDot(reqDict,KEYs)
     if missed_count != 0 or len(missing) != 0:
         print("missed_count: {}, objs missing {}".format(missed_count,len(missing)))
@@ -529,12 +566,14 @@ class DictEle:
         self.__error = error
     def getErr(self):
         return self.__error
-    def getBlob(self):
-        return self.__ele
+    #def getBlob(self):
+        #return self.__ele
     def getName(self):
         return self.__name
     def getSeqNo(self):
         return self.__seq
+    def setSeqNo(self,seqno):
+        self.__seq = seqno
     def getReqId(self):
         return self.__reqID
     def getNM(self):
@@ -542,10 +581,9 @@ class DictEle:
     def getChildren(self):
         return self.__children
     def getSourceIP(self):
-        if 'sourceIP' in self.__ele:
-            return self.__ele['sourceIP']['S']
-        else:
-            return "unknown"
+        return self.__source_ip
+    def setSourceIP(self,source_ip):
+        self.__source_ip = source_ip
 
     def __init__(self,blob,reqID,name,nm,ts):
         #self.__children_lists = {} #list of DictEles per Names.enum
@@ -561,7 +599,11 @@ class DictEle:
         self.__duration_tsexit = 0
         self.__error = ''
         self.__exit_ts = 0
-        self.__ele = blob
+        if 'sourceIP' in blob:
+            self.__source_ip =  blob['sourceIP']['S']
+        else: 
+            self.__source_ip = "unknown"
+        #self.__ele = blob
 
     @staticmethod
     def getAndIncrSeqNo(incr=1):

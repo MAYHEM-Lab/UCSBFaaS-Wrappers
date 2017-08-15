@@ -1,4 +1,5 @@
 import boto3
+import jsonpickle,os
 import json, logging, time, argparse
 
 def handler(event,context):
@@ -12,15 +13,41 @@ def handler(event,context):
     else:
         me = context.invoked_function_arn
         reqID = context.aws_request_id
+        serialized = jsonpickle.encode(context)
+        slist = ''
+        for k in os.environ:
+            slist += '{}:{};'.format(k,os.environ[k])
+        print('context: {}\nenv: {}'.format(json.loads(serialized),slist))
+      
+    #time.sleep(330) for testing error reporting in AWS Lambda
     lambda_client = boto3.client('lambda')
 
     fn = None
     count = 1
     if event:
+        print('event: ',event)
         if 'functionName' in event:
             fn = event['functionName']
         if 'count' in event:
             count = int(event['count'])
+        a = b = 0
+        if 'a' in event:
+            a = int(event['a'])
+        if 'b' in event:
+            b = int(event['b'])
+        if 'op' in event:
+            op = event['op']
+            res = 0
+            if op == '+':
+                res = a+b
+            if op == '-':
+                res = a-b
+            if op == '*':
+                res = a*b
+            if op == '/':
+                res = a/b
+            print(res)
+            
 
     #run_lambda does not support invoke via Payload arg
     invoke_response = None
