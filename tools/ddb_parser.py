@@ -257,7 +257,7 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
                     sys.exit(1)
             if name not in KEYs:
                 print('ERROR: DBW without a DBR: {} {}'.format(name,req))
-                '''
+                '''  Removing this as it should not happen (only report as ERROR
                 #make a DB entry as parent to this node, remove this node from reqDict
                 child = reqDict.pop(req,None)
                 ele = DictEle(obj,req,name,Names.DBW,ts)
@@ -477,7 +477,7 @@ def parseIt(event):
             #first check for modifies and find the last remove entry
             for line in data_file:
                 count += 1
-                if 'REMOVE' in line:
+                if 'REMOVE:' in line:
                     last_remove_count = count
         print('last_remove_count: {}'.format(last_remove_count))
             
