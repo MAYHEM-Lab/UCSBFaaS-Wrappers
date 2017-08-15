@@ -203,7 +203,7 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
                             #tmpele occured earlier than parent_obj, so use tmpele instead
                             parent_obj = tmpele
                 assert parent_obj is not None
-                eleList.remove(parent_obj)
+                eleList.remove(parent_obj) #same bkt/prefix cannot trigger >1 functions so remove it once used
                 if DEBUG:
                     print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
                 parent_obj.addChild(ele)
@@ -227,8 +227,6 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
             #invoke from command line (aws tools remotely), there is no parent
             pass
         elif eventOp.startswith('INSERT') or eventOp.startswith('REMOVE') or eventOp.startswith('MODIFY'):
-            if eventOp.startswith('REMOVE'):
-                print("REMOVE! {} {}".format(es,msg))
             ele.setTrigger('DBW')
             #"New:{'name': {'S': 'cjkFInfPy29726'}, 'age': {'S': '18640'}}"
             #":Old:{'name': {'S': 'newkeycjk'}, 'age': {'S': '315'}}"}
@@ -268,11 +266,11 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
                     if not parent_obj:
                         parent_obj = tmpele
                     else:
-                        if tmpele.getSeqNo() < parent_obj.getSeqNo():
-                            #tmpele occured earlier than parent_obj, so use tmpele instead
+                        if tmpele.getSeqNo() > parent_obj.getSeqNo():
+                            #get the most recent seq number 
                             parent_obj = tmpele
                 assert parent_obj is not None
-                eleList.remove(parent_obj)
+                #eleList.remove(parent_obj) #don't remove it b/c it can trigger multiple fns
                 if DEBUG:
                     print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
                 parent_obj.addChild(ele)
@@ -292,11 +290,11 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
                 if not parent_obj:
                     parent_obj = tmpele
                 else:
-                    if tmpele.getSeqNo() < parent_obj.getSeqNo():
-                        #tmpele occured earlier than parent_obj, so use tmpele instead
+                    if tmpele.getSeqNo() > parent_obj.getSeqNo():
+                        #get the most recent seq number 
                         parent_obj = tmpele
             assert parent_obj is not None
-            eleList.remove(parent_obj) #ok to remove a notification entry
+            #eleList.remove(parent_obj) #cannot remove bc it can trigger multiple functions
             if DEBUG:
                 print('\tAdding child name: {}, to name {}'.format(ele.getName(),parent_obj.getName()))
             parent_obj.addChild(ele)
@@ -352,7 +350,6 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
         #store them in KEYs even if they are duplicate (we will distinguished by sequence No)
         if nm != Names.S3R and nm != Names.DBR and nm != Names.INV:
             assert ele is not None
-            print('appending KEYs with {} {}'.format(name,ele.getSeqNo()))
             KEYs.setdefault(name,[]).append(ele) #store duplicates if any
 
         if nm == Names.INV:
