@@ -1,0 +1,45 @@
+{
+        "region": "us-west-2",
+        "functions": [
+            {
+                "name": "driverNS",
+                "lambdaMemory": 128,
+                "handler": "driver.handler",
+                "zip": "driverzip.zip",
+                "files_and_dirs": [
+                    "mr/driver.py",
+                    "mr/lambdautils.py"
+                ]
+            },
+            {
+                "name": "mapperNS",
+                "lambdaMemory": 1536,
+                "handler": "mapper.handler",
+                "zip": "mapperzip.zip",
+                "files_and_dirs": [
+                    "mr/mapper.py"
+                ]
+            },
+            {
+                "name": "reducerNS",
+                "lambdaMemory": 1536,
+                "handler": "reducer.handler",
+                "zip": "reducerzip.zip",
+                "files_and_dirs": [
+                    "mr/reducer.py"
+                ]
+            },
+            {
+                "name": "reducerCoordinatorNS",
+                "lambdaMemory": 128,
+                "handler": "reducerCoordinator.handler",
+                "zip": "reducerCoordinatorzip.zip",
+                "files_and_dirs": [
+                    "mr/reducerCoordinator.py",
+                    "mr/lambdautils.py"
+                ],
+                "permission": "MY-BUCKET-NAME_NOSPOT",
+                "job_id": "JOBID_NOSPOT"
+            }
+        ]
+}
