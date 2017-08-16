@@ -2,7 +2,7 @@
         "region": "us-west-2",
         "functions": [
             {
-                "name": "driverNS",
+                "name": "driver",
                 "lambdaMemory": 128,
                 "handler": "driver.handler",
                 "zip": "driverzip.zip",
@@ -36,7 +36,7 @@
                 "s3bucket": "CODEBUCKET"
             },
             {
-                "name": "reducerCoordinatorNS",
+                "name": "reducerCoordinator",
                 "lambdaMemory": 128,
                 "handler": "reducerCoordinator.handler",
                 "zip": "reducerCoordinatorzip.zip",
@@ -45,7 +45,7 @@
                     "mr/lambdautils.py"
                 ],
                 "permission": "MY-BUCKET-NAME",
-                "job_id": "JOBID/task",
+                "job_id": "JOBID",
 		"patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
                 "s3bucket": "CODEBUCKET"
             }
