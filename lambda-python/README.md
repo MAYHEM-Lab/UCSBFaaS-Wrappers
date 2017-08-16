@@ -49,6 +49,7 @@ virtualenv venv --python=python3
 source venv/bin/activate
 pip install --upgrade pip
 pip install boto3
+pip install jsonpickle  //only used for debugging support in FnInvokerPy function
 
 #patch botocore: venv/lib/python3.6/site-packages/botocore/client.py with client.patch
 cd venv/lib/python3.6/site-packages/botocore
