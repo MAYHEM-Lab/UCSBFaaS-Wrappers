@@ -398,7 +398,10 @@ def dotGen(dot,obj,reqDict,KEYs,parent):
             else:
                 skipFlag = True
         else:
-            dot.node(eleID,eleName)
+            if nm == Names.FN and obj.getExitTS() == 0:
+                dot.node(eleID,eleName,fillcolor='orange',style='filled')
+            else:
+                dot.node(eleID,eleName)
     if max_seq_no < eleSeqNo:
         max_seq_no = eleSeqNo
     return eleID,skipFlag
