@@ -432,7 +432,17 @@ def makeDot(reqDict,KEYs):
                 tsdur = 0
             node_name = '{}\\nseq:{}-{},dur:{}ms,tsdur:{}ms'.format(obj.getName(),pID,max_seq_no,obj.getDuration(),tsdur)
             obj.setDurationTS(tsdur)
-            if obj.getErr() != '': #only set for entry nodes
+            err = obj.getErr()
+            if err != '': #only set for entry nodes
+                idx = err.find('exception:')
+                if idx == -1:
+                    idx = 0
+                else:
+                    idx = idx+10
+                end = len(err)
+                if end > 100:
+                    end = 100
+                node_name = '{}\\nerr:{}'.format(node_name,err[idx:end])
                 dot.node(pID,node_name,color='red')
                 cleanup = True
             else:
