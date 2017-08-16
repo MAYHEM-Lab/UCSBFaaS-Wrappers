@@ -50,11 +50,12 @@ def processCW(dirname,jobcount,NSJob,ofile,skipFirst=False):
     '''
     fnames = [] 
 
-    ns_str = '/NS' if NSJob else ''
-    for n in range(1,jobcount+1):
-        if n > 1 or not skipFirst:
-            fnames.append('{}/{}{}/'.format(dirname,n,ns_str)) #dirnames
+    #ns_str = '/NS' if NSJob else ''
+    #for n in range(1,jobcount+1):
+        #if n > 1 or not skipFirst:
+            #fnames.append('{}/{}{}/'.format(dirname,n,ns_str)) #dirnames
 
+    fnames.append('{}/11/APP/'.format(dirname)) #dirnames
     #for each file, collect job timings for each for jobcount runs
     for postfix in FILE_LIST:
         tlist = []
@@ -95,11 +96,18 @@ def processCW(dirname,jobcount,NSJob,ofile,skipFirst=False):
                     statistics.mean(mlist),statistics.stdev(mlist)
                 ))
             else:
-                print('{}:{}:{}:{}:{}:{}:{}:{}'.format(
-                    postfix,count,
-                    statistics.mean(tlist),statistics.stdev(tlist),0.0,0.0,
-                    statistics.mean(mlist),statistics.stdev(mlist)
-                ))
+                if count > 1:
+                    print('{}:{}:{}:{}:{}:{}:{}:{}'.format(
+                        postfix,count,
+                        statistics.mean(tlist),statistics.stdev(tlist),0.0,0.0,
+                        statistics.mean(mlist),statistics.stdev(mlist)
+                    ))
+                else:
+                    print('{}:{}:{}:{}:{}:{}:{}:{}'.format(
+                        postfix,count,
+                        statistics.mean(tlist),0.0,0.0,0.0,
+                        statistics.mean(mlist),0.0
+                    ))
         else:
             print('{}:{}:{}:{}:{}:{}:{}:{}'.format(
                 postfix,0,0.0,0.0,0.0,0.0,0.0,0.0))

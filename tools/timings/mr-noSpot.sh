@@ -38,7 +38,7 @@ python downloadLogs.py "/aws/lambda/${S3M}" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/${SNS}" ${TS} -p ${PROF} --deleteOnly
 deactivate
 
-for i in `seq 11 11`;
+for i in `seq 1 10`;
 do
     #delete the bucket contents for the job
     echo "s3 bucket cleanup"
