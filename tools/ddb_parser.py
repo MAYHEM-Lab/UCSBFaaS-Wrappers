@@ -1,5 +1,5 @@
 import json,time,os,sys,argparse
-import ast
+import ast,statistics
 from graphviz import Digraph
 from pprint import pprint
 from enum import Enum
@@ -458,36 +458,58 @@ def makeDotAggregate(SEQs,reqDict):
     for key in SEQs:
         obj = SEQs[key]
         name = getShortName(obj.getName())
-        if name not in final_list:
-            tupl = (0.0,0.0,0,0,[])
-            clist = []
-        else:
+        print("processing {}:{}".format(name,obj.getName()))
+        durlist = []
+        durTslist = []
+        ccountlist = []
+        clist = []
+        tupl = None
+        if name in final_list:
             tupl = final_list[name]
-            clist = tupl[4]
+            clist = tupl[3]
+            durlist = tupl[0]
+            durTslist = tupl[1]
+            ccountlist = tupl[2]
+            print("FOUND an old one")
         childlist = obj.getChildren()
         for child in childlist:
             nm = getShortName(child.getName())
             if nm not in clist:
                 clist.append(nm)
-        newtupl = (tupl[0]+float(obj.getDuration()), #duration sum
-                   tupl[1]+float(obj.getDurationTS()), #durationTS sum
-                   tupl[2]+1, #number of nodes of this type
-                   tupl[3]+len(childlist), #child_count sum
-                   clist #list of unique child shortnames
-                   )
+        durlist.append(float(obj.getDuration()))
+        durTslist.append(float(obj.getDurationTS()))
+        ccountlist.append(float(len(clist)))
+        print("here: {} {} {}".format(durlist,durTslist,ccountlist))
+        newtupl = (durlist, durTslist, ccountlist, clist)
+        print("here: adding {} to final_list: {}".format(name,newtupl))
         final_list[name] = newtupl
 
     for n in final_list:
+        tupl = final_list[n]
+        avgdur = statistics.mean(tupl[0])
+        avgdurTS = statistics.mean(tupl[1])
+        avgChildCount = statistics.mean(tupl[2])
+
+        stdevdur = 0.0
+        stdevdurTS = 0.0
+        stdevChildCount = 0.0
+        if len(tupl[0])>1:
+            stdevdur = statistics.stdev(tupl[0])
+        if len(tupl[1])>1:
+            stdvdurTS = statistics.stdev(tupl[1])
+        if len(tupl[2])>1:
+            stdevChildCount = statistics.stdev(tupl[2])
+
         if n not in node_list:
             if n.startswith('INV'):
                 continue
+            label = "{}\\n{}:{}:{}".format(n,avgdur,avgdurTS,avgChildCount)
             if n.startswith('DBR') or n.startswith('S3R') or n.startswith('INV'):
-                dot.node(n,n,fillcolor='gray',style='filled')
+                dot.node(n,label,fillcolor='gray',style='filled')
             else:
-                dot.node(n,n)
+                dot.node(n,label)
             node_list.append(n) 
-        tupl = final_list[n]
-        clist = tupl[4]
+        clist = tupl[3]
         for cn in clist:
             if cn.startswith('INV'):
                 continue
