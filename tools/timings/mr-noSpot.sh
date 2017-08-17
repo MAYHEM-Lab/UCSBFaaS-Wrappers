@@ -54,7 +54,7 @@ do
     echo "Web app invocation..."
     aws lambda invoke --invocation-type Event --function-name ${FNI} --region ${REG} --profile cjk1 --payload "{\"eventSource\":\"ext:invokeCLI\",\"functionName\":\"arn:aws:lambda:${REG}:${ACCT}:function:${DBM}\",\"tablename\":\"triggerTable\",\"count\":\"10\"}" outputfile
 
-  aws lambda invoke --invocation-type Event --function-name ${SNS} --region ${REG} --profile cjk1 --payload "{\"eventSource\":\"ext:invokeCLI\",\"topic\":\"arn:aws:sns:${REG}:${ACCT}:testtopic\",\"subject\":\"zoego${i}\",\"msg\":\"walk${RANDOM}\"}" outputfile
+  aws lambda invoke --invocation-type Event --function-name ${SNS} --region ${REG} --profile cjk1 --payload "{\"eventSource\":\"ext:invokeCLI\",\"topic\":\"arn:aws:sns:${REG}:${ACCT}:testtopic\",\"subject\":\"zoegoNS${i}\",\"msg\":\"walk${RANDOM}\"}" outputfile
 
     aws lambda invoke --invocation-type Event --function-name ${S3M} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"bkt\":\"cjklambdatrigger\",\"prefix\":\"PythonLambda\",\"fname\":\"todo${RANDOM}.txt\",\"file_content\":\"get dog food\"}" outputfile
 

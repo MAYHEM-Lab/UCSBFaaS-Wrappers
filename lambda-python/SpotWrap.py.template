@@ -47,7 +47,10 @@ def handleRequest(event, context):
     os.environ['myArn'] = arn
     ERR = False
     errorstr = "SpotWrapPython"
-    makeRecord(context,event,0,errorstr)
+    unique_str = str(uuid.uuid4())[:8]
+    entstr = 'entry{}'.format(unique_str)
+    exstr = 'exit{}'.format(unique_str)
+    makeRecord(context,event,0,errorstr,entstr)
     respObj = {}
     returnObj = {}
     status = '200'
@@ -76,7 +79,7 @@ def handleRequest(event, context):
             print('SpotWrapPy caught error: {}'.format(errorstr))
         delta = (time.time() * 1000) - wrappedentry
         duration = int(round(delta))
-        makeRecord(context,None,duration,errorstr) #end event (event arg = null)
+        makeRecord(context,None,duration,errorstr,exstr) #end event (event arg = null)
 
     if not respObj: 
         respObj = {}
@@ -89,7 +92,7 @@ def handleRequest(event, context):
     logger.info('SpotWrapPython::handleRequest:TIMER:CALL:{}:WRAPPEDCALL:{}:status:{}:response:{}'.format(selfdelta,delta,status,respObj))
     return returnObj
     
-def makeRecord(context,event,duration,errorstr): 
+def makeRecord(context,event,duration,errorstr,prefix): 
     logger = logging.getLogger()
     #setup record defaults
     eventSource = "unknown"
@@ -280,10 +283,7 @@ def makeRecord(context,event,duration,errorstr):
     #two events may record at the same ts
     #spotFns is indexed on timestamp and requestID, so distinguish 
     #two events with the same timestamp via postfix on requestID
-    if event: 
-        requestID += ':entry'
-    else:
-        requestID += ':exit'
+    requestID += ':{}'.format(prefix)
     table.put_item( Item={
         'ts': tsint,
         'requestID': requestID,

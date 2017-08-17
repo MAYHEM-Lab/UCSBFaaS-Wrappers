@@ -41,7 +41,7 @@ def get_stream(event):
         if stop_seqno > int(startSeqNo):
             if DEBUG: 
                 print('End of Sequence Number Range')
-            break
+            continue
 
         response = client.get_shard_iterator(
             StreamArn=arn,

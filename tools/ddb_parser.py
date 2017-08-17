@@ -4,7 +4,7 @@ from graphviz import Digraph
 from pprint import pprint
 from enum import Enum
 
-DEBUG = False
+DEBUG = True
 Names = Enum('Names','INV FN S3R S3W DBR DBW SNS GW')
 Color = Enum('Color','WHITE GRAY BLACK')
 invokes = 0
@@ -30,13 +30,17 @@ def processAPICall(n,msg):
         invoke_calls += 1
         nm =  Names.INV
     else:
+        print(n,msg)
         assert False
     ######## process nm #########
     name = None
     if nm == Names.INV:
         idx = msg.find('SW:FunctionName:')
         if idx != -1:
-            name = 'INV:{}'.format(msg[idx+16:])
+            tname = msg[idx+16:]
+            if 'arn:aws:lambda' in msg:
+                tname = tname.split(":")[6]
+            name = 'INV:{}'.format(tname)
         else:
             print('Error: expected to find FunctionName in msg: {}'.format(msg))
             assert False
@@ -78,14 +82,18 @@ def processAPICall(n,msg):
         if idx != -1:
             idx2 = msg.find(':Key:')
             if idx2 != -1:
-                name = 'DB:{}:{}:{}'.format(tname,msg[idx+13:idx2],msg[idx2+5:])
+                rest = ast.literal_eval(msg[idx2+5:]) #turn it into a dictionary
+                name = 'DBR:{}'.format(tname)
+                for k in rest:
+                    val = rest[k]
+                    name += ':{}:{}'.format(k,val)
             else:
                 print('Error3: expected to find Key: in msg: {}'.format(msg))
                 assert False
         else:
             print('Error3: expected to find SW:TableName: in msg: {}'.format(msg))
             assert False
-    elif nm == Names.DBW: #not sure if this will work for a delete (TODO)
+    elif nm == Names.DBW: 
         idx = msg.find('SW:TableName:')
         tmp = msg[idx+13:]
         idx = tmp.find(':')
@@ -94,7 +102,7 @@ def processAPICall(n,msg):
             idx2 = msg.find(':Item:')
             if idx2 != -1:
                 rest = ast.literal_eval(msg[idx2+6:]) #turn it into a dictionary
-                name = 'DB:{}'.format(tname)
+                name = 'DBW:{}'.format(tname)
                 for k in rest:
                     val = rest[k]
                     name += ':{}:{}'.format(k,val)
@@ -105,24 +113,22 @@ def processAPICall(n,msg):
             print('Error4: expected to find SW:TableName: in msg: {}'.format(msg))
             assert False
     elif nm == Names.SNS:
-        idx = msg.find('SW:sns:Publish:Topic:arn:aws:sns:')
+        idx = msg.find('sns:Publish:Topic:arn:aws:sns:')
         if idx != -1:
-            idx2 = msg.find(':Subject:')
-            if idx2 != -1:
-                name = 'SN:{}:{}'.format(msg[idx+33:idx2],msg[idx2+9:])
-            else:
-                name = 'SN:{}'.format(msg[idx+33:])
+            adder = 1 if 'SW:sns:Publish' in msg else 0 #handle old missing colon entries
+            smsg = msg.split(':')
+        
+            topic = smsg[8+adder]
+            subject = ""
+            if ':Subject:' in msg:
+                subject = ':{}'.format(smsg[10+adder])
+            message = ""
+            if ':Message:' in msg:
+                message = ':{}'.format(smsg[12+adder])
+            name = 'SN:{}{}{}'.format(topic,subject,message)
         else:
-            idx = msg.find('SWsns:Publish:Topic:arn:aws:sns:')  #remove this after entries roll over
-            if idx != -1:
-                idx2 = msg.find(':Subject:')
-                if idx2 != -1:
-                    name = 'SN:{}:{}'.format(msg[idx+32:idx2],msg[idx2+9:])
-                else:
-                    name = 'SN:{}'.format(msg[idx+32:])
-            else:
-                print('Error5: expected to find SW:sns:Publish:Topic: in msg: {}'.format(msg))
-                assert False
+            print('Error5: expected to find Notification in msg: {}'.format(msg))
+            assert False
     else:
         assert False
     return nm,name
@@ -153,7 +159,7 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
     ip = 'unknown'
     skipInvoke = False
     duration = 0
-    if reqStr == 'exit': 
+    if reqStr.startswith('exit') or reqStr.startswith(':exit'): 
         duration = obj['duration']['N']
         if req in reqDict:
             parent_obj = reqDict[req]
@@ -168,7 +174,7 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
             parent_obj.setErr(err)
         if DEBUG: 
             print('EXIT: Name: {}, NM: {}, IP: {}'.format(parent_obj.getName(),parent_obj.getNM(),parent_obj.getSourceIP()))
-    elif reqStr == 'entry':  ############ function entry ##################
+    elif reqStr.startswith('entry') or reqStr.startswith(':entry'):  ############ function entry ##################
         nm = Names.FN            
         if 'thisFnARN' in obj:
             arn = obj['thisFnARN']['S'].split(':')
@@ -191,7 +197,7 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
             name = 'S3W:{}:{}'.format(msg[0],msg[1])
             ele.setTrigger('S3W')
             if name not in KEYs or KEYs[name] == []:
-                print('WARNING: S3W triggered function has no parent! {} {}\n{}'.format(name,eventOp,es))
+                print('WARNING: S3W triggered function has no parent! {} {}\n\t{}'.format(name,eventOp,es))
             else:
                 eleList = KEYs[name]
                 parent_obj = None
@@ -246,7 +252,7 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
                 rest = ast.literal_eval(msg[idx+4:idx2]) #turn it into a dictionary
             else:    
                 rest = ast.literal_eval(msg[idx+4:]) #turn it into a dictionary
-            name = 'DB:{}'.format(tname)
+            name = 'DBW:{}'.format(tname)
             for k in rest:
                 val = rest[k]
                 if 'S' in val:
@@ -278,11 +284,12 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
             ele.setTrigger('SNS')
             #invoke from SNS notification
             arn = es.split(':') #arn
+            topic = arn[5]
             idx = msg.find(':') #subject:rest
             subject = msg[0:idx]
             message = msg[idx+1:]
             #SN:region:acct:topic:subject:Message:msg
-            name = 'SN:{}:{}:{}:{}:Message:{}'.format(arn[3],arn[4],arn[5],subject,message)
+            name = 'SN:{}:{}:{}'.format(topic,subject,message)
             assert name in KEYs
             eleList = KEYs[name]
             parent_obj = None
@@ -332,7 +339,7 @@ def process(obj,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs):
             print('WARNING: function has no parent! {} {}\n{}'.format(name,eventOp,es))
             #assert False
     else: #other event, record it to build trace
-        nm ,name = processAPICall(reqStr, msg)
+        nm, name = processAPICall(reqStr, msg)
         assert req in reqDict
         parent_obj = reqDict[req]
         #if nm == Names.S3W or nm == Names.DBW or nm == Names.SNS:
@@ -381,6 +388,9 @@ def dotGen(dot,obj,reqDict,KEYs,parent):
             entry_to_me = int(me - parent.getTS())
             me_to_exit = int(parent.getExitTS() - me)
             eleName = '{}:{}\\nb4:{}ms:after:{}ms'.format(obj.getName(),eleID,entry_to_me,me_to_exit)
+            if entry_to_me < 0 or me_to_exit < 0:
+                print(eleName)
+                assert False
             obj.setDurationTS(entry_to_me)
             obj.setDurationTSExit(me_to_exit)
         else:
@@ -405,6 +415,94 @@ def dotGen(dot,obj,reqDict,KEYs,parent):
     if max_seq_no < eleSeqNo:
         max_seq_no = eleSeqNo
     return eleID,skipFlag
+
+def unmarkNodes(SEQs):
+    for key in SEQs:
+        SEQs[key].unmarkObject()
+
+def getShortName(name):
+    sname = name.split(":")
+    stype = sname[0]
+    #if stype == 'S3W':
+        #retn = "{}:{}:{}".format(stype,sname[1],sname[2])
+    #else:
+        #retn = "{}:{}".format(stype,sname[1])
+    retn = "{}_{}".format(stype,sname[1])
+    retn = retn.replace('/','_')
+    retn = retn.replace('.','_')
+    retn = retn.replace('"','')
+    print('{} short name: {}'.format(name,retn))
+    return retn
+
+def makeDotAggregate(SEQs,reqDict):
+    dot = Digraph(comment='SpotAggregate',format='pdf')
+    agent_name = "Agent"
+    dot.node(agent_name,agent_name)
+    final_list = {}
+    edge_list = []
+    node_list = [agent_name]
+
+    for key in reqDict:
+        obj = reqDict[key]
+        name = getShortName(obj.getName())
+        assert not name.startswith('INV')
+        edge = '{}:{}'.format(agent_name,name)
+        if edge not in edge_list:
+            if name not in node_list:
+                node_list.append(name)
+                dot.node(name,name)
+            dot.edge(agent_name,name)
+            edge_list.append(edge)
+            print('adding edge: {}'.format(edge))
+
+    for key in SEQs:
+        obj = SEQs[key]
+        name = getShortName(obj.getName())
+        if name not in final_list:
+            tupl = (0.0,0.0,0,0,[])
+            clist = []
+        else:
+            tupl = final_list[name]
+            clist = tupl[4]
+        childlist = obj.getChildren()
+        for child in childlist:
+            nm = getShortName(child.getName())
+            if nm not in clist:
+                clist.append(nm)
+        newtupl = (tupl[0]+float(obj.getDuration()), #duration sum
+                   tupl[1]+float(obj.getDurationTS()), #durationTS sum
+                   tupl[2]+1, #number of nodes of this type
+                   tupl[3]+len(childlist), #child_count sum
+                   clist #list of unique child shortnames
+                   )
+        final_list[name] = newtupl
+
+    for n in final_list:
+        if n not in node_list:
+            if n.startswith('INV'):
+                continue
+            if n.startswith('DBR') or n.startswith('S3R') or n.startswith('INV'):
+                dot.node(n,n,fillcolor='gray',style='filled')
+            else:
+                dot.node(n,n)
+            node_list.append(n) 
+        tupl = final_list[n]
+        clist = tupl[4]
+        for cn in clist:
+            if cn.startswith('INV'):
+                continue
+            edge = '{}:{}'.format(n,cn)
+            if edge not in edge_list:
+                if name not in node_list:
+                    node_list.append(cn)
+                    if cn.startswith('DBR') or cn.startswith('S3R') or cn.startswith('INV'):
+                        dot.node(cn,cn,fillcolor='gray',style='filled')
+                    else:
+                        dot.node(cn,cn)
+                dot.edge(n,cn)
+                edge_list.append(edge)
+    dot.render('spotagggraph', view=True)
+    return
 
 def makeDot(reqDict,KEYs):
     global max_seq_no
@@ -511,7 +609,10 @@ def parseIt(event):
     for item in reqs:
         counter += 1
         process(item,reqDict,SEQs,KEYs,IMPLIED_PARENT_ELEs)
-    makeDot(reqDict,KEYs)
+    #makeDot(reqDict,KEYs)
+    #unmarkNodes(SEQs)
+    makeDotAggregate(SEQs,reqDict) #todo, add missing parents support (catch WARNINGs)
+
     if missed_count != 0 or len(missing) != 0:
         print("missed_count: {}, objs missing {}".format(missed_count,len(missing)))
     if invoke_calls != invokes:

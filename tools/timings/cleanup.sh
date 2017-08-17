@@ -49,14 +49,16 @@ deactivate
 for i in `seq 1 10`;
 do
     #cleanup mapreduce job output
-    cd ${MRDIR}
-    rm -f ${i}/overhead.out
-    rm -f ${i}/NS/overhead.out
+    #cd ${MRDIR}
+    #rm -f ${i}/overhead.out
+    #rm -f ${i}/NS/overhead.out
     #cleanup mapreduce job output: cloudwatch downloads
     cd ${CWDIR}
     rm -f ${i}/*.log
     rm -f ${i}/NS/*.log
     rm -f ${i}/MR/*.log
+    rm -f ${i}/APP/*.log
+    rm -f ${i}/APP/NS/*.log
     #cleanup mapreduce job output: dynamodb downloads
     cd ${DYNDBDIR}
     rm -rf ${i}/dump ${i}/NS/dump ${i}/MR/dump
