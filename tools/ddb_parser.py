@@ -503,7 +503,7 @@ def makeDotAggregate(SEQs,reqDict):
         if n not in node_list:
             if n.startswith('INV'):
                 continue
-            label = "{}\\n{}:{}:{}".format(n,avgdur,avgdurTS,avgChildCount)
+            label = "{}\\n{:.1f}:{:.1f}:{:.1f}".format(n,avgdur,avgdurTS,avgChildCount)
             if n.startswith('DBR') or n.startswith('S3R') or n.startswith('INV'):
                 dot.node(n,label,fillcolor='gray',style='filled')
             else:
