@@ -2,9 +2,39 @@
 import boto3
 from fleece.xray import (monkey_patch_botocore_for_xray,
                          trace_xray_subsegment)
-import json, logging, argparse, time, jsonpickle, os
+import json, logging, argparse, time, jsonpickle, os, uuid
 
 monkey_patch_botocore_for_xray()
+
+
+'''Setup
+cd imageProc
+deactivate
+virtualenv fleece_venv --python=python3
+source fleece_env/bin/activate
+pip install fleece jsonpickle
+cd ..
+python setupApps.py -f setupIProc.json --no_spotwrap --turn_on_tracing --profile aws_profile
+
+//go to DynamoDB Management Console and create table imageLables with key "id" of type string
+//create a table triggerTable with key "name" of type string
+
+//go to s3 Management Console and create bucket MYBKTNAME
+//create a folder called imgProc and place any image (filename.jpg) in this folder
+test locally via: python imageProc/imageProc.py MYBKTNAME imgProc filename.jpg
+
+//go to Lambda Management Console for
+//ImageProcPy, Triggers tab, add Trigger, S3, choose bucket MYBKTNAME, 
+//prefix: imgProc, enable trigger
+test as function via:
+aws lambda invoke --invocation-type Event --function-name ImageProcPy --region us-west-2 --profile aws_profile --payload '{"eventSource":"ext:invokeCLI","name":"MYBKTNAME","key":"imgProc/filname.jpg"}' outputfile
+
+test as triggered function by dropping another file into MYBKTNAME/imageProc/ folder.
+See entry in DynamoDB table imageLabels
+See entry in DynamoDB table triggerTable (make this table trigger a different function)
+View X-Ray service graph (there will be two "applications" with separate "clients" without GammaRay support)
+
+'''
 
 def detect_labels(bucket, key, max_labels=10, min_confidence=90, region="us-west-2"):
 	rekognition = boto3.client("rekognition", region)
@@ -79,6 +109,14 @@ def handler(event, context):
     table.put_item( Item={
         'id': key,
         'labels': json.dumps(labels)
+        }
+    )
+    table = dynamodb.Table('triggerTable') # we assume key is id of type String
+    key = str(uuid.uuid4())[:4]
+    val = 17
+    table.put_item( Item={
+        'name': key,
+        'age': val,
         }
     )
 

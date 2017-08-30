@@ -6,11 +6,18 @@ def handler(event, context):
     if context:
         logger.info('dbMod::handler: context: {}'.format(context))
         if event:
+            reg = 'us-west-2'
+            if 'region' in event:
+                reg = event['region']
             logger.info('dbMod::handler: event: {}'.format(event))
-        dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
+        dynamodb = boto3.resource('dynamodb', region_name=reg)
     else: #calling from main (testing)
+        if event:
+            reg = 'us-west-2'
+            if 'region' in event:
+                reg = event['region']
         session = boto3.Session(profile_name='cjk1') #replace with your profile
-        dynamodb = session.resource('dynamodb', region_name='us-west-2')
+        dynamodb = session.resource('dynamodb', region_name=reg)
     tablename = 'triggerTable'
     key = str(uuid.uuid4())[:4]
     val = 17
@@ -44,6 +51,7 @@ if __name__ == "__main__":
     parser.add_argument('tablename',action='store',help='dynamodb table name')
     parser.add_argument('mykey',action='store',help='key')
     parser.add_argument('myval',action='store',help='value')
+    parser.add_argument('--region',action='store',default='us-west-2',help='AWS Region')
     args = parser.parse_args()
-    event = {'tablename':args.tablename,'mykey':args.mykey,'myval':args.myval}
+    event = {'tablename':args.tablename,'mykey':args.mykey,'myval':args.myval,'region':args.region}
     handler(event,None)
