@@ -17,7 +17,9 @@ def zipLambda(zipname,ziplist,update=False):
         Directories in ziplist will be stored at top level directory 
         and recursively include all files underneath them (deep copy)
         e.g.: /var/log/ddd ./bbb results in ddd and bbb directories in basedir 
-        (with contents) when unzipped
+        (with contents) when unzipped.
+	If entry in zip list contains the name site-packages (e.g. venv/lib/xxx/site-packages), 
+        the contents of this directory will be in the basedir when unzipped.
 	The ziplist should not include any boto directories (they are already 
 	available in AWS Lambda).
 
@@ -32,10 +34,15 @@ def zipLambda(zipname,ziplist,update=False):
     for fname in ziplist:
         if os.path.isfile(fname) or os.path.isdir(fname): #file exists
             dirname = os.path.dirname(fname)
-            fname = os.path.basename(fname)
-            if dirname != '':
+            if fname.endswith('site-packages'):
+                dirname = fname
                 os.chdir(dirname) #go to dir to place file at top level
-            subprocess.call(['zip', '-9', '-u', '-r','--exclude=*.pyc', zipname, fname])
+                subprocess.call(['zip', '-9', '-u', '-r','--exclude=*.pyc', zipname] +glob.glob('*'))
+            else:
+                fname = os.path.basename(fname)
+                if dirname != '':
+                    os.chdir(dirname) #go to dir to place file at top level
+                subprocess.call(['zip', '-9', '-u', '-r','--exclude=*.pyc', zipname, fname])
             os.chdir(here)
         else:
             print('Error: file not found: {}'.format(fname))

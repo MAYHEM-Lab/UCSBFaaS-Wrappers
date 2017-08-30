@@ -1,0 +1,15 @@
+{
+        "region": "us-west-2",
+        "functions": [
+            {
+                "name": "ImageProcPy",
+                "lambdaMemory": 512,
+                "handler": "imageProc.handler",
+                "zip": "imgproczip.zip",
+                "files_and_dirs": [
+                    "imageProc/imageProc.py",
+                    "imageProc/fleece_env/lib/python3.6/site-packages"
+                ]
+            }
+        ]
+}
