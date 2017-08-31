@@ -1,11 +1,10 @@
-#from fleece import boto3
-import boto3
+import boto3, json, logging, argparse, time, jsonpickle, os, uuid
 from fleece.xray import (monkey_patch_botocore_for_xray,
+                         monkey_patch_requests_for_xray,
                          trace_xray_subsegment)
-import json, logging, argparse, time, jsonpickle, os, uuid
 
 monkey_patch_botocore_for_xray()
-
+monkey_patch_requests_for_xray()
 
 '''Setup
 cd imageProc
@@ -36,19 +35,22 @@ View X-Ray service graph (there will be two "applications" with separate "client
 
 '''
 
-def detect_labels(bucket, key, max_labels=10, min_confidence=90, region="us-west-2"):
-	rekognition = boto3.client("rekognition", region)
-	response = rekognition.detect_labels(
-		Image={
-			"S3Object": {
-				"Bucket": bucket,
-				"Name": key,
-			}
-		},
-		MaxLabels=max_labels,
-		MinConfidence=min_confidence,
+def detect_labels(rekog, bucket, key, max_labels=10, min_confidence=90, region="us-west-2"):
+    try:
+        response = rekog.detect_labels(
+            Image={
+                "S3Object": {
+                    "Bucket": bucket,
+                    "Name": key,
+                }
+            },
+            MaxLabels=max_labels,
+            MinConfidence=min_confidence,
 	)
-	return response['Labels']
+        return response['Labels']
+    except:
+        print("Unable to find bucket {} or key {}.  Please retry.".format(bucket,key))
+        return None
 
 def handler(event, context):
     entry = time.time() * 1000
@@ -60,13 +62,16 @@ def handler(event, context):
             reg = event['region']
         if 'tableName' in event:
             tablename = event['tableName']
+
     if not context: #calling from main so set the profile we want
+        boto3.setup_default_session(profile_name='cjk1')
         session = boto3.Session(profile_name='cjk1')
-        s3_client = session.resource('s3')
         dynamodb = session.resource('dynamodb', region_name=reg)
-    else:
-        s3_client = boto3.resource('s3')
+        rekog = boto3.client("rekognition", reg)
+
+    else: #function triggered
         dynamodb = boto3.resource('dynamodb', region_name=reg)
+        rekog = boto3.client("rekognition", reg)
 
     bktname = None
     key = None
@@ -100,7 +105,7 @@ def handler(event, context):
             key = event['key']
 
     assert bktname is not None and key is not None
-    labels = detect_labels(bktname, key)
+    labels = detect_labels(rekog, bktname, key)
     #for label in labels:
         #[{'Name': 'Animal', 'Confidence': 96.52118682861328},...]
         #print('{}:{}'.format(label['Name'],label['Confidence']))
@@ -126,7 +131,7 @@ def handler(event, context):
     return me_str
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='s3Mod Test')
+    parser = argparse.ArgumentParser(description='imageProc tool')
     # for this table, we assume key is name of type String
     parser.add_argument('bkt',action='store',help='s3 bkt name')
     parser.add_argument('prefix',action='store',help='fname prefix')

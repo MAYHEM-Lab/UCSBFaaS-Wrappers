@@ -8,7 +8,9 @@
                 "zip": "imgproczip.zip",
                 "files_and_dirs": [
                     "imageProc/imageProc.py",
-                    "imageProc/fleece_env/lib/python3.6/site-packages"
+                    "imageProc/fleece_env/lib/python3.6/site-packages/fleece",
+		    "imageProc/fleece_env/lib/python3.6/site-packages/jsonpickle",
+                    "imageProc/fleece_env/lib/python3.6/site-packages/wrapt"
                 ]
             }
         ]
