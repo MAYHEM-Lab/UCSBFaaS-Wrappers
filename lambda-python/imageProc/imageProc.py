@@ -1,17 +1,15 @@
-import boto3, json, logging, argparse, time, jsonpickle, os, uuid
+import boto3, json, logging, argparse, time, os, uuid, requests
 from fleece.xray import (monkey_patch_botocore_for_xray,
-                         monkey_patch_requests_for_xray,
                          trace_xray_subsegment)
 
 monkey_patch_botocore_for_xray()
-monkey_patch_requests_for_xray()
 
 '''Setup
 cd imageProc
 deactivate
 virtualenv fleece_venv --python=python3
 source fleece_env/bin/activate
-pip install fleece jsonpickle
+pip install fleece 
 cd ..
 python setupApps.py -f setupIProc.json --no_spotwrap --turn_on_tracing --profile aws_profile
 
@@ -75,12 +73,7 @@ def handler(event, context):
 
     bktname = None
     key = None
-    if context:
-        serialized = jsonpickle.encode(context)
-        logger.warn('context: {}'.format(json.loads(serialized)))
     if event:
-        serialized = jsonpickle.encode(event)
-        logger.warn('event: {}'.format(json.loads(serialized)))
             #s3 event: {'Records': [{'awsRegion': 'us-west-2', 'eventName': 'ObjectCreated:Put', 'eventSource': 'aws:s3', 'eventTime': '2017-08-30T20:30:35.581Z', 'eventVersion': '2.0', 'requestParameters': {'sourceIPAddress': '98.171.178.234'}, 'responseElements': {'x-amz-id-2': 'xw4/vqjUwiRLOXwqRNAsSBiPcd72QamenQnDI/2sm/IYXm+72A1S+TQIJYjAv2oyiq3TsY6SuYQ=', 'x-amz-request-id': '4D69F866BA76CA70'}, 's3': {'bucket': {'arn': 'arn:aws:s3:::cjktestbkt', 'name': 'cjktestbkt', 'ownerIdentity': {'principalId': 'A13UVRJM0LZTMZ'}}, 'configurationId': '3debbff2-99b6-48d0-92df-6fba9b5ddda5', 'object': {'eTag': '9f2e3e584c7c8ee4866669e2d1694703', 'key': 'imgProc/deer.jpg', 'sequencer': '0059A7206B7A3C594C', 'size': 392689}, 's3SchemaVersion': '1.0'}, 'userIdentity': {'principalId': 'AWS:AIDAJQRLZF5NITGU76JME'}}]}
         if 'Records' in event:
             recs = event['Records']
@@ -106,24 +99,16 @@ def handler(event, context):
 
     assert bktname is not None and key is not None
     labels = detect_labels(rekog, bktname, key)
-    #for label in labels:
-        #[{'Name': 'Animal', 'Confidence': 96.52118682861328},...]
-        #print('{}:{}'.format(label['Name'],label['Confidence']))
 
-    table = dynamodb.Table(tablename) # we assume key is id of type String
-    table.put_item( Item={
-        'id': key,
-        'labels': json.dumps(labels)
-        }
-    )
-    table = dynamodb.Table('triggerTable') # we assume key is id of type String
-    key = str(uuid.uuid4())[:4]
-    val = 17
-    table.put_item( Item={
-        'name': key,
-        'age': val,
-        }
-    )
+    if labels:
+        table = dynamodb.Table(tablename) # we assume key is id of type String
+        table.put_item( Item={
+            'id': key,
+            'labels': json.dumps(labels)
+            }
+        )
+    else: 
+        print('No labels found!')
 
     delta = (time.time() * 1000) - entry
     me_str = 'TIMER:CALL:{}'.format(delta)
