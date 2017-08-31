@@ -51,23 +51,24 @@ def zipLambda(zipname,ziplist,update=False):
     return zipname
 
 def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=False, noBotocore=False, spotTableRegion='us-west-2', spotTableName='spotFns',saveBucket=False,tracing=False):
+    # Config
+    config = json.loads(open(config_fname, 'r').read())
+    region = config['region']
+    fns = config['functions']
+
     if profile:
         boto3.setup_default_session(profile_name=profile)
     config = botocore.client.Config(connect_timeout=50, read_timeout=100)
-    lambda_client = boto3.client('lambda',config=config)
+    lambda_client = boto3.client('lambda',config=config,region_name=region)
     s3 = None
     s3_client = None
     if not noBotocore:
         s3 = boto3.resource('s3')
         config = botocore.client.Config(connect_timeout=50, read_timeout=200)
-    s3_client = boto3.client('s3',config=config) #used to set trigger
+    s3_client = boto3.client('s3',config=config,region_name=region) #used to set trigger
     spotwraptemplate = 'SpotWrap.py.template'
     spotwrapfile = 'SpotWrap.py'
 
-    # Config
-    config = json.loads(open(config_fname, 'r').read())
-    region = config['region']
-    fns = config['functions']
     #Create the lambda functions
     for fn in fns:
         name = fn['name']
