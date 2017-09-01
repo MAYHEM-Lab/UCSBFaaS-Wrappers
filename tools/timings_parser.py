@@ -3,7 +3,7 @@ from pprint import pprint
 from enum import Enum
 
 DEBUG = True
-STATUS_LIST = [200.0,202.0,400.0,500.0]
+STATUS_LIST = [200.0,202.0,400.0]
 #FILE_LIST = ["coord.log","driv.log","map.log","s3mod.log","spottemp.log","dbmod.log","fninv.log","red.log","sns.log"]
 FILE_LIST = ["coord.log","driv.log","map.log","red.log"]
 def check_dir(dir_key,event,job):
@@ -116,7 +116,13 @@ def processDB(dirname,jobcount,NSJob,ofile,skipFirst=False):
     pass
 def processMR(dirname,jobcount,NSJob,ofile,skipFirst=False):
     fnames = []
-    ns_str = '/NS' if NSJob else ''
+    ns_str = '' #=2 Spot
+    if NSJob == 1:
+        ns_str = '/NS'
+    elif NSJob == 3: #Fleece
+        ns_str = '/F'
+    elif NSJob == 4: #GammaRay
+        ns_str = '/GR'
     for n in range(1,jobcount+1):
         if n > 1 or not skipFirst:
             fnames.append('{}/{}{}/overhead.out'.format(dirname,n,ns_str)) #file names
@@ -131,7 +137,8 @@ def processMR(dirname,jobcount,NSJob,ofile,skipFirst=False):
     for fname in fnames:
         if not os.path.exists(fname):
             print('processMR: Error: {} not found!'.format(fname))
-            sys.exit(1)
+            print('Not processing NSJob ID {}'.format(NSJob))
+            return 0,0,0,0,0,0
         ids += 1
         with open(fname,'r') as f:
             for line in f:
@@ -145,7 +152,7 @@ def processMR(dirname,jobcount,NSJob,ofile,skipFirst=False):
                     mappers = int(sline[6])
                 if line.startswith('mapper output'):
                     sline = line.split(' ')
-                    if NSJob:
+                    if NSJob == 1 or NSJob == 3: #NS or Fleece
                         keys = int(sline[2].strip('[,'))
                         lines = int(sline[3].strip(','))
                         timer = float(sline[4].strip(','))
@@ -161,7 +168,7 @@ def processMR(dirname,jobcount,NSJob,ofile,skipFirst=False):
                         tlist.append(timer)
     return (ids,statistics.mean(tlist),statistics.stdev(tlist),mappers,dsize,keycount)
     
-def parseIt(event,job='both',skipFirst=False):
+def parseIt(event,job='both',skipFirst=False,mrOnly=False):
     '''
     Parse the files output from an overhead job
     '''
@@ -175,33 +182,41 @@ def parseIt(event,job='both',skipFirst=False):
 
     with open(event['output_fname'],'w') as ofile: #first to open so overwrite and start fresh
         print()
-        if job=='NS' or job=='BOTH':
-            count,avg,stdev,mcount,dsize,keys = processMR(event['mrdir'],event['count'],True,ofile,skipFirst)
+        if job=='NS' or job=='BOTH': #1=NS
+            count,avg,stdev,mcount,dsize,keys = processMR(event['mrdir'],event['count'],1,ofile,skipFirst)
             print('NStotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
-        if job=='SPOT' or job=='BOTH':
-            count,avg,stdev,mcount,dsize,keys = processMR(event['mrdir'],event['count'],False,ofile,skipFirst)
+        if job=='SPOT' or job=='BOTH': #2=Spot
+            count,avg,stdev,mcount,dsize,keys = processMR(event['mrdir'],event['count'],2,ofile,skipFirst)
             print('SPOTtotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
+        #3 = fleece
+        count,avg,stdev,mcount,dsize,keys = processMR(event['mrdir'],event['count'],3,ofile,skipFirst)
+        print('Fleecetotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
+        #4 = GammaRay
+        count,avg,stdev,mcount,dsize,keys = processMR(event['mrdir'],event['count'],4,ofile,skipFirst)
+        print('GammaRaytotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
 
-        ############### Cloudwatch Log Summaries #################
-        print('\nCloudwatch Log Data\n\tname,count,billed_avg,billed_stdev,inner_avg,inner_stdev,mem_avg,mem_stdev')
-        print('NoSpot:')
-        if job=='NS' or job=='BOTH':
-            processCW(event['cwdir'],event['count'],True,ofile,skipFirst)
-        print('\nSPOT:')
-        if job=='SPOT' or job=='BOTH':
-            processCW(event['cwdir'],event['count'],False,ofile,skipFirst)
-
-        ############### Other #################
-        print()
-        if not processDB(event['dbdir'],event['count'],job,ofile,skipFirst):
-            print('processDB failed, exiting...')
-
+        if not mrOnly: 
+            ############### Cloudwatch Log Summaries #################
+            print('\nCloudwatch Log Data\n\tname,count,billed_avg,billed_stdev,inner_avg,inner_stdev,mem_avg,mem_stdev')
+            print('NoSpot:')
+            if job=='NS' or job=='BOTH':
+                processCW(event['cwdir'],event['count'],True,ofile,skipFirst)
+            print('\nSPOT:')
+            if job=='SPOT' or job=='BOTH':
+                processCW(event['cwdir'],event['count'],False,ofile,skipFirst)
+    
+            ############### Other #################
+            print()
+            if not processDB(event['dbdir'],event['count'],job,ofile,skipFirst):
+                print('processDB failed, exiting...')
+    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Parser for timings data from overhead.sh and overheadNS.sh')
     parser.add_argument('mrdir',action='store',help='full path to directory containing dirs named 1-10 under mr')
     parser.add_argument('cwdir',action='store',help='full path to directory containing dirs named 1-10 under cloudwatch')
     parser.add_argument('dbdir',action='store',help='full path to directory containing dirs named 1-10 under dynamodb')
     parser.add_argument('output_file',action='store',help='output file name')
+    parser.add_argument('--process_MR_only',action='store_true',default=False,help='Run only the MR overhead processing')
     parser.add_argument('--process_NS_only',action='store_true',default=False,help='process the NS subdirectories (a non-SpotWrap job)')
     parser.add_argument('--process_spot_only',action='store_true',default=False,help='process the NS subdirectories (a non-SpotWrap job)')
     parser.add_argument('--skip_first',action='store_true',default=False,help='skip the first job (warmup)')
@@ -222,5 +237,5 @@ if __name__ == "__main__":
     elif args.process_NS_only:
         run = 'NS'
     
-    parseIt(event,run,args.skip_first)
+    parseIt(event,run,args.skip_first,args.process_MR_only)
 
