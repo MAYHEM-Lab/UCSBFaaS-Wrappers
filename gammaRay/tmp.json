@@ -1,0 +1,22 @@
+{
+        "region": "us-west-2",
+        "functions": [
+            {
+                "name": "ImageProcPy",
+                "lambdaMemory": 128,
+                "handler": "imageProc.handler",
+                "zip": "imgproczip.zip",
+                "files_and_dirs": [
+                    "apps/imageProc.py",
+                    "apps/venv/lib/python3.6/site-packages/requests",
+                    "apps/venv/lib/python3.6/site-packages/urllib3",
+                    "apps/venv/lib/python3.6/site-packages/chardet",
+                    "apps/venv/lib/python3.6/site-packages/certifi",
+                    "apps/venv/lib/python3.6/site-packages/idna",
+                    "apps/venv/lib/python3.6/site-packages/fleece",
+                    "apps/venv/lib/python3.6/site-packages/structlog",
+                    "apps/venv/lib/python3.6/site-packages/wrapt"
+                ]
+            }
+        ]
+}

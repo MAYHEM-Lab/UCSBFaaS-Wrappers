@@ -1,0 +1,174 @@
+import logging
+from random import random
+import sys
+import time
+
+import structlog
+
+LOG_FORMAT = '%(message)s'
+DEFAULT_STREAM = sys.stdout
+WRAPPED_DICT_CLASS = structlog.threadlocal.wrap_dict(dict)
+
+
+def clobber_root_handlers():
+    [logging.root.removeHandler(handler) for handler in
+     logging.root.handlers[:]]
+
+
+class logme(object):
+    """Log requests and responses"""
+
+    def __init__(self, level=logging.DEBUG, logger=None):
+        self.level = level
+        if not logger:
+            self.logger = logging.getLogger()
+        else:
+            self.logger = logger
+
+    def __call__(self, func):
+
+        def wrapped(*args, **kwargs):
+            self.logger.log(self.level, "Entering %s", func.__name__)
+            response = func(*args, **kwargs)
+            func_response_name = "{0}_response".format(func.__name__)
+            kwarg = {func_response_name: response}
+            self.logger.log(self.level, "Exiting %s", func.__name__, **kwarg)
+            return response
+
+        return wrapped
+
+
+class RetryHandler(logging.Handler):
+    """A logging handler that wraps another handler and retries its emit
+    method if it fails. Useful for handlers that connect to an external
+    service over the network, such as CloudWatch.
+
+    The wait between retries uses an exponential backoff algorithm with full
+    jitter, as described in
+    https://www.awsarchitectureblog.com/2015/03/backoff.html.
+
+    :param handler the handler to wrap with retries.
+    :param max_retries the maximum number of retries before giving up. The
+                       default is 5 retries.
+    :param backoff_base the sleep time before the first retry. This time
+                        doubles after each retry. The default is 0.1s.
+    :param backoff_cap the max sleep time before a retry. The default is 1s.
+    :param ignore_errors if set to False, when all retries are exhausted, the
+                         exception raised by the original log call is
+                         re-raised. If set to True, the error is silently
+                         ignored. The default is True.
+    """
+    def __init__(self, handler, max_retries=5, backoff_base=0.1,
+                 backoff_cap=1, ignore_errors=True):
+        super(RetryHandler, self).__init__()
+        self.handler = handler
+        self.max_retries = max_retries
+        self.backoff_base = backoff_base
+        self.backoff_cap = backoff_cap
+        self.ignore_errors = ignore_errors
+
+    def emit(self, record):
+        try:
+            return self.handler.emit(record)
+        except Exception as e:
+            exc = e
+
+        sleep = self.backoff_base
+        for i in range(self.max_retries):
+            time.sleep(sleep * random())
+            try:
+                return self.handler.emit(record)
+            except:
+                pass
+            sleep = min(self.backoff_cap, sleep * 2)
+
+        if not self.ignore_errors:
+            raise exc
+
+
+def _has_streamhandler(logger, level=None, fmt=LOG_FORMAT,
+                       stream=DEFAULT_STREAM):
+    """Check the named logger for an appropriate existing StreamHandler.
+
+    This only returns True if a StreamHandler that exaclty matches
+    our specification is found. If other StreamHandlers are seen,
+    we assume they were added for a different purpose.
+    """
+    # Ensure we are talking the same type of logging levels
+    # if they passed in a string we need to convert it to a number
+    if isinstance(level, basestring):
+        level = logging.getLevelName(level)
+
+    for handler in logger.handlers:
+        if not isinstance(handler, logging.StreamHandler):
+            continue
+        if handler.stream is not stream:
+            continue
+        if handler.level != level:
+            continue
+        if not handler.formatter or handler.formatter._fmt != fmt:
+            continue
+        return True
+    return False
+
+
+def _configure_logger(logger_factory=None, wrapper_class=None):
+
+    if not logger_factory:
+        logger_factory = structlog.stdlib.LoggerFactory()
+    if not wrapper_class:
+        wrapper_class = structlog.stdlib.BoundLogger
+
+    structlog.configure(
+        processors=[
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.TimeStamper(fmt='iso'),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.JSONRenderer(sort_keys=True)
+        ],
+        context_class=WRAPPED_DICT_CLASS,
+        logger_factory=logger_factory,
+        wrapper_class=wrapper_class,
+        cache_logger_on_first_use=True)
+
+
+def setup_root_logger(level=logging.DEBUG, stream=DEFAULT_STREAM,
+                      logger_factory=None):
+    _configure_logger(logger_factory=logger_factory)
+    clobber_root_handlers()
+    root_logger = logging.root
+    stream_handler = logging.StreamHandler(stream)
+    stream_handler.setLevel(level)
+    stream_handler.setFormatter(logging.Formatter(fmt=LOG_FORMAT))
+    root_logger.addHandler(stream_handler)
+
+
+def get_logger(name=None, level=None, stream=DEFAULT_STREAM,
+               clobber_root_handler=True, logger_factory=None,
+               wrapper_class=None):
+    """Configure and return a logger with structlog and stdlib."""
+    _configure_logger(
+        logger_factory=logger_factory,
+        wrapper_class=wrapper_class)
+    log = structlog.get_logger(name)
+    root_logger = logging.root
+    if log == root_logger:
+        if not _has_streamhandler(root_logger, level=level, stream=stream):
+            stream_handler = logging.StreamHandler(stream)
+            stream_handler.setLevel(level)
+            stream_handler.setFormatter(logging.Formatter(fmt=LOG_FORMAT))
+            root_logger.addHandler(stream_handler)
+        else:
+            if clobber_root_handler:
+                for handler in root_logger.handlers:
+                    handler.setFormatter(logging.Formatter(fmt=LOG_FORMAT))
+    if level:
+        log.setLevel(level)
+    return log
+
+
+getLogger = get_logger
