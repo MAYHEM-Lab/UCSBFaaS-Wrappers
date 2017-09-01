@@ -67,7 +67,7 @@ def process_msg(msg):
             retn = '{}:{}:{}:{}'.format(reqid,duration,duration_call,status)
         else:
             m = m[3].split(':')
-            if 'SpotTemplatePy' in msg:
+            if 'SpotTemplatePy' in msg or 'GammaWrapPython' in msg:
                 duration = float(m[5])
             elif m[0].startswith('No_context'): #FnInvoker
                 duration = float(m[13])

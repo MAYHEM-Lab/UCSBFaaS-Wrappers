@@ -36,9 +36,18 @@ python downloadLogs.py "/aws/lambda/mapperNS" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/reducerNS" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/driverNS" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/reducerCoordinatorNS" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/mapperGR" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/reducerGR" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/driverGR" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/reducerCoordinatorGR" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/mapperF" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/reducerF" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/driverF" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/reducerCoordinatorF" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/SNSPy" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/S3ModPy" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/DBModPy" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/DBSync" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/FnInvokerPy" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/SpotTemplatePy" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/SNSPyNS" ${TS} -p ${PROF} --deleteOnly
@@ -46,6 +55,11 @@ python downloadLogs.py "/aws/lambda/S3ModPyNS" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/DBModPyNS" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/FnInvokerPyNS" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/SpotTemplatePyNS" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/ImageProcPy" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/ImageProcPyNDB" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/ImageProc_F_Py" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/ImageProc_NGR_Py" ${TS} -p ${PROF} --deleteOnly
+python downloadLogs.py "/aws/lambda/ImageProc_S_Py" ${TS} -p ${PROF} --deleteOnly
 deactivate
 
 cd ${TOOLSDIR}

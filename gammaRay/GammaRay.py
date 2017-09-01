@@ -17,6 +17,7 @@ def callIt(event,context):
 
 def handleRequest(event, context):
     logger = logging.getLogger()
+    entry = time.time() * 1000
     reqID = 'unknown'
     arn = 'unknown'
     if context:

@@ -52,7 +52,11 @@ def zipLambda(zipname,ziplist,update=False):
 
 def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=False, noBotocore=False, spotTableRegion='us-west-2', spotTableName='gammaRays',saveBucket=False,tracing=False,useGammaRay=False):
     # Config
-    config = json.loads(open(config_fname, 'r').read())
+    try:
+        config = json.loads(open(config_fname, 'r').read())
+    except:
+        print('Error loading json file, please fix formatting problems (commas?), and retry...({})'.format(config_fname))
+        sys.exit(1)
     region = config['region']
     fns = config['functions']
 
@@ -105,6 +109,7 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
             print('Error, the handler entry for {} must be of the form filename.handlername.  Please fix and rerun.'.format(name))
             sys.exit(1)
 
+        tmp_dir = None
         if useGammaRay: #inject GammaWrap support (produce functions with and without GammaWrap support
             if not os.path.isfile(gammawraptemplate):
                 print('Error, {} Not Found!  To inject GammaWrap support, rerun this program in the same directory as GammaWrap.py. Not injecting GammaWrap support...'.format(gammawraptemplate))
@@ -179,7 +184,6 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
                         os.chdir(here)
                  
             ''' Inject SpotWrap Support '''
-            tmp_dir = None
             #first check that SpotWrap.py is in the current working directory
             if not os.path.isfile(spotwraptemplate):
                 print('Error, {} Not Found!  To inject SpotWrap support, rerun this program in the same directory as SpotWrap.py. Not injecting SpotWrap support...'.format(spotwraptemplate))
