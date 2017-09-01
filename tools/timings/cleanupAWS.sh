@@ -3,8 +3,6 @@ if [ -z ${1+x} ]; then echo 'Unset args. Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
 MRBKT=spot-mr-bkt #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run without --no_spotwrap
 MRBKTNS=spot-mr-bkt-ns #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
-JOBID=job3000  #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run without --no_spotwrap
-JOBIDNS=jobNS300 #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run with --no_spotwrap
 PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 LAMDIR=${PREFIX}/lambda-python
 DYNDBDIR=${PREFIX}/tools/dynamodb
@@ -12,6 +10,7 @@ CWDIR=${PREFIX}/tools/cloudwatch
 TOOLSDIR=${PREFIX}/tools/timings
 MRDIR=${PREFIX}/lambda-python/mr
 SPOTTABLE=spotFns #must match tablename used by SpotWrap.py.template
+GAMMATABLE=gammaRays #must match tablename used by SpotWrap.py.template
 TS=1401861965497 #some early date
 
 cd ${TOOLSDIR}
@@ -19,9 +18,11 @@ cd ${TOOLSDIR}
 aws s3 rm s3://${MRBKT}/ --recursive --profile ${PROF}
 aws s3 rm s3://${MRBKTNS}/ --recursive --profile ${PROF}
 #delete dynamodb entries in table ${SPOTTABLE}
-cd ${DYNDBDIR}
+cd ${LAMDIR}
 . venv/bin/activate
+cd ${DYNDBDIR}
 python dynamodelete.py -p ${PROF} ${SPOTTABLE}
+python dynamodelete.py -p ${PROF} ${GAMMATABLE}
 deactivate
 #delete the logs for the lambdas with spotwrap and without (NS)
 cd ${MRDIR}
