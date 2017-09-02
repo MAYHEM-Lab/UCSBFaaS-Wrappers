@@ -3,6 +3,8 @@ if [ -z ${1+x} ]; then echo 'Unset args. Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
 MRBKT=spot-mr-bkt #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run without --no_spotwrap
 MRBKTNS=spot-mr-bkt-ns #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
+MRBKTGR=spot-mr-bkt-gr #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
+MRBKTF=spot-mr-bkt-f #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
 PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 LAMDIR=${PREFIX}/lambda-python
 DYNDBDIR=${PREFIX}/tools/dynamodb
@@ -17,6 +19,8 @@ cd ${TOOLSDIR}
 #delete s3 entries for map/reduce jobs
 aws s3 rm s3://${MRBKT}/ --recursive --profile ${PROF}
 aws s3 rm s3://${MRBKTNS}/ --recursive --profile ${PROF}
+aws s3 rm s3://${MRBKTGR}/ --recursive --profile ${PROF}
+aws s3 rm s3://${MRBKTF}/ --recursive --profile ${PROF}
 #delete dynamodb entries in table ${SPOTTABLE}
 cd ${LAMDIR}
 . venv/bin/activate
