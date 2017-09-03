@@ -1,11 +1,9 @@
 import boto3
-import jsonpickle,os
-import json, logging, time, argparse
+import os, json, logging, time, argparse, requests, uuid
 
 def handler(event,context):
     entry = time.time() * 1000
     logger = logging.getLogger()
-    #hard code it in case its not available in the context for some reason
     me = 'unknown'
     reqID = 'unknown'
     if not context: #invoking from main
@@ -13,14 +11,16 @@ def handler(event,context):
     else:
         me = context.invoked_function_arn
         reqID = context.aws_request_id
-        serialized = jsonpickle.encode(context)
         slist = ''
         for k in os.environ:
             slist += '{}:{};'.format(k,os.environ[k])
-        print('context: {}\nenv: {}'.format(json.loads(serialized),slist))
       
     #time.sleep(330) for testing error reporting in AWS Lambda
-    lambda_client = boto3.client('lambda')
+    reg = 'us-west-2'
+    if event:
+        if 'region' in event:
+            reg = event['region']
+    lambda_client = boto3.client('lambda',region_name=reg)
 
     fn = None
     count = 1
@@ -51,6 +51,7 @@ def handler(event,context):
 
     #run_lambda does not support invoke via Payload arg
     invoke_response = None
+    key = val = None
     if fn and fn != me:
         msg = {}
         now = time.time() * 1000
@@ -65,9 +66,9 @@ def handler(event,context):
         if 'tablename' in event: 
             msg['tablename'] = event['tablename']
         if 'mykey' in event: 
-            msg['mykey'] = event['mykey']
+            key = msg['mykey'] = event['mykey']
         if 'myval' in event: 
-            msg['myval'] = event['myval']
+            val = msg['myval'] = event['myval']
         if 'bkt' in event: 
             msg['bkt'] = event['bkt']
         if 'prefix' in event: 
@@ -109,6 +110,13 @@ def handler(event,context):
             status = invoke_response['StatusCode']
         logger.warn('{} invoke_response: reqId:{} statusCode:{}'.format(me,reqID,status))
 
+    #post to website
+    if not key or not val:
+        key = str(uuid.uuid4())[:4]
+        val = 17
+    r = requests.post('http://httpbin.org/post', data = {key:val})
+    print('HTTP POST status: {}'.format(r.status_code))
+
     exit = time.time() * 1000
     ms = exit-entry
     me_str += ':TIMER:CALL:{}'.format(ms)
@@ -121,6 +129,7 @@ if __name__ == "__main__":
     parser.add_argument('functionName',action='store',help='ARN to invoke')
     parser.add_argument('eventSource',action='store',help='value')
     parser.add_argument('--count',action='store',default=1,type=int,help='value')
+    parser.add_argument('--region',action='store',default='us-west-2',help='aws region')
     args = parser.parse_args()
-    event = {'functionName':args.functionName,'eventSource':args.eventSource,'count':args.count}
+    event = {'functionName':args.functionName,'eventSource':args.eventSource,'count':args.count,'region':args.region}
     handler(event,None)

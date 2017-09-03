@@ -1,8 +1,10 @@
-import boto3, json, logging, argparse, time, os, uuid, requests
+import boto3, json, logging, argparse, time, os,requests, uuid
 from fleece.xray import (monkey_patch_botocore_for_xray,
+                         monkey_patch_requests_for_xray,
                          trace_xray_subsegment)
 
 monkey_patch_botocore_for_xray()
+monkey_patch_requests_for_xray()
 
 '''Setup
 cd imageProc
@@ -109,6 +111,12 @@ def handler(event, context):
         )
     else: 
         print('No labels found!')
+
+    #post to website
+    key = str(uuid.uuid4())[:4]
+    val = 17
+    r = requests.post('http://httpbin.org/post', data = {key:val})
+    print('HTTP POST status: {}'.format(r.status_code))
 
     delta = (time.time() * 1000) - entry
     me_str = 'TIMER:CALL:{}'.format(delta)
