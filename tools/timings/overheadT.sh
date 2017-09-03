@@ -1,11 +1,16 @@
 #! /bin/bash
 #TEST: S (static gammaray, original spotwrap)
-if [ -z ${1+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs'; exit 1; fi
-if [ -z ${2+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs'; exit 1; fi
+if [ -z ${1+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_bucket_name'; exit 1; fi
+if [ -z ${2+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_bucket_name'; exit 1; fi
+if [ -z ${3+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_bucket_name'; exit 1; fi
+#DATABKT=big-data-benchmark
+DATABKT=${3}
 PROF=$1
 COUNT=$2
 MRBKT=spot-mr-bkt-f #must match reducerCoordinator "permission" in config in setupApps.py
 JOBID=job8000  #must match reducerCoordinator "job_id" in config in setupApps.py 
+DATABKT=big-data-benchmark
+DATABKTPREFIX="pavlo/text/1node/uservisits/"
 
 #update the below (must match lambda function names in configWestT.json
 MAP="/aws/lambda/mapperT"
@@ -43,7 +48,7 @@ do
     cd ${MRDIR}
     rm -f overhead.out
     #run the driver
-    /usr/bin/time python driver.py ${MRBKT} ${JOBID} ${MAP_NAME} ${RED_NAME} --wait4reducers >> overhead.out
+    /usr/bin/time python driver.py ${MRBKT} ${JOBID} ${MAP_NAME} ${RED_NAME} --wait4reducers --databkt ${DATABKT} >> overhead.out
     mkdir -p ${i}/T
     rm -f ${i}/T/overhead.log
     mv overhead.out ${i}/T/
