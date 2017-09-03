@@ -4,16 +4,17 @@ if [ -z ${1+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs'; exit 1;
 if [ -z ${2+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs'; exit 1; fi
 PROF=$1
 COUNT=$2
-MRBKT=spot-mr-bkt-f #must match reducerCoordinator "permission" in config in setupApps.py
+MRBKT=spot-mr-bkt #must match reducerCoordinator "permission" in config in setupApps.py
 JOBID=job8000  #must match reducerCoordinator "job_id" in config in setupApps.py 
 
-#update the below (must match lambda function names in configWestF.json
-MAP="/aws/lambda/mapperF"
-MAP_NAME=mapperF
-RED_NAME=reducerF
-RED="/aws/lambda/reducerF"
-DRI="/aws/lambda/driverF"
-RC="/aws/lambda/reducerCoordinatorF"
+#update the below (must match lambda function names in configWestS.json
+MAP="/aws/lambda/mapperS"
+MAP_NAME=mapperS
+RED_NAME=reducerS
+RED="/aws/lambda/reducerS"
+DRI="/aws/lambda/driverS"
+RC="/aws/lambda/reducerCoordinatorS"
+SPOTTABLE=spotFns #must match tablename (--spotFnsTableName) used in call to setupApps.py
 
 PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 GRDIR=${PREFIX}/gammaRay
@@ -26,6 +27,10 @@ TS=1401861965497 #some early date
 #setup environment
 cd ${GRDIR}
 . ./venv/bin/activate
+
+#delete db entries
+cd ${DYNDBDIR}
+python dynamodelete.py -p ${PROF} ${SPOTTABLE}
 
 #delete the logs
 cd ${CWDIR}

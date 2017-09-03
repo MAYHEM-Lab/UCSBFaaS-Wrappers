@@ -7,13 +7,13 @@ COUNT=$2
 MRBKT=spot-mr-bkt-f #must match reducerCoordinator "permission" in config in setupApps.py
 JOBID=job8000  #must match reducerCoordinator "job_id" in config in setupApps.py 
 
-#update the below (must match lambda function names in configWestF.json
-MAP="/aws/lambda/mapperF"
-MAP_NAME=mapperF
-RED_NAME=reducerF
-RED="/aws/lambda/reducerF"
-DRI="/aws/lambda/driverF"
-RC="/aws/lambda/reducerCoordinatorF"
+#update the below (must match lambda function names in configWestT.json
+MAP="/aws/lambda/mapperT"
+MAP_NAME=mapperT
+RED_NAME=reducerT
+RED="/aws/lambda/reducerT"
+DRI="/aws/lambda/driverT"
+RC="/aws/lambda/reducerCoordinatorT"
 
 PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 GRDIR=${PREFIX}/gammaRay
