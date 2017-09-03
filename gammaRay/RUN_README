@@ -58,12 +58,18 @@ cd ../tools/timings
 #clean out the databases gammaRays and spotFns, as well as the logs
 ./cleanupAWS.sh
 
-#run synchronized map reduce job overhead measurement (default is 100 times)
-nohup ./overheadC.sh ${AWSPROFILE} &
-nohup ./overheadT.sh ${AWSPROFILE} &
-nohup ./overheadF.sh ${AWSPROFILE} &
-nohup ./overheadS.sh ${AWSPROFILE} &
-nohup ./overheadG.sh ${AWSPROFILE} &
+#only if you want to, blow away the timings directories from past runs, update END to the last directory ID
+END=1
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/map-reduce/${i}; done
+
+#run synchronized map reduce job overhead measurement (second param is count)
+COUNT=1
+nohup ./overheadC.sh ${AWSPROFILE} ${COUNT} &
+nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} &
+nohup ./overheadF.sh ${AWSPROFILE} ${COUNT} &
+nohup ./overheadS.sh ${AWSPROFILE} ${COUNT} &
+nohup ./overheadG.sh ${AWSPROFILE} ${COUNT} &
 
 #run microbenchmarks (default is 100 times)
 

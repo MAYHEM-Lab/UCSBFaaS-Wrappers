@@ -42,7 +42,7 @@ if __name__ == "__main__":
         ('ImageProcPyD','image-proc-d','imageProc'),
         ('reducerCoordinatorC','spot-mr-bkt-ns','job8000'),
         ('reducerCoordinatorT','spot-mr-bkt-t','job8000'),
-        ('reducerCoordinatorF','spot-mr-bkt-t2','job8000'),
+        ('reducerCoordinatorF','spot-mr-bkt-f','job8000'),
         ('reducerCoordinatorS','spot-mr-bkt','job8000'),
         ('reducerCoordinatorD','spot-mr-bkt-gr','job8000')
     }
