@@ -20,13 +20,13 @@ for i in `ls configs/*.json`;
 do
     python setupApps.py -p ${PROF} --deleteAll -f $i
 done
-if [ -e restConfigsWest.json ]
+if [ -e ${TOOLSDIR}/restConfigsWest.json ]
 then
-python setupApps.py -p ${PROF} --deleteAll -f restConfigsWest.json
+python setupApps.py -p ${PROF} --deleteAll -f ${TOOLSDIR}/restConfigsWest.json
 fi
-if [ -e restConfigsEast.json ]
+if [ -e ${TOOLSDIR}/restConfigsEast.json ]
 then
-python setupApps.py -p ${PROF} --deleteAll -f restConfigsEast.json
+python setupApps.py -p ${PROF} --deleteAll -f ${TOOLSDIR}/restConfigsEast.json
 fi
 
 deactivate

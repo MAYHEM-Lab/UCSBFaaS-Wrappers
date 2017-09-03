@@ -2,10 +2,92 @@
     "region": "us-west-2",
     "functions": [
         {
-            "name": "ImageProc-NGR-Py"
+            "name": "driverNS"
+        },
+        {
+            "name": "mapper"
+        },
+        {
+            "name": "ImageProc_NGR_Py"
         },
         {
             "name": "reducerGR"
+        },
+        {
+            "name": "S3ModPyNS"
+        },
+        {
+            "name": "SNSPy"
+        },
+        {
+            "name": "SpotTemplatePy"
+        },
+        {
+            "name": "SNSPyNS"
+        },
+        {
+            "name": "driver"
+        },
+        {
+            "name": "SNSPyNS"
+        },
+        {
+            "name": "reducerNS"
+        },
+        {
+            "name": "reducer"
+        },
+        {
+            "name": "mapperNS"
+        },
+        {
+            "name": "mapperGR"
+        },
+        {
+            "name": "ImageProcPy"
+        },
+        {
+            "name": "ImageProc_F_Py"
+        },
+        {
+            "name": "SpotTemplatePyNS"
+        },
+        {
+            "name": "ImageProcPyNDB"
+        },
+        {
+            "name": "DBModPyNS"
+        },
+        {
+            "name": "driverGR"
+        },
+        {
+            "name": "reducerCoordinator"
+        },
+        {
+            "name": "FnInvokerPy"
+        },
+        {
+            "name": "DBSync"
+        },
+        {
+            "name": "FnInvokerPyNS"
+        },
+        {
+            "name": "reducerCoordinatorNS"
+        },
+        {
+            "name": "reducerCoordinatorGR"
+        },
+        {
+            "name": "DBModPy"
+        },
+        {
+            "name": "ImageProc_S_Py"
+        },
+        {
+            "name": "S3ModPy"
         }
+    ]
 }
 
