@@ -1,5 +1,5 @@
---- xray.py	2017-09-02 20:40:51.000000000 -0700
-+++ xray.py.new	2017-09-02 20:40:44.000000000 -0700
+--- xray.py	2017-09-03 11:24:20.000000000 -0700
++++ xray.py.new	2017-09-03 14:24:56.000000000 -0700
 @@ -25,6 +25,11 @@
  
  from fleece import log
@@ -116,7 +116,7 @@
      if 'operation_name' in kwargs:
          operation_name = kwargs['operation_name']
      else:
-@@ -402,7 +457,22 @@
+@@ -402,7 +457,23 @@
          metadata['aws']['table_name'] = kwargs['TableName']
      if 'QueueUrl' in kwargs:
          metadata['aws']['queue_url'] = kwargs['QueueUrl']
@@ -124,6 +124,7 @@
 +    #GammaRay
 +    if 'spotReqID' in os.environ: #this will be set to 'unknown' if outside of lambda
 +        reqID = os.environ['spotReqID']
++        payload = 'payload'
 +        for k in kwargs:
 +            payload += ':{}:{}'.format(k,kwargs[k])
 +        metadata['aws']['gr_payload']= payload

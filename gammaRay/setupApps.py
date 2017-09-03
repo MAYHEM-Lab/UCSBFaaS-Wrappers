@@ -167,9 +167,9 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
                 filedata = f.read()
             # Write the file out 
             with open(target, 'w') as f:
-                f.write('from fleece.xray import (monkey_patch_botocore_for_xray, monkey_patch_requests_for_xray, trace_xray_subsegment)')
-                f.write('monkey_patch_botocore_for_xray()')
-                f.write('monkey_patch_requests_for_xray()')
+                f.write('from fleece.xray import (monkey_patch_botocore_for_xray, monkey_patch_requests_for_xray, trace_xray_subsegment)\n')
+                f.write('monkey_patch_botocore_for_xray()\n')
+                f.write('monkey_patch_requests_for_xray()\n')
                 f.write(filedata)
   
             print('setupApps: Fleece support inserted')
@@ -311,15 +311,15 @@ if __name__ == "__main__":
     if args.gammaRay and args.turn_on_tracing:
         print('Error, --gammaRay and --turn_on_tracing cannot be used together')
         sys.exit(1)
-    if args.turn_on_tracing:
-        args.no_spotwrap = True #safety condition
     if not os.path.isfile(args.config):
         print('Error, no json config file found!')
         sys.exit(1)
+
+    if args.turn_on_tracing:
+        args.no_spotwrap = True #safety condition
+        args.no_boto_core_change = True
     if args.gammaRay and args.no_spotwrap:
         args.turn_on_tracing = False
-    if args.turn_on_tracing:
-        args.no_boto_core_change = True
    
     processLambda(args.config,
         args.profile,
