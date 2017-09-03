@@ -1,0 +1,11 @@
+{
+    "region": "us-west-2",
+    "functions": [
+        {
+            "name": "ImageProc-NGR-Py"
+        },
+        {
+            "name": "reducerGR"
+        }
+}
+
