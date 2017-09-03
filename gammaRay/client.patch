@@ -1,5 +1,5 @@
 --- client.py	2017-09-03 11:47:04.000000000 -0700
-+++ client.py.new	2017-09-03 11:57:53.000000000 -0700
++++ client.py.new	2017-09-03 14:54:48.000000000 -0700
 @@ -12,6 +12,7 @@
  # language governing permissions and limitations under the License.
  import logging
@@ -8,11 +8,12 @@
  
  from botocore import waiter, xform_name
  from botocore.auth import AUTH_TYPE_MAPS
-@@ -41,6 +42,17 @@
+@@ -41,6 +42,18 @@
  
  logger = logging.getLogger(__name__)
  
 +#GammaRay
++DDBTABLE = None
 +def fixup_kwargs(kwargs,arn,reqID,noPayload=False):
 +    #add eventSource with the calling function's requestID to be able to link caller and callee
 +    if noPayload:
@@ -26,7 +27,14 @@
  
  class ClientCreator(object):
      """Creates client objects for a service."""
-@@ -308,8 +320,62 @@
+@@ -302,14 +315,69 @@
+     def _create_api_method(self, py_operation_name, operation_name,
+                            service_model):
+         def _api_call(self, *args, **kwargs):
++            global DDBTABLE
+             # We're accepting *args so that we can give a more helpful
+             # error message than TypeError: _api_call takes exactly
+             # 1 argument.
              if args:
                  raise TypeError(
                      "%s() only accepts keyword arguments." % py_operation_name)
