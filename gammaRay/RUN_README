@@ -5,7 +5,7 @@ export PREFIX=/Users/ckrintz/RESEARCH/lambda/
 #role with admin rights
 export ACCT=443592014519
 export ROLE=adminlambda
-export AWSROLE=arn:aws:iam::${ACCT}:role/${ROLE}
+export AWSRole=arn:aws:iam::${ACCT}:role/${ROLE}
 export AWSPROFILE=cjk1
 export SPOTBKTWEST=cjktestbkt
 export SPOTBKTEAST=cjktestbkteast
@@ -28,7 +28,7 @@ cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
 #generate the config files for the lambdas for all cases (CASES list is below)
 cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
 rm -rf configs
-mkdir configs
+mkdir -p configs
 #edit makeConfigs to update triggerBuckets and triggerTables datastructures to have your bucket names
 #triggerBuckets for reducerCoordinator must match those in overhead??.sh files and runs below
 python makeConfigs.py configs --swbkt ${SPOTBKTWEST} --swbkteast ${SPOTBKTEAST}
@@ -36,23 +36,23 @@ python makeConfigs.py configs --swbkt ${SPOTBKTWEST} --swbkteast ${SPOTBKTEAST}
 #nothing / clean (C)
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --no_spotwrap 
-python setupApps.py -f configs/configCeast.json -p ${AWSPROFILE} --no_spotwrap 
+python setupApps.py -f configs/configEastC.json -p ${AWSPROFILE} --no_spotwrap 
 #fleece only (tracing) (T)
 python setupApps.py -f configs/configT.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configT.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing
-python setupApps.py -f configs/configTeast.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing
+python setupApps.py -f configs/configEastT.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing
 #fleece only (tracing+daemon) (F)
 python setupApps.py -f configs/configF.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configF.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing --with_fleece
-python setupApps.py -f configs/configFeast.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing --with_fleece
+python setupApps.py -f configs/configEastF.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing --with_fleece
 #original spotwrap (S)
 python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion us-west-2
-python setupApps.py -f configs/configSeast.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion us-west-2
+python setupApps.py -f configs/configEastS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion us-west-2
 #fleece only (tracing+daemon) (G)
 python setupApps.py -f configs/configG.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configG.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion us-west-2 --gammaRay
-python setupApps.py -f configs/configGeast.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion us-west-2 --gammaRay
+python setupApps.py -f configs/configEastG.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion us-west-2 --gammaRay
 
 cd ../tools/timings
 #clean out the databases gammaRays and spotFns, as well as the logs
