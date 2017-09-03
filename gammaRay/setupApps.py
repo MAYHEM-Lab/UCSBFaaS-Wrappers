@@ -311,8 +311,8 @@ if __name__ == "__main__":
     if args.gammaRay and args.turn_on_tracing:
         print('Error, --gammaRay and --turn_on_tracing cannot be used together')
         sys.exit(1)
-    if args.turn_on_tracing and not(not no_spotwrap or with_fleece):
-        print('Error, if --turn_on_tracing is used, you must turn off spotwrap (--no_spotwrap) or turn on fleece (--with_fleece)')
+    if args.turn_on_tracing:
+        args.no_spotwrap = True #safety condition
     if not os.path.isfile(args.config):
         print('Error, no json config file found!')
         sys.exit(1)
