@@ -126,7 +126,7 @@ nohup ./overheadF.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 
 nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 nohup ./overheadS.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
-nohup ./overheadG.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+nohup ./overheadD.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 
 #run microbenchmarks (default is 100 times)
 cd ${PREFIX}/UCSBFaaS-Wrappers/lambda-python/apis
