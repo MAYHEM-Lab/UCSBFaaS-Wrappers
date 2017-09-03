@@ -287,19 +287,22 @@ def makeRecord(context,event,duration,errorstr,prefix):
     #spotFns is indexed on timestamp and requestID, so distinguish 
     #two events with the same timestamp via postfix on requestID
     requestID += ':{}'.format(prefix)
+    payload = 'start:thisFnARN:{arn}:caller:{callr}:eventSource:{es}:eventOp:{eo}:region:{reg}:accountID:{acct}:sourceIP:{srcip}:message:{msg}:duration:{dur}:error:{err}'.format(
+        arn = myarn,
+        callr = caller,
+        es = eventSource,
+        eo = eventOp,
+        reg = region,
+        acct = accountID,
+        srcip = sourceIP,
+        msg = msg,
+        dur = str(round(duration)),
+        err = errorstr
+    )
     table.put_item( Item={
+        'reqID': requestID,
         'ts': tsint,
-        'requestID': requestID,
-        'thisFnARN': myarn,
-        'caller': caller,
-        'eventSource': eventSource,
-        'eventOp': eventOp,
-        'region': region,
-        'accountID': accountID,
-        'sourceIP': sourceIP,
-        'message': msg,
-        'duration': int(round(duration)),
-        'error': errorstr,
+        'gr_payload': payload
         }
     )
 

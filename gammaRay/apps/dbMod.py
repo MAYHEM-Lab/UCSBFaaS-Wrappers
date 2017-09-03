@@ -38,6 +38,8 @@ def handler(event, context):
             caller = event['functionName']
         if 'tableName' in event:
             tablename = event['tableName']
+        if 'tablename' in event:
+            tablename = event['tablename']
 
     table = dynamodb.Table(tablename) # we assume key is name of type String
     #write it
