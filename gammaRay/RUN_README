@@ -11,14 +11,29 @@ export AWSPROFILE=cjk1
 export SPOTBKTWEST=cjktestbkt
 export SPOTBKTEAST=cjktestbkteast
 export BDBENCH=cjk-gammaray-bdbenchmark
+export APITESTBKT=cjk-apitest-bucket
+export APITESTTABLE=cjk-apitest-bucket
+export APIOUTBKT=cjk-spotwraptest0831
+export SPOTTABLE=spotFns
+export GAMMATABLE=gammaRays
 
 #if you haven't done so already, clone the big-data-benchmark to the west 
 aws --profile cjk1 s3 mb s3://${BDBENCH}
-aws --profile cjk1 s3 sync s3://big-data-benchmark s3://$BDBENCH
+aws --profile cjk1 s3 sync s3://big-data-benchmark s3://${BDBENCH)
 
-#if you haven't done so already, make the buckets
+#if you haven't done so already, make the buckets and table
 aws --profile cjk1 s3 mb s3://${SPOTBKTWEST}
 aws --profile cjk1 s3 mb s3://${SPOTBKTEAST}
+aws --profile cjk1 s3 mb s3://${APIOUTBKT}
+aws --profile cjk1 s3 mb s3://${APITESTBKT}
+# make tables if you have not already in DynamoDB
+aws --profile cjk1 dynamodb create-table --region us-west-2 --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+aws --profile cjk1 dynamodb create-table --region us-west-2 --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
+aws --profile cjk1 dynamodb create-table --region us-west-2 --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
+
+#go and add a stream to both your GAMMATABLE and SPOTTABLE so that we can download the data in order
+#keep old and new data in the stream
+
 #1 per job type for imageProc app
 aws --profile cjk1 s3 mb s3://image-proc-c
 aws --profile cjk1 s3 mb s3://image-proc-t
@@ -32,17 +47,31 @@ aws --profile cjk1 s3 mb s3://spot-mr-bkt-gr
 aws --profile cjk1 s3 mb s3://spot-mr-bkt-ns
 aws --profile cjk1 s3 mb s3://spot-mr-bkt-d
 
+cd ${PREFIX}/UCSBFaaS-Wrappers/
+deactivate
+#this dir is hardcoded in makeConfigs.py, so change it there if you move it
+mkdir boto144 
+cd boto144
+rm -rf venv
+virtualenv venv --python=python3
+pip install 'boto3==1.4.4' --force-reinstall
+cd venv/lib/python3.6/site-packages/botocore
+patch -b < cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/client144.patch
+deactivate
+
 cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
 deactivate
 rm -rf venv
 virtualenv venv --python=python3
 source venv/bin/activate
 pip install fleece
+cd venv/lib/python3.6/site-packages/fleece
+patch -b < ../../../../../xray.patch
+
+
 cd venv/lib/python3.6/site-packages/botocore
 patch -b < ../../../../../client.patch
 cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
-cd venv/lib/python3.6/site-packages/fleece
-patch -b < ../../../../../xray.patch
 cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
 
 #if you want to clean everything out of AWS and start fresh see/run CLEANUP below
@@ -59,7 +88,6 @@ mkdir -p configs
 #edit makeConfigs to update triggerBuckets and triggerTables datastructures to have your bucket names
 #triggerBuckets for reducerCoordinator must match those in overhead??.sh files and runs below
 python makeConfigs.py configs --swbkt ${SPOTBKTWEST} --swbkteast ${SPOTBKTEAST}
-
 
 #nothing / clean (C)
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --deleteAll
@@ -94,12 +122,19 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/map-
 #run synchronized map reduce job overhead measurement (second param is count)
 export COUNT=1
 nohup ./overheadC.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
-nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 nohup ./overheadF.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+
+nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 nohup ./overheadS.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 nohup ./overheadG.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 
 #run microbenchmarks (default is 100 times)
+cd ${PREFIX}/UCSBFaaS-Wrappers/lambda-python/apis
+#do this once (modify the file to set S3BKT=$APITESTBKT and DYNAMODB=$APITESTTABLE)
+chmod +x prepare.sh
+./prepare.sh
+#run jobs
+
 
 
 #######  CLEANUP ############

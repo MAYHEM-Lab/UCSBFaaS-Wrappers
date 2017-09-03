@@ -87,6 +87,12 @@ if __name__ == "__main__":
                 ]
                 if key == 'driver' or key == 'reducerCoordinator':
                     files_and_dirs.append("apps/map-reduce/lambdautils.py")
+                if key == 'FnInvokerPy' or key == 'UpdateWebsite' or key == 'DBModPy' or key == 'DBSyncPy':
+                    files_and_dirs.append("venv/lib/python3.6/site-packages/requests")
+                    files_and_dirs.append("venv/lib/python3.6/site-packages/urllib3")
+                    files_and_dirs.append("venv/lib/python3.6/site-packages/chardet")
+                    files_and_dirs.append("venv/lib/python3.6/site-packages/certifi")
+                    files_and_dirs.append("venv/lib/python3.6/site-packages/idna")
                 #looking for venv in the local dir so run this from the gammaRay dir
                 if suffix == 'F' or suffix == 'D':
                     files_and_dirs.append("venv/lib/python3.6/site-packages/fleece")
@@ -108,7 +114,7 @@ if __name__ == "__main__":
                     "handler": "{}.handler".format(pyfile),
                     "zip": "package.zip",
                     "files_and_dirs": files_and_dirs,
-                    "patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+                    "patched_botocore_dir": "../boto144/venv/lib/python3.6/site-packages/botocore",
                     "s3bucket": swbkt
                 }
                 for needsBucket in triggerBuckets:
