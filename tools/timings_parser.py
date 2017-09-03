@@ -188,6 +188,7 @@ def parseIt(event,job='both',skipFirst=False,mrOnly=False):
         print('check_dir failed, exiting...')
         sys.exit(1)
 
+    ofile = None
     print()
     if job=='NS' or job=='BOTH': #1=NS
         count,avg,stdev,mcount,dsize,keys = processMR(event['mrdir'],event['count'],1,ofile,skipFirst)
