@@ -2,6 +2,9 @@
  Driver to deploy SpotWrapped Apps
  Author: Chandra Krintz
  License and Copyright in ../LICENSE
+    #from fleece.xray import (monkey_patch_botocore_for_xray, monkey_patch_requests_for_xray, trace_xray_subsegment)
+    #monkey_patch_botocore_for_xray()
+    #monkey_patch_requests_for_xray()
 '''
 import boto3,botocore,json
 import sys,time,glob,subprocess,argparse,os,tempfile,shutil,random
@@ -50,7 +53,7 @@ def zipLambda(zipname,ziplist,update=False):
             sys.exit(1)
     return zipname
 
-def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=False, noBotocore=False, spotTableRegion='us-west-2', spotTableName='gammaRays',saveBucket=False,tracing=False,useGammaRay=False):
+def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=False, noBotocore=False, spotTableRegion='us-west-2', spotTableName='gammaRays',saveBucket=False,tracing=False,useGammaRay=False, useFleece=False):
     # Config
     try:
         config = json.loads(open(config_fname, 'r').read())
@@ -82,8 +85,11 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
             try:
                 l_fn = lambdautils.LambdaManager(lambda_client, region, None, name, None)
                 l_fn.delete_function()
-            except:
-                pass
+                print('setupApps: {} deleted'.format(name))
+            except Exception as e:
+                stre = str(e)
+                if 'ResourceNotFoundException' not in stre:
+                    print('EXCEPTION in lambda delete: {}'.format(e))
             try:
                 if not saveBucket and 'permission' in fn:
                     bkt = fn['permission']
@@ -95,7 +101,6 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
                 lambdautils.LambdaManager.cleanup_logs(name)
             except:
                 pass
-            print('setupApps: {} deleted'.format(name))
             continue #get the next function to delete
 
         #else process the rest and create the Lambdas
@@ -141,7 +146,35 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
    
                 print('setupApps: GammaRay support inserted')
 
-        elif not noWrap: #do not useGammaRay:
+        if useFleece: #inject Fleece 
+            tmp_dir = tempfile.mkdtemp() 
+            fname2find = '{}.py'.format(handler[:peridx]) #filename containing original handler
+            found = False
+            for fnameInOriginalLoc in ziplist:
+                if fnameInOriginalLoc.endswith(fname2find):
+                    found = True
+                    break
+            if not found:
+                print('Error, {} not found in ziplist {}'.format(fname2find,ziplist))
+                sys.exit(1)
+            ziplist.remove(fnameInOriginalLoc) #remove from ziplist
+            target = '{}/{}'.format(tmp_dir,fname2find) #same file only in tmp_dir
+            ziplist.append(target) #add file in new location to ziplist
+            print('target: {}'.format(target))
+
+            #next update the code in target to include fleece
+            with open(fnameInOriginalLoc, 'r') as f :
+                filedata = f.read()
+            # Write the file out 
+            with open(target, 'w') as f:
+                f.write('from fleece.xray import (monkey_patch_botocore_for_xray, monkey_patch_requests_for_xray, trace_xray_subsegment)')
+                f.write('monkey_patch_botocore_for_xray()')
+                f.write('monkey_patch_requests_for_xray()')
+                f.write(filedata)
+  
+            print('setupApps: Fleece support inserted')
+
+        elif not noWrap: #do not useGammaRay, no not use Fleece, so use spotwrap (not noWrap) or nothing:
             ''' Process the patched botocore file (place in S3 for SpotWrap.py to download)''' 
             botozipdir = None
             zipbase = 'botocore_patched.zip'
@@ -163,6 +196,7 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
             else: #s3bucket is set, check that it is a valid S3 bucket
                 s3bkt = fn['s3bucket']
                 if not noBotocore:
+                    noBotocore = True
                     if lambdautils.LambdaManager.S3BktExists(s3,s3bkt,region):
                         #zip up the patched botocore directory and place in S3
                         if not botozipdir: #sanity check
@@ -223,8 +257,8 @@ def processLambda(config_fname, profile, noWrap=False, update=False, deleteThem=
        
                 print('setupApps: SpotWrap support inserted')
 
-        else: #no GammaWrap and noSpotWrap
-            print('setupApps: no GammaWrap and no SpotWrap support inserted')
+        else: #no GammaWrap and not noSpotWrap and no Fleece (clean deploy)
+            print('setupApps: no GammaWrap and no Fleece and no SpotWrap support inserted')
 
         l_zip = zipLambda(zipfile,ziplist,update)
         if tmp_dir:
@@ -258,9 +292,16 @@ if __name__ == "__main__":
     parser.add_argument('--turn_on_tracing',action='store_true',default=False,help='Turn on AWS Xray tracing.')
     parser.add_argument('--no_spotwrap',action='store_true',default=False,help='Do NOT inject SpotWrapSupport')
     parser.add_argument('--gammaRay',action='store_true',default=False,help='Inject gammaRay support')
+    parser.add_argument('--with_fleece',action='store_true',default=False,help='Inject fleece support')
     parser.add_argument('--spotFnsTableName',action='store',default='gammaRays',help='Name of table which will hold SpotWrap writes. Arg is unused if --no_spotwrap is set.')
     parser.add_argument('--spotFnsTableRegion',action='store',default='us-west-2',help='AWS region in which table spotFns is located (for all SpotWrap writes). Arg is unused if --no_spotwrap is set.')
     args = parser.parse_args()
+    if args.with_fleece and args.gammaRay:
+        print('Error, fleece and gammaRay options cannot be used together.  Choose one.')
+        sys.exit(1)
+    if args.with_fleece and not args.no_spotwrap:
+        print('Error, fleece and spotwrap options (add --no_spotwrap tor turn off) cannot be used together.  Choose one.')
+        sys.exit(1)
     if args.update and args.deleteAll:
         print('Error, update and deleteAll options cannot be used together.  Choose one.')
         sys.exit(1)
@@ -270,9 +311,26 @@ if __name__ == "__main__":
     if args.gammaRay and args.turn_on_tracing:
         print('Error, --gammaRay and --turn_on_tracing cannot be used together')
         sys.exit(1)
+    if args.turn_on_tracing and not(not no_spotwrap or with_fleece):
+        print('Error, if --turn_on_tracing is used, you must turn off spotwrap (--no_spotwrap) or turn on fleece (--with_fleece)')
+    if not os.path.isfile(args.config):
+        print('Error, no json config file found!')
+        sys.exit(1)
     if args.gammaRay and args.no_spotwrap:
         args.turn_on_tracing = False
+    if args.turn_on_tracing:
         args.no_boto_core_change = True
-        print('Using gammaRay (no_spotwrap and no_boto_core_change or use)')
    
-    processLambda(args.config,args.profile,args.no_spotwrap,args.update,args.deleteAll,args.no_botocore_change,args.spotFnsTableRegion,args.spotFnsTableName,args.saveTriggerBucket,args.turn_on_tracing,args.gammaRay)
+    processLambda(args.config,
+        args.profile,
+        args.no_spotwrap,
+        args.update,
+        args.deleteAll,
+        args.no_botocore_change,
+        args.spotFnsTableRegion,
+        args.spotFnsTableName,
+        args.saveTriggerBucket,
+        args.turn_on_tracing,
+        args.gammaRay,
+        args.with_fleece
+    )
