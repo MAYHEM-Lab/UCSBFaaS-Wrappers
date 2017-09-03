@@ -34,23 +34,23 @@ if __name__ == "__main__":
     }
     #specify the bucket and prefix (folder) in bucket to use to trigger function lambda_name
     #bucket names must be unique and identifiable (for run type: C,T,F,S,D)
-    triggerBuckets = {  #lambda_name:bucket, bucket_prefix:prefix
-        ('ImageProcPyC':'image-proc-c','prefix':'imageProc'),
-        ('ImageProcPyT':'image-proc-t','prefix':'imageProc'),
-        ('ImageProcPyF':'image-proc-f','prefix':'imageProc'),
-        ('ImageProcPyS':'image-proc-s','prefix':'imageProc'),
-        ('ImageProcPyD':'image-proc-d','prefix':'imageProc'),
-        ('reducerCoordinatorC':'spot-mr-bkt-ns','prefix':'job8000'),
-        ('reducerCoordinatorT':'spot-mr-bkt-t','prefix':'job8000'),
-        ('reducerCoordinatorF':'spot-mr-bkt-t2','prefix':'job8000'),
-        ('reducerCoordinatorS':'spot-mr-bkt','prefix':'job8000'),
-        ('reducerCoordinatorD':'spot-mr-bkt-gr','prefix':'job8000')
+    triggerBuckets = {  #lambda_name:bucket:bucket_prefix
+        ('ImageProcPyC','image-proc-c','imageProc'),
+        ('ImageProcPyT','image-proc-t','imageProc'),
+        ('ImageProcPyF','image-proc-f','imageProc'),
+        ('ImageProcPyS','image-proc-s','imageProc'),
+        ('ImageProcPyD','image-proc-d','imageProc'),
+        ('reducerCoordinatorC','spot-mr-bkt-ns','job8000'),
+        ('reducerCoordinatorT','spot-mr-bkt-t','job8000'),
+        ('reducerCoordinatorF','spot-mr-bkt-t2','job8000'),
+        ('reducerCoordinatorS','spot-mr-bkt','job8000'),
+        ('reducerCoordinatorD','spot-mr-bkt-gr','job8000')
     }
 
     #specify the DynamoDB table stream that triggers lambda function lambda_name
-    triggerTables = { #lambda_name,table_name
-        'DBSyncPy':'imageLabels',
-        'UpdateWebsite':'eastSyncTable',
+    triggerTables = { #lambda_name,table_name 
+        ('DBSyncPy','imageLabels'),
+        ('UpdateWebsite','eastSyncTable'),
     }
     if not os.path.isdir(args.configDir):
         print('Error, filename passed in must be an existing directory (make sure its empty)')
@@ -111,15 +111,17 @@ if __name__ == "__main__":
                     "s3bucket": swbkt
                 }
                 for needsBucket in triggerBuckets:
-                    k, v = needsBucket.items()[0]
-                    prefix = needsBucket[1]['prefix']
-                    if name == k: 
-                        app["permission"]= v
+                    fn = needsBucket[0] 
+                    bkt = needsBucket[1]
+                    prefix = needsBucket[2]
+                    if name == fn: 
+                        app["permission"]= bkt
                         app["job_id"]= prefix
 
                 for needsTable in triggerTables:
-                    k, v = needsTable.items()[0]
-                    if name == k: 
+                    fn = needsTable[0]
+                    v = needsTable[1]
+                    if name == fn: 
                         app["table"]= v
                         
                 fun.append(app)
