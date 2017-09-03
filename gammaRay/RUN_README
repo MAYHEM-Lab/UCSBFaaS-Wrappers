@@ -1,0 +1,54 @@
+#update with your directory to the repo
+export PREFIX=/Users/ckrintz/RESEARCH/lambda/
+cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
+deactivate
+rm -rf venv
+virtualenv venv --python=python3
+source venv/bin/activate
+pip install fleece boto3 
+cd venv/lib/python3.6/site-packages/botocore
+patch -b < ../../../../../client.patch
+cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
+cd venv/lib/python3.6/site-packages/fleece
+patch -b < ../../../../../xray.patch
+
+cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
+rm -rf configs
+mkdir configs
+python makeConfigs.py configs
+
+#nothing / clean (C)
+python setupApps.py -f configs/configC.json -p cjk1 --deleteAll
+python setupApps.py -f configs/configC.json -p cjk1 --no_spotwrap 
+python setupApps.py -f configs/configCeast.json -p cjk1 --no_spotwrap 
+#fleece only (tracing) (T)
+python setupApps.py -f configs/configT.json -p cjk1 --deleteAll
+python setupApps.py -f configs/configT.json -p cjk1 --no_spotwrap --turn_on_tracing
+python setupApps.py -f configs/configTeast.json -p cjk1 --no_spotwrap --turn_on_tracing
+#fleece only (tracing+daemon) (F)
+python setupApps.py -f configs/configF.json -p cjk1 --deleteAll
+python setupApps.py -f configs/configF.json -p cjk1 --no_spotwrap --turn_on_tracing --with_fleece
+python setupApps.py -f configs/configFeast.json -p cjk1 --no_spotwrap --turn_on_tracing --with_fleece
+#original spotwrap (S)
+python setupApps.py -f configs/configS.json -p cjk1 --deleteAll
+python setupApps.py -f configs/configS.json -p cjk1 --spotFnsTableName spotFns --spotFnsTableRegion us-west-2
+python setupApps.py -f configs/configSeast.json -p cjk1 --spotFnsTableName spotFns --spotFnsTableRegion us-west-2
+#fleece only (tracing+daemon) (G)
+python setupApps.py -f configs/configG.json -p cjk1 --deleteAll
+python setupApps.py -f configs/configG.json -p cjk1 --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion us-west-2 --gammaRay
+python setupApps.py -f configs/configGeast.json -p cjk1 --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion us-west-2 --gammaRay
+
+cd ../tools/timings
+./cleanup.sh
+
+nohup ./overheadNS.sh cjk1 &
+nohup ./overheadT.sh cjk1 &
+nohup ./overheadF.sh cjk1 &
+nohup ./overheadGR.sh cjk1 &
+nohup ./overhead.sh cjk1 &
+======================
+C - nothing/clean
+T - tracing
+F - tracing + fleece daemon
+S - static spotwrap (original)
+G - dynamic spotwrap (gammaray)
