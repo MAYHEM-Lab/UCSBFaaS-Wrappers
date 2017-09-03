@@ -1,0 +1,71 @@
+{
+    "region": "us-west-2",
+    "functions": [
+        {
+            "name": "empty",
+            "lambdaMemory": 128,
+            "handler": "empty.lambda_handler",
+            "zip": "empty.zip",
+            "files_and_dirs": [
+                "apis/empty.py"
+            ],
+            "patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+            "s3bucket": "spotwrap0825"
+        },
+        {
+            "name": "s3read",
+            "lambdaMemory": 128,
+            "handler": "s3read.handler",
+            "zip": "s3read.zip",
+            "files_and_dirs": [
+                "apis/s3read.py"
+            ],
+            "patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+            "s3bucket": "spotwrap0825"
+        },
+        {
+            "name": "s3write",
+            "lambdaMemory": 128,
+            "handler": "s3write.handler",
+            "zip": "s3write.zip",
+            "files_and_dirs": [
+                "apis/s3write.py"
+            ],
+            "patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+            "s3bucket": "spotwrap0825"
+        },
+        {
+            "name": "dbread",
+            "lambdaMemory": 128,
+            "handler": "dbread.handler",
+            "zip": "dbread.zip",
+            "files_and_dirs": [
+                "apis/dbread.py"
+            ],
+            "patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+            "s3bucket": "spotwrap0825"
+        },
+        {
+            "name": "dbwrite",
+            "lambdaMemory": 128,
+            "handler": "dbwrite.handler",
+            "zip": "dbwrite.zip",
+            "files_and_dirs": [
+                "apis/dbwrite.py"
+            ],
+            "patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+            "s3bucket": "spotwrap0825"
+        },
+        {
+            "name": "pubsns",
+            "lambdaMemory": 128,
+            "handler": "pubsns.handler",
+            "zip": "pubsns.zip",
+            "files_and_dirs": [
+                "apis/pubsns.py"
+            ],
+            "patched_botocore_dir": "venv/lib/python3.6/site-packages/botocore",
+            "s3bucket": "spotwrap0825"
+        }
+    ]
+}

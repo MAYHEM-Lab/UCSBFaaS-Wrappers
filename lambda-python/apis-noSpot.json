@@ -1,0 +1,59 @@
+{
+    "region": "us-west-2",
+    "functions": [
+        {
+            "name": "emptyNS",
+            "lambdaMemory": 128,
+            "handler": "empty.lambda_handler",
+            "zip": "emptyNS.zip",
+            "files_and_dirs": [
+                "apis/empty.py"
+            ]
+        },
+        {
+            "name": "s3readNS",
+            "lambdaMemory": 128,
+            "handler": "s3read.handler",
+            "zip": "s3readNS.zip",
+            "files_and_dirs": [
+                "apis/s3read.py"
+            ]
+        },
+        {
+            "name": "s3writeNS",
+            "lambdaMemory": 128,
+            "handler": "s3write.handler",
+            "zip": "s3writeNS.zip",
+            "files_and_dirs": [
+                "apis/s3write.py"
+            ]
+        },
+        {
+            "name": "dbreadNS",
+            "lambdaMemory": 128,
+            "handler": "dbread.handler",
+            "zip": "dbreadNS.zip",
+            "files_and_dirs": [
+                "apis/dbread.py"
+            ]
+        },
+        {
+            "name": "dbwriteNS",
+            "lambdaMemory": 128,
+            "handler": "dbwrite.handler",
+            "zip": "dbwriteNS.zip",
+            "files_and_dirs": [
+                "apis/dbwrite.py"
+            ]
+        },
+        {
+            "name": "pubsnsNS",
+            "lambdaMemory": 128,
+            "handler": "pubsns.handler",
+            "zip": "pubsnsNS.zip",
+            "files_and_dirs": [
+                "apis/pubsns.py"
+            ]
+        }
+    ]
+}
