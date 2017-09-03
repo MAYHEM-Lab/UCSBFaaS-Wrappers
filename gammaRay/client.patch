@@ -1,19 +1,18 @@
---- client.py	2017-09-02 20:43:27.000000000 -0700
-+++ client.py.new	2017-09-02 20:41:28.000000000 -0700
-@@ -10,8 +10,7 @@
- # distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
- # ANY KIND, either express or implied. See the License for the specific
+--- client.py	2017-09-03 11:47:04.000000000 -0700
++++ client.py.new	2017-09-03 11:57:53.000000000 -0700
+@@ -12,6 +12,7 @@
  # language governing permissions and limitations under the License.
--import logging
--from datetime import datetime, timezone
-+import logging,os,boto3,time,uuid,json
+ import logging
  import functools
++import os,boto3,time,uuid,json
  
  from botocore import waiter, xform_name
-@@ -42,6 +41,16 @@
+ from botocore.auth import AUTH_TYPE_MAPS
+@@ -41,6 +42,17 @@
  
  logger = logging.getLogger(__name__)
  
++#GammaRay
 +def fixup_kwargs(kwargs,arn,reqID,noPayload=False):
 +    #add eventSource with the calling function's requestID to be able to link caller and callee
 +    if noPayload:
@@ -27,51 +26,7 @@
  
  class ClientCreator(object):
      """Creates client objects for a service."""
-@@ -71,6 +80,7 @@
-             service_model, region_name, is_secure, endpoint_url,
-             verify, credentials, scoped_config, client_config, endpoint_bridge)
-         service_client = cls(**client_args)
-+        self._register_retries(service_client)
-         self._register_s3_events(
-             service_client, endpoint_bridge, endpoint_url, client_config,
-             scoped_config)
-@@ -96,11 +106,10 @@
-         json_model = self._loader.load_service_model(service_name, 'service-2',
-                                                      api_version=api_version)
-         service_model = ServiceModel(json_model, service_name=service_name)
--        self._register_retries(service_model)
-         return service_model
- 
--    def _register_retries(self, service_model):
--        endpoint_prefix = service_model.endpoint_prefix
-+    def _register_retries(self, client):
-+        endpoint_prefix = client.meta.service_model.endpoint_prefix
- 
-         # First, we load the entire retry config for all services,
-         # then pull out just the information we need.
-@@ -110,15 +119,17 @@
- 
-         retry_config = self._retry_config_translator.build_retry_config(
-             endpoint_prefix, original_config.get('retry', {}),
--            original_config.get('definitions', {}))
-+            original_config.get('definitions', {}),
-+            client.meta.config.retries
-+        )
- 
-         logger.debug("Registering retry handlers for service: %s",
--                     service_model.service_name)
-+                     client.meta.service_model.service_name)
-         handler = self._retry_handler_factory.create_retry_handler(
-             retry_config, endpoint_prefix)
-         unique_id = 'retry-config-%s' % endpoint_prefix
--        self._event_emitter.register('needs-retry.%s' % endpoint_prefix,
--                                     handler, unique_id=unique_id)
-+        client.meta.events.register('needs-retry.%s' % endpoint_prefix,
-+                                    handler, unique_id=unique_id)
- 
-     def _register_s3_events(self, client, endpoint_bridge, endpoint_url,
-                             client_config, scoped_config):
-@@ -307,8 +318,63 @@
+@@ -308,8 +320,62 @@
              if args:
                  raise TypeError(
                      "%s() only accepts keyword arguments." % py_operation_name)
@@ -113,8 +68,6 @@
 +                    'gr_payload': payload,
 +                    }
 +                )
-+
-+
              # The "self" in this scope is referring to the BaseClient.
 -            return self._make_api_call(operation_name, kwargs)
 +            retn = self._make_api_call(operation_name, kwargs)
@@ -132,20 +85,8 @@
 +                    }
 +                )
 +
++
 +            return retn
  
          _api_call.__name__ = str(py_operation_name)
  
-@@ -682,9 +748,11 @@
-             documented_paginator_cls = type(
-                 paginator_class_name, (Paginator,), {'paginate': paginate})
- 
-+            operation_model = self._service_model.operation_model(actual_operation_name)
-             paginator = documented_paginator_cls(
-                 getattr(self, operation_name),
--                paginator_config)
-+                paginator_config,
-+                operation_model)
-             return paginator
- 
-     def can_paginate(self, operation_name):
