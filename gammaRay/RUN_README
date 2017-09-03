@@ -10,6 +10,11 @@ export AWSPROFILE=cjk1
 
 export SPOTBKTWEST=cjktestbkt
 export SPOTBKTEAST=cjktestbkteast
+export BDBENCH=cjk-gammaray-bdbenchmark
+
+#if you haven't done so already, clone the big-data-benchmark to the west 
+aws --profile cjk1 s3 mb s3://${BDBENCH}
+aws --profile cjk1 s3 sync s3://big-data-benchmark s3://$BDBENCH
 
 #if you haven't done so already, make the buckets
 aws --profile cjk1 s3 mb s3://${SPOTBKTWEST}
@@ -88,11 +93,11 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/map-
 
 #run synchronized map reduce job overhead measurement (second param is count)
 export COUNT=1
-nohup ./overheadC.sh ${AWSPROFILE} ${COUNT} &
-nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} &
-nohup ./overheadF.sh ${AWSPROFILE} ${COUNT} &
-nohup ./overheadS.sh ${AWSPROFILE} ${COUNT} &
-nohup ./overheadG.sh ${AWSPROFILE} ${COUNT} &
+nohup ./overheadC.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+nohup ./overheadF.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+nohup ./overheadS.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+nohup ./overheadG.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 
 #run microbenchmarks (default is 100 times)
 
