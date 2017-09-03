@@ -1,5 +1,5 @@
---- xray.py	2017-09-02 18:43:25.000000000 -0700
-+++ xray.py.new	2017-09-02 18:43:20.000000000 -0700
+--- xray.py	2017-09-02 20:40:51.000000000 -0700
++++ xray.py.new	2017-09-02 20:40:44.000000000 -0700
 @@ -25,6 +25,11 @@
  
  from fleece import log
@@ -12,7 +12,7 @@
  LOGGER = log.get_logger('fleece.xray')
  
  XRAY_DAEMON_HEADER = {'format': 'json', 'version': 1}
-@@ -120,22 +125,51 @@
+@@ -120,22 +125,49 @@
  
  
  def send_segment_document_to_xray_daemon(segment_document):
@@ -44,6 +44,7 @@
 +        document=doc
      )
  
++    #GammaRay
 +    if 'spotReqID' in os.environ:
 +        if DDBTABLE is None:
 +            if 'gammaTable' in os.environ:
@@ -53,10 +54,7 @@
 +            dynamodb = boto3.resource('dynamodb', region_name=reg)
 +            DDBTABLE = dynamodb.Table(tname)
 +        tail = '{}'.format(str(uuid.uuid4())[:8])
-+        if 'spotReqID' in os.environ: #this will be set to 'unknown' if outside of lambda
-+            reqID = '{}:{}'.format(os.environ['spotReqID'],tail)
-+        else:
-+            reqID = tail
++        reqID = '{}:{}'.format(os.environ['spotReqID'],tail)
 +        ts = time.time() * 1000 #msecs
 +        tsint = int(round(ts))
 +        DDBTABLE.put_item( Item={
@@ -72,7 +70,7 @@
      send_data_on_udp(
          ip_address=xray_daemon.ip_address,
          port=xray_daemon.port,
-@@ -236,7 +270,18 @@
+@@ -236,7 +268,18 @@
          # Request not sampled by X-Ray, let's get to the call
          # immediately.
          LOGGER.debug('Request not sampled by X-Ray, skipping trace')
@@ -92,29 +90,25 @@
  
      start_time = time.time()
      error = False
-@@ -363,6 +408,21 @@
+@@ -363,6 +406,17 @@
          return instance._service_model.metadata['endpointPrefix']
      return instance._service_model.metadata['serviceAbbreviation']
  
-+#CJK:
-+def fixup_kwargs(kwargs,arn,reqID,replace,noPayload=False):
++#GammaRay
++def fixup_kwargs(kwargs,arn,reqID,noPayload=False):
 +    if noPayload:
 +        js = {}
-+        replace = False #insurance
 +    else:
 +        js = json.loads(kwargs['Payload'])
 +
 +    sarn = arn.split(":")
 +    arn = sarn[6]
-+    if replace:
-+        js['eventSource'] += ':lib:invokeCLI:{}:{}'.format(arn,reqID)
-+    else:
-+        js['eventSource'] = 'lib:invokeCLI:{}:{}'.format(arn,reqID)
++    js['eventSource'] = 'lib:invokeCLI:{}:{}'.format(arn,reqID)
 +    kwargs['Payload'] = json.dumps(js)
  
  def extract_aws_metadata(wrapped, instance, args, kwargs, return_value):
      """Provide AWS metadata for improved visualization.
-@@ -377,6 +437,7 @@
+@@ -377,6 +431,7 @@
          kwargs=kwargs,
          response=response,
      )
@@ -122,35 +116,22 @@
      if 'operation_name' in kwargs:
          operation_name = kwargs['operation_name']
      else:
-@@ -402,7 +463,35 @@
+@@ -402,7 +457,22 @@
          metadata['aws']['table_name'] = kwargs['TableName']
      if 'QueueUrl' in kwargs:
          metadata['aws']['queue_url'] = kwargs['QueueUrl']
 -
-+    #CJK
++    #GammaRay
 +    if 'spotReqID' in os.environ: #this will be set to 'unknown' if outside of lambda
 +        reqID = os.environ['spotReqID']
-+        myArn = 'unknown'
-+        if 'myArn' in os.environ:
-+            myArn = os.environ['myArn']
-+        metadata['aws']['reqID'] = reqID
-+        if 'Item' in kwargs:
-+            metadata['aws']['item'] = kwargs['Item']
-+        if 'Bucket' in kwargs:
-+            metadata['aws']['bucket'] = kwargs['Bucket']
-+        if 'Key' in kwargs:
-+            metadata['aws']['key'] = kwargs['Key']
-+        if 'TableName' in kwargs:
-+            metadata['aws']['table_name'] = kwargs['TableName']
-+        if 'FunctionName' in kwargs:
-+            metadata['aws']['function_name'] = kwargs['FunctionName']
-+        if 'TopicArn' in kwargs:
-+            metadata['aws']['topic_arn'] = kwargs['TopicArn']
-+        if 'Subject' in kwargs:
-+            metadata['aws']['subject'] = kwargs['Subject']
-+        if 'Message' in kwargs:
-+            metadata['aws']['message'] = kwargs['Message']
++        for k in kwargs:
++            payload += ':{}:{}'.format(k,kwargs[k])
++        metadata['aws']['gr_payload']= payload
++        #insert this caller's reqID to the callee's payload for tracing
 +        if 'Payload' in kwargs:
++            myArn = 'unknown'
++            if 'myArn' in os.environ:
++                myArn = os.environ['myArn']
 +            if 'eventSource' in kwargs['Payload']:
 +                fixup_kwargs(kwargs,myArn,reqID,True)
 +            else:
