@@ -8,12 +8,12 @@ MRBKT=spot-mr-bkt-gr #must match reducerCoordinator "permission" in config in se
 JOBID=job8000  #must match reducerCoordinator "job_id" in config in setupApps.py 
 
 #update the below (must match lambda function names in configWestG.json
-MAP="/aws/lambda/mapperG"
-MAP_NAME=mapperG
-RED_NAME=reducerG
-RED="/aws/lambda/reducerG"
-DRI="/aws/lambda/driverG"
-RC="/aws/lambda/reducerCoordinatorG"
+MAP="/aws/lambda/mapperD"
+MAP_NAME=mapperD
+RED_NAME=reducerD
+RED="/aws/lambda/reducerD"
+DRI="/aws/lambda/driverD"
+RC="/aws/lambda/reducerCoordinatorD"
 SPOTTABLE=gammaRays #must match tablename (--spotFnsTableName) used in call to setupApps.py
 
 PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
@@ -49,18 +49,18 @@ do
     rm -f overhead.out
     #run the driver
     /usr/bin/time python driver.py ${MRBKT} ${JOBID} ${MAP_NAME} ${RED_NAME} --wait4reducers >> overhead.out
-    mkdir -p ${i}/G
-    rm -f ${i}/G/overhead.log
-    mv overhead.out ${i}
+    mkdir -p ${i}/D
+    rm -f ${i}/D/overhead.out
+    mv overhead.out ${i}/D/
 
     #download cloudwatch logs (and delete them)
     cd ${CWDIR}
-    mkdir -p ${i}/G
-    rm -f ${i}/G/*.log
-    python downloadLogs.py ${MAP} ${TS} -p ${PROF} --delete  > ${i}/G/map.log
-    python downloadLogs.py ${RED} ${TS} -p ${PROF} --delete  > ${i}/G/red.log
-    python downloadLogs.py ${DRI} ${TS} -p ${PROF} --delete  > ${i}/G/driv.log
-    python downloadLogs.py ${RC} ${TS} -p ${PROF} --delete  > ${i}/G/coord.log
+    mkdir -p ${i}/D
+    rm -f ${i}/D/*.log
+    python downloadLogs.py ${MAP} ${TS} -p ${PROF} --delete  > ${i}/D/map.log
+    python downloadLogs.py ${RED} ${TS} -p ${PROF} --delete  > ${i}/D/red.log
+    python downloadLogs.py ${DRI} ${TS} -p ${PROF} --delete  > ${i}/D/driv.log
+    python downloadLogs.py ${RC} ${TS} -p ${PROF} --delete  > ${i}/D/coord.log
     
 done
 deactivate

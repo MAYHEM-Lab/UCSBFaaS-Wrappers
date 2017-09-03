@@ -50,8 +50,8 @@ do
     #run the driver
     /usr/bin/time python driver.py ${MRBKT} ${JOBID} ${MAP_NAME} ${RED_NAME} --wait4reducers >> overhead.out
     mkdir -p ${i}/S
-    rm -f ${i}/S/overhead.log
-    mv overhead.out ${i}
+    rm -f ${i}/S/overhead.out
+    mv overhead.out ${i}/S/
 
     #download cloudwatch logs (and delete them)
     cd ${CWDIR}
