@@ -42,21 +42,20 @@ do
 
     cd ${MRDIR}
     rm -f overhead.out
-    . ../venv/bin/activate
     #run the driver
     /usr/bin/time python driver.py ${MRBKT} ${JOBID} ${MAP_NAME} ${RED_NAME} --wait4reducers >> overhead.out
-    mkdir -p ${i}
-    rm ${i}/overhead.log
+    mkdir -p ${i}/F
+    rm -f ${i}/F/overhead.log
     mv overhead.out ${i}
 
     #download cloudwatch logs (and delete them)
     cd ${CWDIR}
-    mkdir -p ${i}
-    rm ${i}/*.log
-    python downloadLogs.py ${MAP} ${TS} -p ${PROF} --delete  > ${i}/map.log
-    python downloadLogs.py ${RED} ${TS} -p ${PROF} --delete  > ${i}/red.log
-    python downloadLogs.py ${DRI} ${TS} -p ${PROF} --delete  > ${i}/driv.log
-    python downloadLogs.py ${RC} ${TS} -p ${PROF} --delete  > ${i}/coord.log
+    mkdir -p ${i}/F
+    rm -f ${i}/F/*.log
+    python downloadLogs.py ${MAP} ${TS} -p ${PROF} --delete  > ${i}/F/map.log
+    python downloadLogs.py ${RED} ${TS} -p ${PROF} --delete  > ${i}/F/red.log
+    python downloadLogs.py ${DRI} ${TS} -p ${PROF} --delete  > ${i}/F/driv.log
+    python downloadLogs.py ${RC} ${TS} -p ${PROF} --delete  > ${i}/F/coord.log
     
 done
 deactivate
