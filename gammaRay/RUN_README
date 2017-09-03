@@ -7,8 +7,25 @@ export ACCT=443592014519
 export ROLE=adminlambda
 export AWSRole=arn:aws:iam::${ACCT}:role/${ROLE}
 export AWSPROFILE=cjk1
+
 export SPOTBKTWEST=cjktestbkt
 export SPOTBKTEAST=cjktestbkteast
+
+#if you haven't done so already, make the buckets
+aws --profile cjk1 s3 mb s3://${SPOTBKTWEST}
+aws --profile cjk1 s3 mb s3://${SPOTBKTEAST}
+#1 per job type for imageProc app
+aws --profile cjk1 s3 mb s3://image-proc-c
+aws --profile cjk1 s3 mb s3://image-proc-t
+aws --profile cjk1 s3 mb s3://image-proc-s
+aws --profile cjk1 s3 mb s3://image-proc-d
+aws --profile cjk1 s3 mb s3://image-proc-f
+#1 per job type for map reduce app (mine use old names: ns=C and gr=D now, empty=S)
+aws --profile cjk1 s3 mb s3://spot-mr-bkt
+aws --profile cjk1 s3 mb s3://spot-mr-bkt-f
+aws --profile cjk1 s3 mb s3://spot-mr-bkt-gr
+aws --profile cjk1 s3 mb s3://spot-mr-bkt-ns
+aws --profile cjk1 s3 mb s3://spot-mr-bkt-d
 
 cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
 deactivate
@@ -24,6 +41,11 @@ patch -b < ../../../../../xray.patch
 cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
 
 #if you want to clean everything out of AWS and start fresh see/run CLEANUP below
+cd ${PREFIX}/tools/timings
+#modify restConfigsWest.json and restConfigsEast.json to add the names of the other lambdas you want to delete
+#note that this deletes everything!  any names that aren't found are just skipped (missing lambda names are not a problem
+./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE}
+#check the AWS Lambda management console and add any names to the rest*.json files and rerun until you get them all
 
 #generate the config files for the lambdas for all cases (CASES list is below)
 cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
@@ -32,6 +54,7 @@ mkdir -p configs
 #edit makeConfigs to update triggerBuckets and triggerTables datastructures to have your bucket names
 #triggerBuckets for reducerCoordinator must match those in overhead??.sh files and runs below
 python makeConfigs.py configs --swbkt ${SPOTBKTWEST} --swbkteast ${SPOTBKTEAST}
+
 
 #nothing / clean (C)
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --deleteAll
@@ -45,26 +68,26 @@ python setupApps.py -f configs/configEastT.json -p ${AWSPROFILE} --no_spotwrap -
 python setupApps.py -f configs/configF.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configF.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing --with_fleece
 python setupApps.py -f configs/configEastF.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing --with_fleece
-#original spotwrap (S)
+#original spotwrap (static insertion of wrapper) (S)
 python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion us-west-2
 python setupApps.py -f configs/configEastS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion us-west-2
-#fleece only (tracing+daemon) (G)
-python setupApps.py -f configs/configG.json -p ${AWSPROFILE} --deleteAll
-python setupApps.py -f configs/configG.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion us-west-2 --gammaRay
-python setupApps.py -f configs/configEastG.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion us-west-2 --gammaRay
+#gammaray (dynamic insertion of wrapper) (D)
+python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --deleteAll
+python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion us-west-2 --gammaRay
+python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion us-west-2 --gammaRay
 
 cd ../tools/timings
 #clean out the databases gammaRays and spotFns, as well as the logs
 ./cleanupAWS.sh
 
 #only if you want to, blow away the timings directories from past runs, update END to the last directory ID
-END=1
+export END=11
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/map-reduce/${i}; done
 
 #run synchronized map reduce job overhead measurement (second param is count)
-COUNT=1
+export COUNT=1
 nohup ./overheadC.sh ${AWSPROFILE} ${COUNT} &
 nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} &
 nohup ./overheadF.sh ${AWSPROFILE} ${COUNT} &
@@ -90,4 +113,4 @@ C - nothing/clean
 T - tracing
 F - tracing + fleece daemon
 S - static spotwrap (original)
-G - dynamic spotwrap (gammaray)
+D - dynamic spotwrap (gammaray)

@@ -87,15 +87,16 @@ if __name__ == "__main__":
                 ]
                 if key == 'driver' or key == 'reducerCoordinator':
                     files_and_dirs.append("apps/map-reduce/lambdautils.py")
-                if suffix == 'F' or suffix == 'G':
-                    files_and_dirs.append("apps/venv/lib/python3.6/site-packages/fleece")
-                    files_and_dirs.append("apps/venv/lib/python3.6/site-packages/requests")
-                    files_and_dirs.append("apps/venv/lib/python3.6/site-packages/urllib3")
-                    files_and_dirs.append("apps/venv/lib/python3.6/site-packages/chardet")
-                    files_and_dirs.append("apps/venv/lib/python3.6/site-packages/certifi")
-                    files_and_dirs.append("apps/venv/lib/python3.6/site-packages/idna")
-                    files_and_dirs.append("apps/venv/lib/python3.6/site-packages/structlog")
-                    files_and_dirs.append("apps/venv/lib/python3.6/site-packages/wrapt")
+                #looking for venv in the local dir so run this from the gammaRay dir
+                if suffix == 'F' or suffix == 'D':
+                    files_and_dirs.append("venv/lib/python3.6/site-packages/fleece")
+                    files_and_dirs.append("venv/lib/python3.6/site-packages/requests")
+                    files_and_dirs.append("venv/lib/python3.6/site-packages/urllib3")
+                    files_and_dirs.append("venv/lib/python3.6/site-packages/chardet")
+                    files_and_dirs.append("venv/lib/python3.6/site-packages/certifi")
+                    files_and_dirs.append("venv/lib/python3.6/site-packages/idna")
+                    files_and_dirs.append("venv/lib/python3.6/site-packages/structlog")
+                    files_and_dirs.append("venv/lib/python3.6/site-packages/wrapt")
                 
                 mem = 128
                 if 'mapper' in key or 'reducer' in key:
