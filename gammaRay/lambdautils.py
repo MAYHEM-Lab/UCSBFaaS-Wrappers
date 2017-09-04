@@ -35,7 +35,8 @@ class LambdaManager(object):
 
     def create_lambda_function(self):
         runtime = 'python3.6'
-        response = self.awslambda.create_function(
+        try:
+            response = self.awslambda.create_function(
                       FunctionName = self.function_name, 
                       Code = { 
                         "ZipFile": open(self.codefile, 'rb').read()
@@ -48,6 +49,14 @@ class LambdaManager(object):
                       Timeout =  self.timeout,
                       TracingConfig =  {'Mode':'Active'} if self.tracing else {'Mode':'PassThrough'}
                     )
+        except botocore.exceptions.ClientError as e:
+            error_code = e.response['Error']['Code']
+            if 'ValidationException' in error_code:
+                print('ValidationException in create lambda function')
+                print('\nPlease set/fix the AWSRole environment variable and retry.\nThe format of the role is export AWSRole=arn:aws:iam::${ACCT}:role/${ROLENAME}')
+                sys.exit(1)
+            raise e #let caller handle this as it is likely a Function Exists error (it will instead do an update)
+
         self.function_arn = response['FunctionArn']
         print(response)
 

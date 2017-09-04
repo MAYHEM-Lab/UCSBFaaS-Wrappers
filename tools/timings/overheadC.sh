@@ -4,7 +4,7 @@ if [ -z ${1+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_buck
 if [ -z ${2+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_bucket_name'; exit 1; fi
 if [ -z ${3+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_bucket_name'; exit 1; fi
 #DATABKT=big-data-benchmark
-DATABKT=${3}
+DATABKT=$3
 PROF=$1
 COUNT=$2
 MRBKT=spot-mr-bkt-ns #must match reducerCoordinator "permission" in config in setupApps.py
@@ -46,7 +46,7 @@ do
     cd ${MRDIR}
     rm -f overhead.out
     #run the driver
-    /usr/bin/time python driver.py ${MRBKT} ${JOBID} ${MAP_NAME} ${RED_NAME} --wait4reducers --databkt ${DATABKT} >> overhead.out
+    /usr/bin/time python driver.py ${MRBKT} ${JOBID} ${MAP_NAME} ${RED_NAME} --wait4reducers --databkt ${DATABKT} > overhead.out
     mkdir -p ${i}/C
     rm -f ${i}/C/overhead.out
     mv overhead.out ${i}/C/

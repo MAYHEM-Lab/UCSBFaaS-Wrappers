@@ -1,6 +1,8 @@
 #! /bin/bash
 if [ -z ${1+x} ]; then echo 'Unset AWS profile name. Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${2+x} ]; then echo 'Unset number of runs (second arg). Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
+COUNT=$2
 TS=1401861965497 #some early date
 PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 GAMDIR=${PREFIX}/gammaRay
@@ -15,7 +17,7 @@ python downloadLogs.py "/aws/lambda/ImageProcPyD" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/ImageProcPyT" ${TS} -p ${PROF} --deleteOnly
 python downloadLogs.py "/aws/lambda/ImageProcPyF" ${TS} -p ${PROF} --deleteOnly
 
-for i in `seq 1 100`;
+for i in `seq 1 ${COUNT}`;
 do
 #run via (changing the function name as appropriate)
 aws lambda invoke --invocation-type Event --function-name ImageProcPyC --region us-west-2 --profile cjk1 --payload '{"eventSource":"ext:invokeCLI","name":"cjktestbkt","key":"imgProc/d1.jpg"}' outputfile
