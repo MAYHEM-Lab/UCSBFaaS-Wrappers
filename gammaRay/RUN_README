@@ -83,10 +83,13 @@ chmod +x prepare.sh
 
 #if you want to clean everything out of AWS and start fresh see/run CLEANUP below
 cd ${PREFIX}/tools/timings
+
+#delete all of the lambdas by name, in AWS
 #modify restConfigsWest.json and restConfigsEast.json to add the names of the other lambdas you want to delete
-#note that this deletes everything!  any names that aren't found are just skipped (missing lambda names are not a problem
+#note that this deletes everything!  any names that aren't found are just skipped (missing lambda names are not a problem)
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE}
-#check the AWS Lambda management console and add any names to the rest*.json files and rerun until you get them all
+#check the AWS Lambda management console 
+#edit restConfigs[West,East].json to add others
 
 #generate the config files for the lambdas for all cases (CASES list is below)
 cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
@@ -96,23 +99,24 @@ mkdir -p configs
 #triggerBuckets for reducerCoordinator must match those in overhead??.sh files and runs below
 python makeConfigs.py configs --swbkt ${SPOTBKTWEST} --swbkteast ${SPOTBKTEAST}
 
-#nothing / clean (C)
+#three each: make, West, East for
+###nothing / clean (C)
+###fleece only (tracing) (T)
+###fleece only (tracing+daemon) (F)
+###original spotwrap (static insertion of wrapper) (S)
+###gammaray (dynamic insertion of wrapper) (D)
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --no_spotwrap 
 python setupApps.py -f configs/configEastC.json -p ${AWSPROFILE} --no_spotwrap 
-#fleece only (tracing) (T)
 python setupApps.py -f configs/configT.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configT.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing
 python setupApps.py -f configs/configEastT.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing
-#fleece only (tracing+daemon) (F)
 python setupApps.py -f configs/configF.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configF.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing --with_fleece
 python setupApps.py -f configs/configEastF.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing --with_fleece
-#original spotwrap (static insertion of wrapper) (S)
 python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion us-west-2
 python setupApps.py -f configs/configEastS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion us-west-2
-#gammaray (dynamic insertion of wrapper) (D)
 python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion us-west-2 --gammaRay
 python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion us-west-2 --gammaRay
@@ -120,11 +124,15 @@ python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --no_spotwrap -
 cd ../tools/timings
 #clean out the databases gammaRays and spotFns, as well as the logs
 ./cleanupAWS.sh ${AWSPROFILE}
+#run cleanupDB.sh repeatedly until it says that item counts are 0!
+./cleanupDB.sh ${AWSPROFILE}
 
 #only if you want to, blow away the timings directories from past runs, update END to the last directory ID
-export END=11
+export END=100
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/map-reduce/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/cloudwatch/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/cloudwatch/logs/; done
 
 #run synchronized map reduce job overhead measurement (second param is count)
 export COUNT=1
@@ -145,14 +153,14 @@ cd ${PREFIX}/tools/timings
 
 
 #######  CLEANUP ############
-#delete everything in AWS, and I mean everything! run cleanupAWS multiple times to get all database entries
+#delete everything in AWS, and I mean everything! 
 cd ${PREFIX}/tools/timings
 #add any other lambdas you want to delete to restConfigsWest.json and restConfigsEast.json
 #depending on where your lambdas are
 ./cleanupAWS.sh ${AWSPROFILE}
-./cleanupAWS.sh ${AWSPROFILE}
-./cleanupAWS.sh ${AWSPROFILE}
-./cleanupAWS.sh ${AWSPROFILE}
+#run cleanupDB.sh repeatedly until it says that item counts are 0!
+./cleanupDB.sh ${AWSPROFILE}
+#delete all of the lambdas by name, in AWS (edit restConfigs[West,East].json to add others)
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE}
 ======================
 CASES:
