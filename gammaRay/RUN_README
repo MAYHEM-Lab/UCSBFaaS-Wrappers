@@ -7,6 +7,7 @@ export ACCT=443592014519
 export ROLE=adminlambda
 export AWSRole=arn:aws:iam::${ACCT}:role/${ROLE}
 export AWSPROFILE=cjk1
+export REG=us-west-2
 
 export SPOTBKTWEST=cjktestbkt
 export SPOTBKTEAST=cjktestbkteast
@@ -27,12 +28,14 @@ aws --profile cjk1 s3 mb s3://${SPOTBKTEAST}
 aws --profile cjk1 s3 mb s3://${APIOUTBKT}
 aws --profile cjk1 s3 mb s3://${APITESTBKT}
 # make tables if you have not already in DynamoDB
-aws --profile cjk1 dynamodb create-table --region us-west-2 --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-aws --profile cjk1 dynamodb create-table --region us-west-2 --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
-aws --profile cjk1 dynamodb create-table --region us-west-2 --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
+aws --profile cjk1 dynamodb create-table --region ${REG} --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+aws --profile cjk1 dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
+aws --profile cjk1 dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
 
 #go and add a stream to both your GAMMATABLE and SPOTTABLE so that we can download the data in order
-#keep old and new data in the stream
+#keep old and new data in the stream; note the date/time component (after .../stream/) and store in these vars for use later:
+SPOT_STREAMID=2017-09-03T22:09:22.445
+GR_STREAMID=2017-09-01T21:10:57.071
 
 #1 per job type for imageProc app
 aws --profile cjk1 s3 mb s3://image-proc-c
@@ -115,11 +118,11 @@ python setupApps.py -f configs/configF.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configF.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing --with_fleece
 python setupApps.py -f configs/configEastF.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing --with_fleece
 python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --deleteAll
-python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion us-west-2
-python setupApps.py -f configs/configEastS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion us-west-2
+python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion ${REG}
+python setupApps.py -f configs/configEastS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion ${REG}
 python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --deleteAll
-python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion us-west-2 --gammaRay
-python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion us-west-2 --gammaRay
+python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay
+python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay
 
 cd ../tools/timings
 #clean out the databases gammaRays and spotFns, as well as the logs
@@ -135,23 +138,58 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/dynamodb/${i
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/cloudwatch/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/cloudwatch/logs/; done
 
+#download the streams, you will use these to diff out the old stuff when you get new stuff
+#update these commands with your stream name
+python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.base
+python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
+
 #run synchronized map reduce job overhead measurement (second param is count)
-export COUNT=1
+export COUNT=50
 nohup ./overheadC.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+#wait between each at least 12 mins to ensure completion to avoid contention
 nohup ./overheadF.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+#wait between each at least 12 mins to ensure completion to avoid contention
 nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+#wait between each at least 12 mins to ensure completion to avoid contention
 nohup ./overheadS.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+#wait between each at least 12 mins to ensure completion to avoid contention
 nohup ./overheadD.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 
 #run microbenchmarks (default is 100 times) in gammaRay/apis/ directory
 #modify each of the files replace the bucket with $APITESTBKT and the tablenames with $APITESTTABLE
 cd ${PREFIX}/tools/timings
 #todo: setup triggers
+
+#imageProc app, diff out the differences between the streams and the base and store them in base for next program
 ./ohead_imgProc.sh ${AWSPROFILE}
+python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
+diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > imageProcS.stream
+cat imageProcS.stream >> streamS.base
+python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
+diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > imageProcD.stream
+cat imageProcD.stream >> streamD.base
+
+#microbenchmarks, no streams needed for micro benchmarks
 ./micro.sh ${AWSPROFILE}
-#mr and web app
+
+#map-reduce 
 ./mr.sh ${AWSPROFILE} ${ACCT} {COUNT}
 
+#webapp
+./webapp.sh ${AWSPROFILE} ${ACCT} {COUNT}
+
+#dbsync, capture streams for this one
+./dbsync.sh ${AWSPROFILE} ${ACCT} {COUNT}
+python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
+diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > dbsyncS.stream
+cat dbsyncS.stream >> streamS.base
+python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
+diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > dbsyncD.stream
+cat dbsyncD.stream >> streamD.base
+
+#process streams to generate pdfs for S (D is the same)
+python ../ddb_parser.py dbsyncS.stream
+python ../ddb_parser.py imageProcS.stream
 
 #######  CLEANUP ############
 #delete everything in AWS, and I mean everything! 
@@ -159,10 +197,23 @@ cd ${PREFIX}/tools/timings
 #add any other lambdas you want to delete to restConfigsWest.json and restConfigsEast.json
 #depending on where your lambdas are
 ./cleanupAWS.sh ${AWSPROFILE}
-#run cleanupDB.sh repeatedly until it says that item counts are 0!
+#run cleanupDB.sh repeatedly until it says that the table is empty! this can take awhile
 ./cleanupDB.sh ${AWSPROFILE}
 #delete all of the lambdas by name, in AWS (edit restConfigs[West,East].json to add others)
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE}
+#you now need to go and run makeConfigs.sh and all of the setupApps.py above
+export END=100
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/map-reduce/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/dynamodb/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/cloudwatch/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/cloudwatch/logs/; done
+
+#download the streams, you will use these to diff out the old stuff when you get new stuff
+#update these commands with your stream name
+python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.base
+python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
+#now you can start fresh
 ======================
 CASES:
 C - nothing/clean
