@@ -1,7 +1,4 @@
 #! /bin/bash
-if [ -z ${1+x} ]; then echo 'USAGE: ./runall.sh aws_profile num_runs'; exit 1; fi
-if [ -z ${2+x} ]; then echo 'USAGE: ./runall.sh aws_profile num_runs'; exit 1; fi
-
 #this assume that everything has been cleaned out but that the apps have been deployed to lambda
 export PREFIX=/Users/ckrintz/RESEARCH/lambda/
 export ACCT=443592014519
@@ -19,11 +16,19 @@ export SPOTTABLE=spotFns
 export GAMMATABLE=gammaRays
 
 export COUNT=50
-
-cd ${PREFIX}/tools/timings
+cd ${PREFIX}/tools
 nohup ./overheadC.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+
 nohup ./overheadF.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+
 nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+
 nohup ./overheadS.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+python ../get_stream_data.py arn:aws:dynamodb:us-west-2:443592014519:table/spotFns/stream/2017-09-03T22:09:22.445 -p ${AWSPROFILE} >& streamMRS.out
+
 nohup ./overheadD.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+python ../get_stream_data.py arn:aws:dynamodb:us-west-2:443592014519:table/gammaRays/stream/2017-09-01T21:10:57.071 -p ${AWSPROFILE} >&  streamMRD.out
+
 ./micro.sh ${AWSPROFILE} 100
+python ../get_stream_data.py arn:aws:dynamodb:us-west-2:443592014519:table/spotFns/stream/2017-09-03T22:09:22.445 -p ${AWSPROFILE} >& streamMicroS.out
+python ../get_stream_data.py arn:aws:dynamodb:us-west-2:443592014519:table/gammaRays/stream/2017-09-01T21:10:57.071 -p ${AWSPROFILE} >&  streamMicroD.out

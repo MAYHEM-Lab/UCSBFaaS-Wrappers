@@ -5,6 +5,7 @@ MRBKT=spot-mr-bkt #must match reducerCoordinator "permission" in setupconfig.jso
 MRBKTNS=spot-mr-bkt-ns #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
 MRBKTGR=spot-mr-bkt-gr #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
 MRBKTF=spot-mr-bkt-f #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
+MRBKTT=spot-mr-bkt-t #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
 PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 GRDIR=${PREFIX}/gammaRay
 LAMDIR=${PREFIX}/lambda-python
@@ -22,6 +23,7 @@ aws s3 rm s3://${MRBKT}/ --recursive --profile ${PROF}
 aws s3 rm s3://${MRBKTNS}/ --recursive --profile ${PROF}
 aws s3 rm s3://${MRBKTGR}/ --recursive --profile ${PROF}
 aws s3 rm s3://${MRBKTF}/ --recursive --profile ${PROF}
+aws s3 rm s3://${MRBKTT}/ --recursive --profile ${PROF}
 
 #delete dynamodb entries in table ${SPOTTABLE}
 cd ${GRDIR}
