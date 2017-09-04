@@ -10,8 +10,27 @@ if __name__ == "__main__":
     parser.add_argument('configDir',action='store',default='configs',help='directory into which the config files will go')
     parser.add_argument('--swbkt',action='store',default='cjktestbkt',help='bucket for spotwrap libs')
     parser.add_argument('--swbkteast',action='store',default='cjktestbkteast',help='bucket for spotwrap libs')
+    parser.add_argument('botocore_dir',action='store',help='full path to patched botocore directory')
+    parser.add_argument('fleece_dir',action='store',help='full path to patched fleece directory')
+    parser.add_argument('other_libs_dir',action='store',help='full path to directory with other libraries in it')
     args = parser.parse_args()
     
+    fleece_dir = args.fleece_dir
+    botocore_dir = args.botocore_dir
+    other_libs_dir = args.other_libs_dir
+    if not os.path.isdir(args.configDir):
+        print('Error, filename passed in for configs must be an existing directory (make sure its empty)')
+        sys.exit(1)
+    if not os.path.isdir(fleece_dir) or not fleece_dir.endswith('fleece'):
+        print('Error, filename passed in for fleece must be an existing directory (...site-packages/fleece): {}'.format(fleece_dir))
+        sys.exit(1)
+    if not os.path.isdir(botocore_dir) or not botocore_dir.endswith('botocore'):
+        print('Error, filename passed in for botocore must be an existing directory (...site-packages/botocore): {}'.format(botocore_dir))
+        sys.exit(1)
+    if not os.path.isdir(other_libs_dir) or not other_libs_dir.endswith('site-packages'):
+        print('Error, filename passed in for botocore must be an existing directory (...site-packages): {}'.format(other_libs_dir))
+        sys.exit(1)
+
     suffixes = [
         'C', #clean/nothing default Lambda
         'T', #tracing turned on
@@ -58,9 +77,6 @@ if __name__ == "__main__":
         ('DBSyncPy','imageLabels'),
         ('UpdateWebsite','eastSyncTable'),
     }
-    if not os.path.isdir(args.configDir):
-        print('Error, filename passed in must be an existing directory (make sure its empty)')
-        sys.exit(1)
 
     #now create a config for all of the lambda's in the west region
     regs = [('us-west-2','',args.swbkt),('us-east-1','East',args.swbkteast)]
@@ -91,24 +107,29 @@ if __name__ == "__main__":
                 files_and_dirs = [
                     '{}'.format(entry)
                 ]
+
+
+                #append other libs and python files here via files_and_dirs.append
+                #adding them to the local/gammaray virtualenv (other_libs_dir) is easiest 
                 if key == 'driver' or key == 'reducerCoordinator':
                     files_and_dirs.append("apps/map-reduce/lambdautils.py")
+
                 if key == 'FnInvokerPy' or key == 'UpdateWebsite' or key == 'DBModPy' or key == 'DBSyncPy':
-                    files_and_dirs.append("venv/lib/python3.6/site-packages/requests")
-                    files_and_dirs.append("venv/lib/python3.6/site-packages/urllib3")
-                    files_and_dirs.append("venv/lib/python3.6/site-packages/chardet")
-                    files_and_dirs.append("venv/lib/python3.6/site-packages/certifi")
-                    files_and_dirs.append("venv/lib/python3.6/site-packages/idna")
-                #looking for venv in the local dir so run this from the gammaRay dir
+                    #requests is a fleece dependency
+                    files_and_dirs.append("{}/requests".format(other_libs_dir))
+                    files_and_dirs.append("{}/urllib3".format(other_libs_dir))
+                    files_and_dirs.append("{}/chardet".format(other_libs_dir))
+                    files_and_dirs.append("{}/certifi".format(other_libs_dir))
+                    files_and_dirs.append("{}/idna".format(other_libs_dir))
                 if suffix == 'F' or suffix == 'D':
-                    files_and_dirs.append("venv/lib/python3.6/site-packages/fleece")
-                    files_and_dirs.append("venv/lib/python3.6/site-packages/requests")
-                    files_and_dirs.append("venv/lib/python3.6/site-packages/urllib3")
-                    files_and_dirs.append("venv/lib/python3.6/site-packages/chardet")
-                    files_and_dirs.append("venv/lib/python3.6/site-packages/certifi")
-                    files_and_dirs.append("venv/lib/python3.6/site-packages/idna")
-                    files_and_dirs.append("venv/lib/python3.6/site-packages/structlog")
-                    files_and_dirs.append("venv/lib/python3.6/site-packages/wrapt")
+                    files_and_dirs.append(fleece_dir)
+                    files_and_dirs.append("{}/requests".format(other_libs_dir))
+                    files_and_dirs.append("{}/urllib3".format(other_libs_dir))
+                    files_and_dirs.append("{}/chardet".format(other_libs_dir))
+                    files_and_dirs.append("{}/certifi".format(other_libs_dir))
+                    files_and_dirs.append("{}/idna".format(other_libs_dir))
+                    files_and_dirs.append("{}/structlog".format(other_libs_dir))
+                    files_and_dirs.append("{}/wrapt".format(other_libs_dir))
                 
                 mem = 128
                 if 'mapper' in key or 'reducer' in key:
@@ -120,7 +141,7 @@ if __name__ == "__main__":
                     "handler": "{}.handler".format(pyfile),
                     "zip": "package.zip",
                     "files_and_dirs": files_and_dirs,
-                    "patched_botocore_dir": "../boto144/venv/lib/python3.6/site-packages/botocore",
+                    "patched_botocore_dir": botocore_dir,
                     "s3bucket": swbkt
                 }
                 for needsBucket in triggerBuckets:

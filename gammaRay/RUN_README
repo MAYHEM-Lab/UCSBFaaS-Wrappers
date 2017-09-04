@@ -1,5 +1,5 @@
 git pull
-export PREFIX=/Users/ckrintz/RESEARCH/lambda/
+export PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 
 #update the following with your aws account details
 #role with admin rights
@@ -8,6 +8,12 @@ export ROLE=adminlambda
 export AWSRole=arn:aws:iam::${ACCT}:role/${ROLE}
 export AWSPROFILE=cjk1
 export REG=us-west-2
+export FLEECEDIR=${PREFIX}/fleece0.13.0
+export FLEECE=${FLEECEDIR}/venv/lib/python3.6/site-packages/fleece
+export BOTOCOREDIR=${PREFIX}/boto144
+export BOTOCORE=${BOTOCOREDIR}/venv/lib/python3.6/site-packages/botocore
+export LOCALLIBDIR=${PREFIX}/gammaRay
+export LOCALLIBS=${LOCALLIBDIR}/venv/lib/python3.6/site-packages
 
 export SPOTBKTWEST=cjktestbkt
 export SPOTBKTEAST=cjktestbkteast
@@ -49,28 +55,27 @@ aws --profile ${AWSPROFILE} s3 mb s3://spot-mr-bkt-ns
 aws --profile ${AWSPROFILE} s3 mb s3://spot-mr-bkt-d
 
 deactivate
-cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay
-#this dir is hardcoded in makeConfigs.py, so change it there if you move it
-cd ..
-mkdir boto144 
-cd boto144
+#$BOTOCORE is passed as first argument to makeConfigs.py
+mkdir -p ${BOTOCOREDIR}
+cd ${BOTOCOREDIR}
 virtualenv venv --python=python3
 pip install 'boto3==1.4.4' --force-reinstall
-cd venv/lib/python3.6/site-packages/botocore
-patch -b < cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/client144.patch
+cd ${BOTOCORE}
+patch -b < cd ${PREFIX}/gammaRay/client144.patch
 deactivate
 
-cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
-mkdir fleece0.13.0 
-cd fleece0.13.0
+#$FLEECE is passed as second argument to makeConfigs.py
+mkdir -p ${FLEECEDIR}
+cd ${FLEECEDIR}
 virtualenv venv --python=python3
 source venv/bin/activate
 pip install 'fleece==0.13.0' --force-reinstall
-cd venv/lib/python3.6/site-packages/fleece
-patch -b < ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/xray.patch
+cd ${FLEECE}
+patch -b < ${PREFIX}/gammaRay/xray.patch
 deactivate
 
-cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
+#$LOCALLIBS is passed as third argument to makeConfigs.py
+cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 virtualenv venv --python=python3
 #setup a venv for local testing
 source venv/bin/activate
@@ -78,14 +83,17 @@ pip install 'fleece==0.13.0' --force-reinstall
 pip install 'boto3==1.4.4' --force-reinstall
 
 #setup the microbenchmarks
-cd ${PREFIX}/UCSBFaaS-Wrappers/lambda-python/micro-benchmarks
+cd ${PREFIX}/gammaRay/micro-benchmarks
 #do this once (modify the file to set S3BKT=$APITESTBKT and DYNAMODB=$APITESTTABLE)
 chmod +x prepare.sh
-#modify this file to go from 1 to 1000 instead of 1 to 100
 ./prepare.sh
 
-#if you want to clean everything out of AWS and start fresh see/run CLEANUP below
 cd ${PREFIX}/tools/timings
+#clean up all logs and spotFns and gammaRays database tables, if any
+./cleanupAWS.sh ${AWSPROFILE}
+#this is just the DB cleanup part in the above script (to speed things up), 
+#run it repeatedly until it says 'Table 'tableName' is empty.'
+./cleanupDB.sh ${AWSPROFILE}
 
 #delete all of the lambdas by name, in AWS
 #modify restConfigsWest.json and restConfigsEast.json to add the names of the other lambdas you want to delete
@@ -95,12 +103,12 @@ cd ${PREFIX}/tools/timings
 #edit restConfigs[West,East].json to add others
 
 #generate the config files for the lambdas for all cases (CASES list is below)
-cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
+cd ${PREFIX}/gammaRay
 rm -rf configs
 mkdir -p configs
 #edit makeConfigs to update triggerBuckets and triggerTables datastructures to have your bucket names
 #triggerBuckets for reducerCoordinator must match those in overhead??.sh files and runs below
-python makeConfigs.py configs --swbkt ${SPOTBKTWEST} --swbkteast ${SPOTBKTEAST}
+python makeConfigs.py configs ${BOTOCORE} ${FLEECE} ${LOCALLIBS} --swbkt ${SPOTBKTWEST} --swbkteast ${SPOTBKTEAST}
 
 #three each: make, West, East for
 ###nothing / clean (C)
@@ -124,19 +132,13 @@ python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay
 python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay
 
-cd ../tools/timings
-#clean out the databases gammaRays and spotFns, as well as the logs
-./cleanupAWS.sh ${AWSPROFILE}
-#run cleanupDB.sh repeatedly until it says 'Table 'tableName' is empty.'
-./cleanupDB.sh ${AWSPROFILE}
-
-#only if you want to, blow away the timings directories from past runs, update END to the last directory ID
+#only if you want to: blow away the timings directories from past runs, update END to the last directory ID
 export END=100
-for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/${i}; done
-for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/map-reduce/${i}; done
-for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/dynamodb/${i}; done
-for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/cloudwatch/${i}; done
-for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/cloudwatch/logs/; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/gammaRay/apps/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/gammaRay/apps/map-reduce/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/dynamodb/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/logs/; done
 
 #download the streams, you will use these to diff out the old stuff when you get new stuff
 #update these commands with your stream name
@@ -205,11 +207,11 @@ cd ${PREFIX}/tools/timings
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE}
 #you now need to go and run makeConfigs.sh and all of the setupApps.py above
 export END=100
-for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/${i}; done
-for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/map-reduce/${i}; done
-for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/dynamodb/${i}; done
-for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/cloudwatch/${i}; done
-for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/tools/cloudwatch/logs/; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/gammaRay/apps/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/gammaRay/apps/map-reduce/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/dynamodb/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/${i}; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/logs/; done
 
 #download the streams, you will use these to diff out the old stuff when you get new stuff
 #update these commands with your stream name
