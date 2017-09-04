@@ -131,14 +131,17 @@ export COUNT=1
 nohup ./overheadC.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 nohup ./overheadF.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
-
 nohup ./overheadS.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 nohup ./overheadD.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 
 #run microbenchmarks (default is 100 times) in gammaRay/apis/ directory
 #modify each of the files replace the bucket with $APITESTBKT and the tablenames with $APITESTTABLE
 cd ${PREFIX}/tools/timings
+#todo: setup triggers
+./ohead_imgProc.sh ${AWSPROFILE}
 ./micro.sh ${AWSPROFILE}
+#mr and web app
+./mr.sh ${AWSPROFILE} ${ACCT} {COUNT}
 
 
 #######  CLEANUP ############
