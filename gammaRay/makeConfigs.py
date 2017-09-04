@@ -31,6 +31,12 @@ if __name__ == "__main__":
         'driver':'apps/map-reduce/driver.py',
         'reducerCoordinator':'apps/map-reduce/reducerCoordinator.py',
         'UpdateWebsite':'apps/FnInvoker.py',
+        'dbread':'apis/dbread.py',
+        'dbwrite':'apis/dbwrite.py',
+        'empty':'apis/empty.py',
+        'pubsns':'apis/pubsns.py',
+        's3read':'apis/s3read.py',
+        's3write':'apis/s3write.py',
     }
     #specify the bucket and prefix (folder) in bucket to use to trigger function lambda_name
     #bucket names must be unique and identifiable (for run type: C,T,F,S,D)

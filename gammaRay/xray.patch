@@ -1,5 +1,5 @@
 --- xray.py	2017-09-03 11:24:20.000000000 -0700
-+++ xray.py.new	2017-09-03 14:24:56.000000000 -0700
++++ xray.py.new	2017-09-03 18:17:58.000000000 -0700
 @@ -25,6 +25,11 @@
  
  from fleece import log
@@ -12,7 +12,7 @@
  LOGGER = log.get_logger('fleece.xray')
  
  XRAY_DAEMON_HEADER = {'format': 'json', 'version': 1}
-@@ -120,22 +125,49 @@
+@@ -120,22 +125,50 @@
  
  
  def send_segment_document_to_xray_daemon(segment_document):
@@ -47,6 +47,7 @@
 +    #GammaRay
 +    if 'spotReqID' in os.environ:
 +        if DDBTABLE is None:
++            tname = 'gammaRays'
 +            if 'gammaTable' in os.environ:
 +                tname = os.environ['gammaTable']
 +            if 'gammaRegion' in os.environ:
@@ -70,7 +71,7 @@
      send_data_on_udp(
          ip_address=xray_daemon.ip_address,
          port=xray_daemon.port,
-@@ -236,7 +268,18 @@
+@@ -236,7 +269,18 @@
          # Request not sampled by X-Ray, let's get to the call
          # immediately.
          LOGGER.debug('Request not sampled by X-Ray, skipping trace')
@@ -85,12 +86,12 @@
 +                    if 'TableName' in obj and obj['TableName'] == tname:
 +                        return wrapped(*args, **kwargs)
 +        else:
-+            print('Request not sampled by X-Ray, skipping trace')
++            #print('Request not sampled by X-Ray, skipping trace')
 +            return wrapped(*args, **kwargs)
  
      start_time = time.time()
      error = False
-@@ -363,6 +406,17 @@
+@@ -363,6 +407,17 @@
          return instance._service_model.metadata['endpointPrefix']
      return instance._service_model.metadata['serviceAbbreviation']
  
@@ -108,7 +109,7 @@
  
  def extract_aws_metadata(wrapped, instance, args, kwargs, return_value):
      """Provide AWS metadata for improved visualization.
-@@ -377,6 +431,7 @@
+@@ -377,6 +432,7 @@
          kwargs=kwargs,
          response=response,
      )
@@ -116,7 +117,7 @@
      if 'operation_name' in kwargs:
          operation_name = kwargs['operation_name']
      else:
-@@ -402,7 +457,23 @@
+@@ -402,7 +458,23 @@
          metadata['aws']['table_name'] = kwargs['TableName']
      if 'QueueUrl' in kwargs:
          metadata['aws']['queue_url'] = kwargs['QueueUrl']
