@@ -124,7 +124,7 @@ python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --no_spotwrap -
 cd ../tools/timings
 #clean out the databases gammaRays and spotFns, as well as the logs
 ./cleanupAWS.sh ${AWSPROFILE}
-#run cleanupDB.sh repeatedly until it says that item counts are 0!
+#run cleanupDB.sh repeatedly until it says 'Table 'tableName' is empty.'
 ./cleanupDB.sh ${AWSPROFILE}
 
 #only if you want to, blow away the timings directories from past runs, update END to the last directory ID
