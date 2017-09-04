@@ -13,49 +13,47 @@ export SPOTBKTWEST=cjktestbkt
 export SPOTBKTEAST=cjktestbkteast
 export BDBENCH=cjk-gammaray-bdbenchmark
 export APITESTBKT=cjk-apitest-bucket
-export APITESTTABLE=cjk-apitest-bucket
-export APIOUTBKT=cjk-spotwraptest0831
+export APITESTTABLE=noTriggerTestTable
 export SPOTTABLE=spotFns
 export GAMMATABLE=gammaRays
 
 #if you haven't done so already, clone the big-data-benchmark to the west 
-aws --profile cjk1 s3 mb s3://${BDBENCH}
-aws --profile cjk1 s3 sync s3://big-data-benchmark s3://${BDBENCH)
+aws --profile ${AWSPROFILE} s3 mb s3://${BDBENCH}
+aws --profile ${AWSPROFILE} s3 sync s3://big-data-benchmark s3://${BDBENCH)
 
 #if you haven't done so already, make the buckets and table
-aws --profile cjk1 s3 mb s3://${SPOTBKTWEST}
-aws --profile cjk1 s3 mb s3://${SPOTBKTEAST}
-aws --profile cjk1 s3 mb s3://${APIOUTBKT}
-aws --profile cjk1 s3 mb s3://${APITESTBKT}
+aws --profile ${AWSPROFILE} s3 mb s3://${SPOTBKTWEST}
+aws --profile ${AWSPROFILE} s3 mb s3://${SPOTBKTEAST}
+aws --profile ${AWSPROFILE} s3 mb s3://${APITESTBKT}
 # make tables if you have not already in DynamoDB
-aws --profile cjk1 dynamodb create-table --region ${REG} --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-aws --profile cjk1 dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
-aws --profile cjk1 dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
 
 #go and add a stream to both your GAMMATABLE and SPOTTABLE so that we can download the data in order
 #keep old and new data in the stream; note the date/time component (after .../stream/) and store in these vars for use later:
 SPOT_STREAMID=2017-09-03T22:09:22.445
-GR_STREAMID=2017-09-01T21:10:57.071
+GR_STREAMID=2017-09-04T21:33:11.568
 
 #1 per job type for imageProc app
-aws --profile cjk1 s3 mb s3://image-proc-c
-aws --profile cjk1 s3 mb s3://image-proc-t
-aws --profile cjk1 s3 mb s3://image-proc-s
-aws --profile cjk1 s3 mb s3://image-proc-d
-aws --profile cjk1 s3 mb s3://image-proc-f
+aws --profile ${AWSPROFILE} s3 mb s3://image-proc-c
+aws --profile ${AWSPROFILE} s3 mb s3://image-proc-t
+aws --profile ${AWSPROFILE} s3 mb s3://image-proc-s
+aws --profile ${AWSPROFILE} s3 mb s3://image-proc-d
+aws --profile ${AWSPROFILE} s3 mb s3://image-proc-f
 #1 per job type for map reduce app (mine use old names: ns=C and gr=D now, empty=S)
-aws --profile cjk1 s3 mb s3://spot-mr-bkt
-aws --profile cjk1 s3 mb s3://spot-mr-bkt-f
-aws --profile cjk1 s3 mb s3://spot-mr-bkt-gr
-aws --profile cjk1 s3 mb s3://spot-mr-bkt-ns
-aws --profile cjk1 s3 mb s3://spot-mr-bkt-d
+aws --profile ${AWSPROFILE} s3 mb s3://spot-mr-bkt
+aws --profile ${AWSPROFILE} s3 mb s3://spot-mr-bkt-f
+aws --profile ${AWSPROFILE} s3 mb s3://spot-mr-bkt-gr
+aws --profile ${AWSPROFILE} s3 mb s3://spot-mr-bkt-ns
+aws --profile ${AWSPROFILE} s3 mb s3://spot-mr-bkt-d
 
-cd ${PREFIX}/UCSBFaaS-Wrappers/
 deactivate
+cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay
 #this dir is hardcoded in makeConfigs.py, so change it there if you move it
+cd ..
 mkdir boto144 
 cd boto144
-rm -rf venv
 virtualenv venv --python=python3
 pip install 'boto3==1.4.4' --force-reinstall
 cd venv/lib/python3.6/site-packages/botocore
@@ -63,22 +61,24 @@ patch -b < cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/client144.patch
 deactivate
 
 cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
-deactivate
-rm -rf venv
+mkdir fleece0.13.0 
+cd fleece0.13.0
 virtualenv venv --python=python3
 source venv/bin/activate
-pip install fleece
+pip install 'fleece==0.13.0' --force-reinstall
 cd venv/lib/python3.6/site-packages/fleece
-patch -b < ../../../../../xray.patch
+patch -b < ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/xray.patch
+deactivate
 
-
-cd venv/lib/python3.6/site-packages/botocore
-patch -b < ../../../../../client.patch
 cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
-cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
+virtualenv venv --python=python3
+#setup a venv for local testing
+source venv/bin/activate
+pip install 'fleece==0.13.0' --force-reinstall
+pip install 'boto3==1.4.4' --force-reinstall
 
 #setup the microbenchmarks
-cd ${PREFIX}/UCSBFaaS-Wrappers/lambda-python/apis
+cd ${PREFIX}/UCSBFaaS-Wrappers/lambda-python/micro-benchmarks
 #do this once (modify the file to set S3BKT=$APITESTBKT and DYNAMODB=$APITESTTABLE)
 chmod +x prepare.sh
 #modify this file to go from 1 to 1000 instead of 1 to 100
@@ -155,7 +155,7 @@ nohup ./overheadS.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 #wait between each at least 12 mins to ensure completion to avoid contention
 nohup ./overheadD.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 
-#run microbenchmarks (default is 100 times) in gammaRay/apis/ directory
+#run microbenchmarks (default is 100 times) in gammaRay/micro-benchmarks/ directory
 #modify each of the files replace the bucket with $APITESTBKT and the tablenames with $APITESTTABLE
 cd ${PREFIX}/tools/timings
 #todo: setup triggers
@@ -196,10 +196,12 @@ python ../ddb_parser.py imageProcS.stream
 cd ${PREFIX}/tools/timings
 #add any other lambdas you want to delete to restConfigsWest.json and restConfigsEast.json
 #depending on where your lambdas are
-./cleanupAWS.sh ${AWSPROFILE}
-#run cleanupDB.sh repeatedly until it says that the table is empty! this can take awhile
-./cleanupDB.sh ${AWSPROFILE}
+./cleanupAWS.sh ${AWSPROFILE}    #you may have to temporarily increased provisioned writes if this hangs or takes a long time until you get to empty!
+
+#you can/should run cleanupDB.sh repeatedly until it says that the table is empty! this can take awhile
+./cleanupDB.sh ${AWSPROFILE}    #you may have to temporarily increased provisioned writes if this hangs or takes a long time until you get to empty!
 #delete all of the lambdas by name, in AWS (edit restConfigs[West,East].json to add others)
+
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE}
 #you now need to go and run makeConfigs.sh and all of the setupApps.py above
 export END=100
