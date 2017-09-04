@@ -74,6 +74,13 @@ patch -b < ../../../../../client.patch
 cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
 cd ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/
 
+#setup the microbenchmarks
+cd ${PREFIX}/UCSBFaaS-Wrappers/lambda-python/apis
+#do this once (modify the file to set S3BKT=$APITESTBKT and DYNAMODB=$APITESTTABLE)
+chmod +x prepare.sh
+#modify this file to go from 1 to 1000 instead of 1 to 100
+./prepare.sh
+
 #if you want to clean everything out of AWS and start fresh see/run CLEANUP below
 cd ${PREFIX}/tools/timings
 #modify restConfigsWest.json and restConfigsEast.json to add the names of the other lambdas you want to delete
@@ -112,7 +119,7 @@ python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --no_spotwrap -
 
 cd ../tools/timings
 #clean out the databases gammaRays and spotFns, as well as the logs
-./cleanupAWS.sh
+./cleanupAWS.sh ${AWSPROFILE}
 
 #only if you want to, blow away the timings directories from past runs, update END to the last directory ID
 export END=11
@@ -123,18 +130,15 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/UCSBFaaS-Wrappers/gammaRay/apps/map-
 export COUNT=1
 nohup ./overheadC.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 nohup ./overheadF.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
-
 nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+
 nohup ./overheadS.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 nohup ./overheadD.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
 
-#run microbenchmarks (default is 100 times)
-cd ${PREFIX}/UCSBFaaS-Wrappers/lambda-python/apis
-#do this once (modify the file to set S3BKT=$APITESTBKT and DYNAMODB=$APITESTTABLE)
-chmod +x prepare.sh
-./prepare.sh
-#run jobs
-
+#run microbenchmarks (default is 100 times) in gammaRay/apis/ directory
+#modify each of the files replace the bucket with $APITESTBKT and the tablenames with $APITESTTABLE
+cd ${PREFIX}/tools/timings
+./micro.sh ${AWSPROFILE}
 
 
 #######  CLEANUP ############
