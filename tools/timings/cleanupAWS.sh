@@ -118,27 +118,3 @@ python downloadLogs.py "/aws/lambda/UpdateWebsiteS" --region us-east-1 ${TS} -p 
 python downloadLogs.py "/aws/lambda/UpdateWebsiteD" --region us-east-1 ${TS} -p ${PROF} --deleteOnly
 deactivate
 
-
-#for use when/if you want to clean out your log and results files 
-#for i in `seq 1 10`;
-#do
-    #cleanup mapreduce job output
-    #cd ${MRDIR}
-    #rm -f ${i}/overhead.out
-    #rm -f ${i}/NS/overhead.out
-    #rm -f ${i}/GR/overhead.out
-    #rm -f ${i}/F/overhead.out
-
-    #cleanup mapreduce job output: cloudwatch downloads
-    #cd ${CWDIR}
-    #rm -f ${i}/*.log
-    #rm -f ${i}/NS/*.log
-    #rm -f ${i}/MR/*.log
-    #rm -f ${i}/GR/*.log
-    #rm -f ${i}/F/*.log
-    #rm -f ${i}/APP/*.log
-    #rm -f ${i}/APP/NS/*.log
-    ##cleanup mapreduce job output: dynamodb downloads
-    #cd ${DYNDBDIR}
-    #rm -rf ${i}/dump ${i}/NS/dump ${i}/MR/dump ${i}/F/dump ${i}/GR/dump
-#done
