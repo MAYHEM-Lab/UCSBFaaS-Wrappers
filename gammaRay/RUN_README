@@ -59,9 +59,11 @@ deactivate
 mkdir -p ${BOTOCOREDIR}
 cd ${BOTOCOREDIR}
 virtualenv venv --python=python3
+source venv/bin/activate
+pip install --upgrade pip setuptools wheel
 pip install 'boto3==1.4.4' --force-reinstall
 cd ${BOTOCORE}
-patch -b < cd ${PREFIX}/gammaRay/client144.patch
+patch -b < ${PREFIX}/gammaRay/client144.patch
 deactivate
 
 #$FLEECE is passed as second argument to makeConfigs.py
@@ -69,9 +71,10 @@ mkdir -p ${FLEECEDIR}
 cd ${FLEECEDIR}
 virtualenv venv --python=python3
 source venv/bin/activate
+pip install --upgrade pip setuptools wheel
 pip install 'fleece==0.13.0' --force-reinstall
 cd ${FLEECE}
-patch -b < ${PREFIX}/gammaRay/xray.patch
+patch -b < ${PREFIX}/gammaRay/xray0130.patch
 deactivate
 
 #$LOCALLIBS is passed as third argument to makeConfigs.py
@@ -79,12 +82,11 @@ cd ${LOCALLIBDIR}  #this should be gammaRays directory for most
 virtualenv venv --python=python3
 #setup a venv for local testing
 source venv/bin/activate
-pip install 'fleece==0.13.0' --force-reinstall
-pip install 'boto3==1.4.4' --force-reinstall
+pip install 'fleece==0.13.0' --force-reinstall #fleece installs boto3 the version will work fine for local testing
 
 #setup the microbenchmarks
 cd ${PREFIX}/gammaRay/micro-benchmarks
-#do this once (modify the file to set S3BKT=$APITESTBKT and DYNAMODB=$APITESTTABLE)
+#do this ONLY once to fill the table with data (modify the file to set S3BKT=$APITESTBKT and DYNAMODB=$APITESTTABLE)
 chmod +x prepare.sh
 ./prepare.sh
 
@@ -142,8 +144,9 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/logs/; done
 
 #download the streams, you will use these to diff out the old stuff when you get new stuff
 #update these commands with your stream name
-python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.base
-python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
+cd ${PREFIX}/tools
+python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.base
+python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
 
 #run synchronized map reduce job overhead measurement (second param is count)
 export COUNT=50
@@ -172,16 +175,16 @@ diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > imageProcD.stream
 cat imageProcD.stream >> streamD.base
 
 #microbenchmarks, no streams needed for micro benchmarks
-./micro.sh ${AWSPROFILE}
+./micro.sh ${AWSPROFILE} ${COUNT}
 
 #map-reduce 
-./mr.sh ${AWSPROFILE} ${ACCT} {COUNT}
+./mr.sh ${AWSPROFILE} ${ACCT} ${COUNT}
 
 #webapp
-./webapp.sh ${AWSPROFILE} ${ACCT} {COUNT}
+./webapp.sh ${AWSPROFILE} ${ACCT} ${COUNT}
 
 #dbsync, capture streams for this one
-./dbsync.sh ${AWSPROFILE} ${ACCT} {COUNT}
+./dbsync.sh ${AWSPROFILE} ${ACCT} ${COUNT}
 python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
 diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > dbsyncS.stream
 cat dbsyncS.stream >> streamS.base
