@@ -36,6 +36,12 @@ aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name $
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
 
+#make the subscriptions for sns topics to trigger S3ModPy (webapp)
+cd ${PREFIX}/tools
+./make_subs.sh ${AWSPROFILE} ${ACCT} ${REG} 
+#to delete them (if ever you need to, go to the SNS Management Console, click Subscriptions and Topics, select and use Action->Delete
+
+
 #go and add a stream to both your GAMMATABLE and SPOTTABLE so that we can download the data in order
 #keep old and new data in the stream; note the date/time component (after .../stream/) and store in these vars for use later:
 SPOT_STREAMID=2017-09-03T22:09:22.445
