@@ -1,12 +1,13 @@
 #! /bin/bash
-if [ -z ${1+x} ]; then echo 'Unset args. Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${1+x} ]; then echo 'Unset aws_profile (arg1). Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${2+x} ]; then echo 'Unset prefix as arg2 (full path to/including UCSBFaaS-Wrappers). Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
+PREFIX=$2
 MRBKT=spot-mr-bkt #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run without --no_spotwrap
 MRBKTNS=spot-mr-bkt-ns #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
 MRBKTGR=spot-mr-bkt-gr #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
 MRBKTF=spot-mr-bkt-f #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
 MRBKTT=spot-mr-bkt-t #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
-PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 GRDIR=${PREFIX}/gammaRay
 LAMDIR=${PREFIX}/lambda-python
 DYNDBDIR=${PREFIX}/tools/dynamodb

@@ -1,9 +1,10 @@
 #! /bin/bash
 if [ -z ${1+x} ]; then echo 'Unset AWS profile name. Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${2+x} ]; then echo 'Unset count (second var). Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${3+x} ]; then echo 'Unset prefix as arg3 (full path to/including UCSBFaaS-Wrappers). Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
 COUNT=$2
-PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
+PREFIX=$3
 LAMDIR=${PREFIX}/lambda-python
 GRDIR=${PREFIX}/gammaRay
 CWDIR=${PREFIX}/tools/cloudwatch
@@ -14,11 +15,11 @@ REG=us-west-2
 
 S3TESTBKT=cjk-spotwraptest0831
 FILELIST=( 
-    emptyC dbreadC dbwriteC s3readC s3writeC pubsnsC \
+    #emptyC dbreadC dbwriteC s3readC s3writeC pubsnsC \
     emptyS dbreadS dbwriteS s3readS s3writeS pubsnsS \
     emptyD dbreadD dbwriteD s3readD s3writeD pubsnsD \
-    emptyF dbreadF dbwriteF s3readF s3writeF pubsnsF \
-    emptyT dbreadT dbwriteT s3readT s3writeT pubsnsT  \
+    #emptyF dbreadF dbwriteF s3readF s3writeF pubsnsF \
+    #emptyT dbreadT dbwriteT s3readT s3writeT pubsnsT  \
 )
 
 cd ${GRDIR}

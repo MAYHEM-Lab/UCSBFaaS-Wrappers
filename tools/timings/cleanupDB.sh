@@ -1,7 +1,8 @@
 #! /bin/bash
-if [ -z ${1+x} ]; then echo 'Unset args. Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${1+x} ]; then echo 'Unset aws_profile (arg1). Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${2+x} ]; then echo 'Unset prefix as arg2 (full path to/including UCSBFaaS-Wrappers). Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
-PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
+PREFIX=$2
 GRDIR=${PREFIX}/gammaRay
 DYNDBDIR=${PREFIX}/tools/dynamodb
 SPOTTABLE=spotFns #must match tablename used by SpotWrap.py.template

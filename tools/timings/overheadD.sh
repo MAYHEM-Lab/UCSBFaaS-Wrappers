@@ -1,12 +1,14 @@
 #! /bin/bash
-#TEST: S (static gammaray, original spotwrap)
-if [ -z ${1+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_bucket_name'; exit 1; fi
-if [ -z ${2+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_bucket_name'; exit 1; fi
-if [ -z ${3+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_bucket_name'; exit 1; fi
+#TEST: D (dynamic gammaray, fleece + spotwrap)
+if [ -z ${1+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_bucket_name prefix'; exit 1; fi
+if [ -z ${2+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_bucket_name prefix'; exit 1; fi
+if [ -z ${3+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_bucket_name prefix'; exit 1; fi
+if [ -z ${4+x} ]; then echo 'Unset prefix as arg4 (full path to/including UCSBFaaS-Wrappers). Set and rerun. Exiting...!'; exit 1; fi
 #DATABKT=big-data-benchmark
-DATABKT=$3
 PROF=$1
 COUNT=$2
+DATABKT=$3
+PREFIX=$4
 MRBKT=spot-mr-bkt-gr #must match reducerCoordinator "permission" in config in setupApps.py
 JOBID=job8000  #must match reducerCoordinator "job_id" in config in setupApps.py 
 DATABKTPREFIX="pavlo/text/1node/uservisits/"
@@ -20,7 +22,6 @@ DRI="/aws/lambda/driverD"
 RC="/aws/lambda/reducerCoordinatorD"
 SPOTTABLE=gammaRays #must match tablename (--spotFnsTableName) used in call to setupApps.py
 
-PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 GRDIR=${PREFIX}/gammaRay
 DYNDBDIR=${PREFIX}/tools/dynamodb
 CWDIR=${PREFIX}/tools/cloudwatch

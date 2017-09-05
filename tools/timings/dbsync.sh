@@ -1,9 +1,10 @@
 #! /bin/bash
 if [ -z ${1+x} ]; then echo 'Unset AWS profile name. Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${2+x} ]; then echo 'Unset AWS Account ID. Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${3+x} ]; then echo 'Unset prefix as arg3 (full path to/including UCSBFaaS-Wrappers). Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
 ACCT=$2
-PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
+PREFIX=$3
 LAMDIR=${PREFIX}/lambda-python
 DYNDBDIR=${PREFIX}/tools/dynamodb
 CWDIR=${PREFIX}/tools/cloudwatch

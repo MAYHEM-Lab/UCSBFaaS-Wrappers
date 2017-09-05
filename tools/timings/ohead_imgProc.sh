@@ -1,10 +1,12 @@
 #! /bin/bash
 if [ -z ${1+x} ]; then echo 'Unset AWS profile name. Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${2+x} ]; then echo 'Unset number of runs (second arg). Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${3+x} ]; then echo 'Unset prefix as arg3 (full path to/including UCSBFaaS-Wrappers). Set and rerun. Exiting...!'; exit 1; fi
+#DATABKT=big-data-benchmark
 PROF=$1
 COUNT=$2
+PREFIX=$3
 TS=1401861965497 #some early date
-PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 GAMDIR=${PREFIX}/gammaRay
 LAMDIR=${PREFIX}/lambda-python
 CWDIR=${PREFIX}/tools/cloudwatch

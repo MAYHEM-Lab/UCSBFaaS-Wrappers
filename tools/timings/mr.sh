@@ -2,12 +2,13 @@
 if [ -z ${1+x} ]; then echo 'Unset AWS profile name. Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${2+x} ]; then echo 'Unset AWS Account ID. Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${3+x} ]; then echo 'Unset Count (3rd arg). Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${4+x} ]; then echo 'Unset prefix as arg4 (full path to/including UCSBFaaS-Wrappers). Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
 ACCT=$2
 COUNT=$3
+PREFIX=$4
 MRBKT=spot-mr-bkt #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run
 JOBID=job4000 #must match reducerCoordinator "job_id" in setupconfig.json when setupApps.py is run
-PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 LAMDIR=${PREFIX}/lambda-python
 DYNDBDIR=${PREFIX}/tools/dynamodb
 CWDIR=${PREFIX}/tools/cloudwatch

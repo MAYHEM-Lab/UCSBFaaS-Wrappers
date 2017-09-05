@@ -87,20 +87,19 @@ pip install 'fleece==0.13.0' --force-reinstall #fleece installs boto3 the versio
 #setup the microbenchmarks
 cd ${PREFIX}/gammaRay/micro-benchmarks
 #do this ONLY once to fill the table with data (modify the file to set S3BKT=$APITESTBKT and DYNAMODB=$APITESTTABLE)
-chmod +x prepare.sh
-./prepare.sh
+./prepare.sh ${APITESTBKT} ${APITESTTABLE}
 
 cd ${PREFIX}/tools/timings
 #clean up all logs and spotFns and gammaRays database tables, if any
-./cleanupAWS.sh ${AWSPROFILE}
+./cleanupAWS.sh ${AWSPROFILE} ${PREFIX}
 #this is just the DB cleanup part in the above script (to speed things up), 
 #run it repeatedly until it says 'Table 'tableName' is empty.'
-./cleanupDB.sh ${AWSPROFILE}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
 
 #delete all of the lambdas by name, in AWS
 #modify restConfigsWest.json and restConfigsEast.json to add the names of the other lambdas you want to delete
 #note that this deletes everything!  any names that aren't found are just skipped (missing lambda names are not a problem)
-./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE}
+./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
 #check the AWS Lambda management console 
 #edit restConfigs[West,East].json to add others
 
@@ -150,15 +149,15 @@ python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/st
 
 #run synchronized map reduce job overhead measurement (second param is count)
 export COUNT=50
-nohup ./overheadC.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+nohup ./overheadC.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} &
 #wait between each at least 12 mins to ensure completion to avoid contention
-nohup ./overheadF.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+nohup ./overheadF.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} &
 #wait between each at least 12 mins to ensure completion to avoid contention
-nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} &
 #wait between each at least 12 mins to ensure completion to avoid contention
-nohup ./overheadS.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+nohup ./overheadS.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} &
 #wait between each at least 12 mins to ensure completion to avoid contention
-nohup ./overheadD.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} &
+nohup ./overheadD.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} &
 
 #run microbenchmarks (default is 100 times) in gammaRay/micro-benchmarks/ directory
 #modify each of the files replace the bucket with $APITESTBKT and the tablenames with $APITESTTABLE
@@ -166,7 +165,7 @@ cd ${PREFIX}/tools/timings
 #todo: setup triggers
 
 #imageProc app, diff out the differences between the streams and the base and store them in base for next program
-./ohead_imgProc.sh ${AWSPROFILE}
+./ohead_imgProc.sh ${AWSPROFILE} ${PREFIX}
 python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
 diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > imageProcS.stream
 cat imageProcS.stream >> streamS.base
@@ -175,16 +174,16 @@ diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > imageProcD.stream
 cat imageProcD.stream >> streamD.base
 
 #microbenchmarks, no streams needed for micro benchmarks
-./micro.sh ${AWSPROFILE} ${COUNT}
+./micro.sh ${AWSPROFILE} ${COUNT} ${PREFIX}
 
 #map-reduce 
-./mr.sh ${AWSPROFILE} ${ACCT} ${COUNT}
+./mr.sh ${AWSPROFILE} ${ACCT} ${COUNT} ${PREFIX}
 
 #webapp
-./webapp.sh ${AWSPROFILE} ${ACCT} ${COUNT}
+./webapp.sh ${AWSPROFILE} ${ACCT} ${COUNT} ${PREFIX}
 
 #dbsync, capture streams for this one
-./dbsync.sh ${AWSPROFILE} ${ACCT} ${COUNT}
+./dbsync.sh ${AWSPROFILE} ${ACCT} ${COUNT} ${PREFIX}
 python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
 diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > dbsyncS.stream
 cat dbsyncS.stream >> streamS.base
@@ -201,13 +200,13 @@ python ../ddb_parser.py imageProcS.stream
 cd ${PREFIX}/tools/timings
 #add any other lambdas you want to delete to restConfigsWest.json and restConfigsEast.json
 #depending on where your lambdas are
-./cleanupAWS.sh ${AWSPROFILE}    #you may have to temporarily increased provisioned writes if this hangs or takes a long time until you get to empty!
+./cleanupAWS.sh ${AWSPROFILE} ${PREFIX}    #you may have to temporarily increased provisioned writes if this hangs or takes a long time until you get to empty!
 
 #you can/should run cleanupDB.sh repeatedly until it says that the table is empty! this can take awhile
-./cleanupDB.sh ${AWSPROFILE}    #you may have to temporarily increased provisioned writes if this hangs or takes a long time until you get to empty!
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}    #you may have to temporarily increased provisioned writes if this hangs or takes a long time until you get to empty!
 #delete all of the lambdas by name, in AWS (edit restConfigs[West,East].json to add others)
 
-./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE}
+./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
 #you now need to go and run makeConfigs.sh and all of the setupApps.py above
 export END=100
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/gammaRay/apps/${i}; done

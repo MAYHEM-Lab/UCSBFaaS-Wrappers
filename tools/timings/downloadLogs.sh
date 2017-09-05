@@ -1,10 +1,11 @@
 #! /bin/bash
 if [ -z ${1+x} ]; then echo 'Unset args. Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${2+x} ]; then echo 'Unset args. Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${3+x} ]; then echo 'Unset prefix as arg3 (full path to/including UCSBFaaS-Wrappers). Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
+PREFIX=$3
 MRBKT=spot-mr-bkt #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run without --no_spotwrap
 MRBKTNS=spot-mr-bkt-ns #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
-PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 LAMDIR=${PREFIX}/lambda-python
 DYNDBDIR=${PREFIX}/tools/dynamodb
 CWDIR=${PREFIX}/tools/cloudwatch
