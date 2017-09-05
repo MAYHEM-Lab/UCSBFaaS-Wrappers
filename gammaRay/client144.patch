@@ -1,5 +1,5 @@
---- client.py	2017-09-03 14:41:24.000000000 -0700
-+++ client.py.new	2017-09-03 16:44:40.000000000 -0700
+--- client.py	2017-09-05 09:29:12.000000000 -0700
++++ client.py.new	2017-09-05 09:29:03.000000000 -0700
 @@ -12,6 +12,7 @@
  # language governing permissions and limitations under the License.
  import logging
@@ -28,7 +28,7 @@
  class ClientCreator(object):
      """Creates client objects for a service."""
      def __init__(self, loader, endpoint_resolver, user_agent, event_emitter,
-@@ -300,14 +312,72 @@
+@@ -300,14 +312,73 @@
      def _create_api_method(self, py_operation_name, operation_name,
                             service_model):
          def _api_call(self, *args, **kwargs):
@@ -65,6 +65,7 @@
 +                    payload += ':{}:{}'.format(k,kwargs[k])
 +                #insert this caller's reqID to the callee's payload for tracing
 +                if 'Payload' in kwargs:
++                    myArn = os.environ['myArn']
 +                    if 'eventSource' in kwargs['Payload']:
 +                        fixup_kwargs(kwargs,myArn,reqID,True)
 +                    else:
