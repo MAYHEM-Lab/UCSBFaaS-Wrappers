@@ -40,10 +40,12 @@ aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name $
 cd ${PREFIX}/tools
 ./make_subs.sh ${AWSPROFILE} ${ACCT} ${REG} 
 #to delete them (if ever you need to, go to the SNS Management Console, click Subscriptions and Topics, select and use Action->Delete
-
+#to delete --> also check Lambda Mgmnt Console for each lambda and the triggers tab (& delete if there)
 
 #go and add a stream to both your GAMMATABLE and SPOTTABLE so that we can download the data in order
-#keep old and new data in the stream; note the date/time component (after .../stream/) and store in these vars for use later:
+#DynamoDB Mgmnt Console -> Tables, select table, Overview, note "Latest stream ARN" under Stream details, if any. If missing, click on Manage Stream:
+#keep old and new data in the stream
+#Then note the date/time component (after .../stream/) and store in these vars for use later:
 SPOT_STREAMID=2017-09-03T22:09:22.445
 GR_STREAMID=2017-09-04T21:33:11.568
 
@@ -171,6 +173,7 @@ cd ${PREFIX}/tools/timings
 #todo: setup triggers
 
 #imageProc app, diff out the differences between the streams and the base and store them in base for next program
+deactivate
 ./ohead_imgProc.sh ${AWSPROFILE} ${PREFIX}
 python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
 diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > imageProcS.stream
@@ -180,26 +183,49 @@ diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > imageProcD.stream
 cat imageProcD.stream >> streamD.base
 
 #microbenchmarks, no streams needed for micro benchmarks
+deactivate
 ./micro.sh ${AWSPROFILE} ${COUNT} ${PREFIX}
 
 #map-reduce 
+deactivate
 ./mr.sh ${AWSPROFILE} ${ACCT} ${COUNT} ${PREFIX}
 
 #webapp
+deactivate
 ./webapp.sh ${AWSPROFILE} ${ACCT} ${COUNT} ${PREFIX}
 
 #dbsync, capture streams for this one
+deactivate
 ./dbsync.sh ${AWSPROFILE} ${ACCT} ${COUNT} ${PREFIX}
-python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
+
+cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
+source venv/bin/activate
+cd ${PREFIX}/tools
+python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
 diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > dbsyncS.stream
 cat dbsyncS.stream >> streamS.base
-python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
+python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
 diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > dbsyncD.stream
 cat dbsyncD.stream >> streamD.base
+deactivate
+
+#process timings data (cloudwatch)
+cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
+source venv/bin/activate
+cd ${PREFIX}/tools
+export MRDIR=${PREFIX}/gammaRay/apps/map-reduce
+export CWDIR=${PREFIX}/tools/cloudwatch
+python timings_parser.py ${MRDIR} ${CWDIR} out --micro_only --count ${COUNT} >micro.summary
+#data is in out_jobname.out, e.g. out_s3writeS.out
+deactivate
 
 #process streams to generate pdfs for S (D is the same)
-python ../ddb_parser.py dbsyncS.stream
-python ../ddb_parser.py imageProcS.stream
+cd ${PREFIX}/tools
+cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
+source venv/bin/activate
+python ddb_parser.py dbsyncS.stream
+python ddb_parser.py imageProcS.stream
+deactivate
 
 #######  CLEANUP ############
 #delete everything in AWS, and I mean everything! 
