@@ -4,8 +4,6 @@ from enum import Enum
 
 DEBUG = False
 STATUS_LIST = [200.0,202.0,400.0]
-#FILE_LIST = ["coord.log","driv.log","map.log","s3mod.log","spottemp.log","dbmod.log","fninv.log","red.log","sns.log"]
-FILE_LIST = ["coord.log","driv.log","map.log","red.log"]
 def check_dir(dir_key,event,job,jobcount):
     '''
     Check that the dirs and files exist (return True if so, else print error and return False)
@@ -35,7 +33,69 @@ def check_dir(dir_key,event,job,jobcount):
                 print('Error, {}/{} not found (unable to proceed)'.format(cdir,f))
                 retn = False
     return retn
-        
+
+def processMicro(dirname,jobcount,ofile,skipFirst=False):
+    fnames = [] 
+    if DEBUG:
+        print('processMicro')
+    fnames = []
+    ns_str = '/APIs'
+    suffixes = ['C','T','F','D','S']
+ 
+    for n in range(1,jobcount+1):
+        if n > 1 or not skipFirst:
+            fnames.append('{}/{}{}/'.format(dirname,n,ns_str)) #dirnames
+    FILE_LIST = ["dbread","dbwrite","empty","pubsns","s3read","s3write"]
+
+    #for each file, collect job timings for each for jobcount runs
+    for postfix in FILE_LIST:
+        for suffix in suffixes:
+            outfname = '{}_{}{}.out'.format(ofile,postfix,suffix)
+            with open(outfname,'w') as outf:
+                count = 0
+                tlist = []
+                mlist = []
+                reqs = []
+                writtenTo = False
+                for fname in fnames:
+                    fname += '{}{}.log'.format(postfix,suffix)
+                    if not os.path.isfile(fname):
+                        continue
+                    with open(fname,'r') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line.startswith('No streams'):
+                                break
+                            if line == '':
+                                continue
+
+                            strs = line.split(':')
+                            if len(strs) != 4: #only process Record and GammaRay (S,D) values for now
+                                continue
+                            fn = strs[0]
+                            req = strs[1]
+                            if req in reqs:
+                                continue #skip it if we've already see it
+
+                            #Fn:reqID:duration_billed:mem_used	//Record
+                            reqs.append(req)
+                            tlist.append(float(strs[2]))
+                            mlist.append(float(strs[3]))
+                            count += 1
+                            outf.write('{} {}\n'.format(float(strs[2]),float(strs[3])))
+                            writtenTo = True
+            if not writtenTo:
+                os.remove(outfname)
+                            
+            if len(tlist) > jobcount:
+                print('longer list??? {} {}'.format(len(tlist),tlist))
+            if count > 0:
+                print('{}{}:{}:{}:{}:{}:{}'.format(
+                    postfix,suffix,len(tlist),
+                    statistics.mean(tlist),statistics.stdev(tlist),
+                    statistics.mean(mlist),statistics.stdev(mlist)
+                ))
+
 def processCW(dirname,jobcount,NSJob,ofile,skipFirst=False):
     '''      coord.log    driv.log     map.log      s3mod.log    spottemp.log
 	     dbmod.log    fninv.log    red.log      sns.log
@@ -71,6 +131,7 @@ def processCW(dirname,jobcount,NSJob,ofile,skipFirst=False):
         tlist = []
         swlist = []
         mlist = []
+        reqs = []
         swcount = count = 0
         for fname in fnames:
             fname += postfix
@@ -84,6 +145,9 @@ def processCW(dirname,jobcount,NSJob,ofile,skipFirst=False):
                         continue
                     fn = strs[0]
                     req = strs[1]
+                    if req in reqs:
+                        continue #skip it if we've already see it
+                    reqs.append(req)
                     if float(strs[3]) in STATUS_LIST:
                         assert not NSJob
                         #SpotWrap entry = Fn:reqID:duration_measured_for_this_fn:status_reported_by_call  
@@ -180,33 +244,33 @@ def processMR(dirname,jobcount,NSJob,ofile,skipFirst=False):
                         tlist.append(timer)
     return (ids,statistics.mean(tlist),statistics.stdev(tlist),mappers,dsize,keycount)
     
-def parseIt(event,job='both',skipFirst=False,mrOnly=False):
+def parseIt(ofile,event,job='both',skipFirst=False,mrOnly=False,microOnly=False):
     '''
     Parse the files output from an overhead job
     '''
-    if not check_dir('mrdir',event,job,event['count']) or not check_dir('cwdir',event,job,event['count']):
-        print('check_dir failed, exiting...')
-        sys.exit(1)
+    if not microOnly:
+        if not check_dir('mrdir',event,job,event['count']) or not check_dir('cwdir',event,job,event['count']):
+            print('check_dir failed, exiting...')
+            sys.exit(1)
 
-    ofile = None
-    print()
-    if job=='NS' or job=='BOTH': #1=NS
-        count,avg,stdev,mcount,dsize,keys = processMR(event['mrdir'],event['count'],1,ofile,skipFirst)
-        print('NStotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
-    if job=='SPOT' or job=='BOTH': #2=Spot
-        count,avg,stdev,mcount,dsize,keys = processMR(event['mrdir'],event['count'],2,ofile,skipFirst)
-        print('SPOTtotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
-    mrdir = event['mrdir']
-    mrdir = mrdir.replace('lambda-python/mr','gammaRay/apps/map-reduce')
+        print()
+        if job=='NS' or job=='BOTH': #1=NS
+            count,avg,stdev,mcount,dsize,keys = processMR(event['mrdir'],event['count'],1,ofile,skipFirst)
+            print('NStotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
+        if job=='SPOT' or job=='BOTH': #2=Spot
+            count,avg,stdev,mcount,dsize,keys = processMR(event['mrdir'],event['count'],2,ofile,skipFirst)
+            print('SPOTtotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
+        mrdir = event['mrdir']
+        mrdir = mrdir.replace('lambda-python/mr','gammaRay/apps/map-reduce')
+    
+        #3 = fleece
+        count,avg,stdev,mcount,dsize,keys = processMR(mrdir,event['count'],3,ofile,skipFirst)
+        print('Fleecetotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
+        #4 = GammaRay
+        count,avg,stdev,mcount,dsize,keys = processMR(mrdir,event['count'],4,ofile,skipFirst)
+        print('GammaRaytotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
 
-    #3 = fleece
-    count,avg,stdev,mcount,dsize,keys = processMR(mrdir,event['count'],3,ofile,skipFirst)
-    print('Fleecetotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
-    #4 = GammaRay
-    count,avg,stdev,mcount,dsize,keys = processMR(mrdir,event['count'],4,ofile,skipFirst)
-    print('GammaRaytotal:{},map_avg:{}:map_stdev:{}:map_count:{}:dsize:{}:keys:{}'.format(count,avg,stdev,mcount,dsize,keys))
-
-    if not mrOnly: 
+    if not mrOnly and not microOnly: 
         ############### Cloudwatch Log Summaries #################
         print('\nCloudwatch Log Data\n\tname,count,billed_avg,billed_stdev,inner_avg,inner_stdev,mem_avg,mem_stdev')
         print('NoSpot:')
@@ -220,20 +284,25 @@ def parseIt(event,job='both',skipFirst=False,mrOnly=False):
         print('\nGammaRay:')
         processCW(event['cwdir'],event['count'],4,ofile,skipFirst)
 
+    processMicro(event['cwdir'],event['count'],ofile,skipFirst)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Parser for timings data from overhead.sh and overheadNS.sh')
     parser.add_argument('mrdir',action='store',help='full path to directory containing dirs named 1-10 under mr')
     parser.add_argument('cwdir',action='store',help='full path to directory containing dirs named 1-10 under cloudwatch')
-    parser.add_argument('output_file',action='store',help='output file name')
+    parser.add_argument('output_file_prefix',action='store',help='output file name prefix')
     parser.add_argument('--process_MR_only',action='store_true',default=False,help='Run only the MR overhead processing')
     parser.add_argument('--process_NS_only',action='store_true',default=False,help='process the NS subdirectories (a non-SpotWrap job)')
     parser.add_argument('--process_spot_only',action='store_true',default=False,help='process the NS subdirectories (a non-SpotWrap job)')
     parser.add_argument('--skip_first',action='store_true',default=False,help='skip the first job (warmup)')
+    parser.add_argument('--micro_only',action='store_true',default=False,help='process only micro-benchmarks')
     parser.add_argument('--count',action='store',type=int,default=10,help='number of job dirs to process (default = 10)')
     args = parser.parse_args()
     if args.process_NS_only and args.process_spot_only:
         print('Error, process_NS_only and process_spot_only cannot both be set, use one or none and rerun')
+        sys.exit(1)
+    if args.process_MR_only and args.skip_MR:
+        print('Error, process_MR_only and skip_MR cannot both be set, use one or none and rerun')
         sys.exit(1)
     event = {}
     event['mrdir'] = args.mrdir
@@ -245,5 +314,5 @@ if __name__ == "__main__":
     elif args.process_NS_only:
         run = 'NS'
     
-    parseIt(event,run,args.skip_first,args.process_MR_only)
+    parseIt(args.output_file_prefix,event,run,args.skip_first,args.process_MR_only,args.micro_only)
 
