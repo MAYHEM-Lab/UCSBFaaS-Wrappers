@@ -15,11 +15,11 @@ REG=us-west-2
 
 S3TESTBKT=cjk-spotwraptest0831
 FILELIST=( 
-    #emptyC dbreadC dbwriteC s3readC s3writeC pubsnsC \
+    emptyC dbreadC dbwriteC s3readC s3writeC pubsnsC \
     emptyS dbreadS dbwriteS s3readS s3writeS pubsnsS \
     emptyD dbreadD dbwriteD s3readD s3writeD pubsnsD \
-    #emptyF dbreadF dbwriteF s3readF s3writeF pubsnsF \
-    #emptyT dbreadT dbwriteT s3readT s3writeT pubsnsT  \
+    emptyF dbreadF dbwriteF s3readF s3writeF pubsnsF \
+    emptyT dbreadT dbwriteT s3readT s3writeT pubsnsT  \
 )
 
 cd ${GRDIR}
