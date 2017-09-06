@@ -26,6 +26,12 @@ def handler(event, context):
     key = str(uuid.uuid4())[:4]
     val = 17
     if event:
+        if 'readkeyname' in event:
+            readkeyname = event['readkeyname']
+        if 'readkey' in event:
+            readkey = event['readkey']
+            if readkeyname == 'id':
+                readkey = int(readkey)
         if 'keyname' in event:
             keyname = event['keyname']
         if 'valname' in event:
@@ -40,8 +46,23 @@ def handler(event, context):
             tablename = event['tableName']
         if 'tablename' in event:
             tablename = event['tablename']
+        if 'writetablename' in event:
+            writetablename = event['writetablename']
+    if not tablename:
+        tablename = 'MissingTable'
+    if not writetablename:
+        tablename = 'MissingTable'
 
     table = dynamodb.Table(tablename) # we assume key is name of type String
+    #read it
+    print('reading from {}, {}={}'.format(tablename,readkeyname,readkey))
+    obj = table.get_item( Key={
+        readkeyname : readkey
+        }
+    )
+    print('read {}'.format(obj['Item']))
+    print('writing to {}, {}={}, {}={}'.format(tablename,keyname,key,valname,val))
+    table = dynamodb.Table(writetablename) # we assume key is name of type String
     #write it
     table.put_item( Item={
         keyname : key,
@@ -58,12 +79,15 @@ def handler(event, context):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='dbMod Test')
     # for this table, we assume key is name of type String
-    parser.add_argument('tablename',action='store',help='dynamodb table name')
+    parser.add_argument('tablename',action='store',help='dynamodb table name to write to')
+    parser.add_argument('readtablename',action='store',help='dynamodb table name to read from')
     parser.add_argument('mykey',action='store',help='key')
     parser.add_argument('myval',action='store',help='value')
     parser.add_argument('keyname',action='store',help='keyname')
     parser.add_argument('valname',action='store',help='valname')
+    parser.add_argument('readkeyname',action='store',help='key')
+    parser.add_argument('readkey',action='store',help='key')
     parser.add_argument('--region',action='store',default='us-west-2',help='AWS Region')
     args = parser.parse_args()
-    event = {'tableName':args.tablename,'mykey':args.mykey,'myval':args.myval,'region':args.region,'keyname':args.keyname,'valname':args.valname}
+    event = {'writetablename':args.tablename,'mykey':args.mykey,'myval':args.myval,'region':args.region,'keyname':args.keyname,'valname':args.valname,'readkeyname':args.readkeyname,'readkey':args.readkey,'tablename':args.readtablename}
     handler(event,None)
