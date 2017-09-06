@@ -20,6 +20,7 @@ export SPOTBKTEAST=cjktestbkteast
 export BDBENCH=cjk-gammaray-bdbenchmark
 export APITESTBKT=cjk-apitest-bucket
 export APITESTTABLE=noTriggerTestTable
+export WEBAPPTRIGGERTABLE=triggerTable
 export SPOTTABLE=spotFns
 export GAMMATABLE=gammaRays
 
@@ -33,8 +34,16 @@ aws --profile ${AWSPROFILE} s3 mb s3://${SPOTBKTEAST}
 aws --profile ${AWSPROFILE} s3 mb s3://${APITESTBKT}
 # make tables if you have not already in DynamoDB
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20
+
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+#note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
+#just put the date/time component (after .../stream/) here for later use
+export SPOT_STREAMID=2017-09-06T21:22:39.210
+
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+#note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
+#just put the date/time component (after .../stream/) here for later use
+export GR_STREAMID=2017-09-06T21:23:44.758
 
 #make the subscriptions for sns topics to trigger S3ModPy (webapp)
 cd ${PREFIX}/tools
@@ -42,12 +51,13 @@ cd ${PREFIX}/tools
 #to delete them (if ever you need to, go to the SNS Management Console, click Subscriptions and Topics, select and use Action->Delete
 #to delete --> also check Lambda Mgmnt Console for each lambda and the triggers tab (& delete if there)
 
+Next, add triggers to FnInvokerPy[C,F,D,S,T] via the Lambda Management Console for DynamoDB for table ${WEBAPPTRIGGERTABLE}, trim horizon
+--> make it one table per function if you don't want to trigger them all every time
+
 #go and add a stream to both your GAMMATABLE and SPOTTABLE so that we can download the data in order
 #DynamoDB Mgmnt Console -> Tables, select table, Overview, note "Latest stream ARN" under Stream details, if any. If missing, click on Manage Stream:
 #keep old and new data in the stream
 #Then note the date/time component (after .../stream/) and store in these vars for use later:
-SPOT_STREAMID=2017-09-03T22:09:22.445
-GR_STREAMID=2017-09-04T21:33:11.568
 
 #1 per job type for imageProc app
 aws --profile ${AWSPROFILE} s3 mb s3://image-proc-c
@@ -98,11 +108,11 @@ cd ${PREFIX}/gammaRay/micro-benchmarks
 ./prepare.sh ${APITESTBKT} ${APITESTTABLE}
 
 cd ${PREFIX}/tools/timings
-#clean up all logs and spotFns and gammaRays database tables, if any
-./cleanupAWS.sh ${AWSPROFILE} ${PREFIX}
-#this is just the DB cleanup part in the above script (to speed things up), 
+#clean up all logs if any
+./cleanupAWS.sh ${AWSPROFILE} ${REG}
+#clean out the databases, if they are too big, this won't so delete the tables and remake them (see steps under CLEANUP below)
 #run it repeatedly until it says 'Table 'tableName' is empty.'
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX} 
 
 #delete all of the lambdas by name, in AWS
 #modify restConfigsWest.json and restConfigsEast.json to add the names of the other lambdas you want to delete
@@ -126,18 +136,19 @@ python makeConfigs.py configs ${BOTOCORE} ${FLEECE} ${LOCALLIBS} --swbkt ${SPOTB
 ###original spotwrap (static insertion of wrapper) (S)
 ###gammaray (dynamic insertion of wrapper) (D)
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --deleteAll
+python setupApps.py -f configs/configT.json -p ${AWSPROFILE} --deleteAll
+python setupApps.py -f configs/configF.json -p ${AWSPROFILE} --deleteAll
+python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --deleteAll
+python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --deleteAll
+
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --no_spotwrap 
 python setupApps.py -f configs/configEastC.json -p ${AWSPROFILE} --no_spotwrap 
-python setupApps.py -f configs/configT.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configT.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing
 python setupApps.py -f configs/configEastT.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing
-python setupApps.py -f configs/configF.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configF.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing --with_fleece
 python setupApps.py -f configs/configEastF.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing --with_fleece
-python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion ${REG}
 python setupApps.py -f configs/configEastS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion ${REG}
-python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay
 python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay
 
@@ -210,6 +221,7 @@ cat dbsyncD.stream >> streamD.base
 deactivate
 
 #process timings data (cloudwatch)
+export COUNT=50 #if unset
 cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 source venv/bin/activate
 cd ${PREFIX}/tools
@@ -232,12 +244,24 @@ deactivate
 cd ${PREFIX}/tools/timings
 #add any other lambdas you want to delete to restConfigsWest.json and restConfigsEast.json
 #depending on where your lambdas are
-./cleanupAWS.sh ${AWSPROFILE} ${PREFIX}    #you may have to temporarily increased provisioned writes if this hangs or takes a long time until you get to empty!
+./cleanupAWS.sh ${AWSPROFILE} ${REG}
 
 #you can/should run cleanupDB.sh repeatedly until it says that the table is empty! this can take awhile
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}    #you may have to temporarily increased provisioned writes if this hangs or takes a long time until you get to empty!
-#delete all of the lambdas by name, in AWS (edit restConfigs[West,East].json to add others)
+#if there are too many entries, the above will stop working. In this case just delete and remake the table:
+aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
+aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
+#wait 5 mins then recreate them:
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+#note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
+#just put the date/time component (after .../stream/) here for later use
+export SPOT_STREAMID=2017-09-06T21:22:39.210
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+#note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
+#just put the date/time component (after .../stream/) here for later use
+export GR_STREAMID=2017-09-06T21:23:44.758
 
+#delete all of the lambdas by name, in AWS (edit restConfigs[West,East].json to add others)
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
 #you now need to go and run makeConfigs.sh and all of the setupApps.py above
 export END=100
