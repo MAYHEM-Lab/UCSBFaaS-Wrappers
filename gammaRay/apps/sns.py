@@ -21,13 +21,17 @@ def handler(event, context):
             subj = event['subject']
         if 'msg' in event:
             msg = event['msg']
-
-    if arn:
-        sns.publish(
-            TopicArn=arn,
-            Subject=subj,
-            Message=msg
-        )
+    if arn and msg:
+        if not subj:
+            subj = "subject"
+        print(arn)
+        if arn:
+            sns.publish(
+                TopicArn=arn,
+                Subject=subj,
+                Message=msg
+            )
+    
 
     delta = (time.time() * 1000) - entry
     me_str = 'TIMER:CALL:{}'.format(delta)
