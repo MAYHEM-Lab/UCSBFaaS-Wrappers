@@ -58,7 +58,7 @@ def handler(event, context):
                     cont = str(uuid.uuid4())[:8]
 
     if fname and cont and prefix and bkt:
-        logger.info('s3Mod.handler: writing to s3 bucket {}: {}/{}'.format(bkt,prefix,fname))
+        logger.warn('s3Mod.handler: writing to s3 bucket {}: {}/{}'.format(bkt,prefix,fname))
         s3obj = s3_client.Object('{}'.format(bkt), '{}/{}'.format(prefix,fname))
  	#write 
         s3obj.put(Body=cont)

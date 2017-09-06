@@ -51,7 +51,7 @@ def handler(event, context):
     if not tablename:
         tablename = 'MissingTable'
     if not writetablename:
-        tablename = 'MissingTable'
+        writetablename = 'MissingTable'
 
     table = dynamodb.Table(tablename) # we assume key is name of type String
     #read it
@@ -61,7 +61,7 @@ def handler(event, context):
         }
     )
     print('read {}'.format(obj['Item']))
-    print('writing to {}, {}={}, {}={}'.format(tablename,keyname,key,valname,val))
+    print('writing to {}, {}={}, {}={}'.format(writetablename,keyname,key,valname,val))
     table = dynamodb.Table(writetablename) # we assume key is name of type String
     #write it
     table.put_item( Item={

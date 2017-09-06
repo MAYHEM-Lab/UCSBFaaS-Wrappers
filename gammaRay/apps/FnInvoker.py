@@ -62,12 +62,14 @@ def handler(event,context):
             arn = me[0:idx]
             if 'aws:s3' in es:
                 fn = '{}:DBModPy{}'.format(arn,tail)
-                msg = {"from":"{}".format(me)}
+                key = str(uuid.uuid4())[:4]
+                val = str(uuid.uuid4())[:4]
+                msg = {'writetablename':'triggerTable','tablename':'noTriggerTestTable','mykey':key,'myval':val,'keyname':'name','valname':'age','readkeyname':'id','readkey':100,'from':me}
                 payload=json.dumps(msg)
                 print('Invoking {}'.format(fn))
                 invoke_response = lambda_client.invoke(FunctionName=fn,
                     InvocationType='Event', Payload=payload) #Event type says invoke asynchronously
-                return invoke_response
+                return "invocation completed"
 
         #test the above via calling from main (add 'test' to event)
         if 'test' in event:  #for webApp --> invoke DBModPy_ if invoked via S3
@@ -84,9 +86,11 @@ def handler(event,context):
             arn = me[0:idx]
             if 'aws:s3' in es:
                 fn = '{}:DBModPy{}'.format(arn,tail)
-                msg = {"from":"{}".format(me)}
+                key = str(uuid.uuid4())[:4]
+                val = str(uuid.uuid4())[:4]
+                msg = {'writetablename':'triggerTable','tablename':'noTriggerTestTable','mykey':key,'myval':val,'keyname':'name','valname':'age','readkeyname':'id','readkey':100,'from':me}
                 payload=json.dumps(msg)
-                print('Invoking {}'.format(fn))
+                print('Invoking {}\n\t{}'.format(fn,msg))
                 invoke_response = lambda_client.invoke(FunctionName=fn,
                     InvocationType='Event', Payload=payload) #Event type says invoke asynchronously
                 return invoke_response
