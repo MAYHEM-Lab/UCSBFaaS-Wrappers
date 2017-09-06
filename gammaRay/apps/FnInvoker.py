@@ -8,6 +8,7 @@ def handler(event,context):
     reqID = 'unknown'
     if not context: #invoking from main
         boto3.setup_default_session(profile_name='cjk1')
+        me = 'arn:aws:lambda:us-west-2:XXX:function:FnInvokerPyC'
     else:
         me = context.invoked_function_arn
         reqID = context.aws_request_id
@@ -25,7 +26,6 @@ def handler(event,context):
     fn = None
     count = 1
     if event:
-        print('event: ',event)
         if 'functionName' in event:
             fn = event['functionName']
         if 'count' in event:
@@ -47,6 +47,49 @@ def handler(event,context):
             if op == '/':
                 res = a/b
             print(res)
+        if 'Records' in event:  #for webApp --> invoke DBModPy_ if invoked via S3
+            #triggered 
+            rec = event['Records'][0]
+            es = 'unknown'
+            if 'EventSource' in rec:
+                es = rec['EventSource']
+            elif 'eventSource' in rec:
+                es = rec['eventSource']
+            logger.warn('FnInvokerPy::handler: triggered by {} event: {}'.format(es,event))
+            idx = me.find(':FnInvokerPy')
+            assert idx != -1
+            tail = me[idx+12:]
+            arn = me[0:idx]
+            if 'aws:s3' in es:
+                fn = '{}:DBModPy{}'.format(arn,tail)
+                msg = {"from":"{}".format(me)}
+                payload=json.dumps(msg)
+                print('Invoking {}'.format(fn))
+                invoke_response = lambda_client.invoke(FunctionName=fn,
+                    InvocationType='Event', Payload=payload) #Event type says invoke asynchronously
+                return invoke_response
+
+        #test the above via calling from main (add 'test' to event)
+        if 'test' in event:  #for webApp --> invoke DBModPy_ if invoked via S3
+            #triggered 
+            es = 'unknown'
+            if 'EventSource' in event:
+                es = event['EventSource']
+            elif 'eventSource' in event:
+                es = event['eventSource']
+            logger.warn('FnInvokerPy::handler: triggered by {} event: {}'.format(es,event))
+            idx = me.find(':FnInvokerPy')
+            assert idx != -1
+            tail = me[idx+12:]
+            arn = me[0:idx]
+            if 'aws:s3' in es:
+                fn = '{}:DBModPy{}'.format(arn,tail)
+                msg = {"from":"{}".format(me)}
+                payload=json.dumps(msg)
+                print('Invoking {}'.format(fn))
+                invoke_response = lambda_client.invoke(FunctionName=fn,
+                    InvocationType='Event', Payload=payload) #Event type says invoke asynchronously
+                return invoke_response
             
 
     #run_lambda does not support invoke via Payload arg
@@ -131,5 +174,5 @@ if __name__ == "__main__":
     parser.add_argument('--count',action='store',default=1,type=int,help='value')
     parser.add_argument('--region',action='store',default='us-west-2',help='aws region')
     args = parser.parse_args()
-    event = {'functionName':args.functionName,'eventSource':args.eventSource,'count':args.count,'region':args.region}
+    event = {'functionName':args.functionName,'eventSource':args.eventSource,'count':args.count,'region':args.region,'test':'yes'}
     handler(event,None)
