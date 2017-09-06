@@ -1,5 +1,5 @@
---- client.py	2017-09-05 09:29:12.000000000 -0700
-+++ client.py.new	2017-09-05 09:29:03.000000000 -0700
+--- client.py	2017-09-03 14:41:24.000000000 -0700
++++ client.py.new	2017-09-06 14:26:19.000000000 -0700
 @@ -12,6 +12,7 @@
  # language governing permissions and limitations under the License.
  import logging
@@ -78,7 +78,7 @@
 +                DDBTABLE.put_item( Item={
 +                    'reqID': reqID,
 +                    'ts': tsint,
-+                    'gr_payload': payload,
++                    'payload': payload,
 +                    }
 +                )
              # The "self" in this scope is referring to the BaseClient.

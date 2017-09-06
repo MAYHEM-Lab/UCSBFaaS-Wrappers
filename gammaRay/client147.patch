@@ -76,7 +76,7 @@
 +                DDBTABLE.put_item( Item={
 +                    'reqID': reqID,
 +                    'ts': tsint,
-+                    'gr_payload': payload,
++                    'payload': payload,
 +                    }
 +                )
              # The "self" in this scope is referring to the BaseClient.
