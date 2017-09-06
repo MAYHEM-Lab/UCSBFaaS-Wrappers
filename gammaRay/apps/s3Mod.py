@@ -1,5 +1,5 @@
 import boto3
-import json, logging, argparse, time
+import json, logging, argparse, time, uuid
 
 def handler(event, context):
     entry = time.time() * 1000
@@ -9,14 +9,12 @@ def handler(event, context):
         s3_client = session.resource('s3')
     else:
         s3_client = boto3.resource('s3')
-        logger.info('s3Mod::handler: context: {}'.format(context))
 
     fname = None
     cont = None
     prefix = None
     bkt = None
     if event:
-        logger.info('s3Mod::handler: event: {}'.format(event))
         if 'file_content' in event:
             cont = event['file_content']
         if 'prefix' in event:
@@ -25,10 +23,42 @@ def handler(event, context):
             bkt = event['bkt']
         if 'fname' in event:
             fname = event['fname']
-
+        if 'Records' in event:
+            #triggered 
+            rec = event['Records'][0]
+            es = 'unknown'
+            if 'EventSource' in rec:
+                es = rec['EventSource']
+            elif 'eventSource' in rec:
+                es = rec['eventSource']
+            logger.warn('s3Mod::handler: triggered by {} event: {}'.format(es,event))
+            if 'Sns' in rec:
+                #sns triggered
+                snsObj = rec['Sns']
+                mid = 'unknown'
+                sub = 'unknown'
+                if 'MessageId' in snsObj:
+                    mid = snsObj['MessageId']
+                if 'Subject' in snsObj:
+                    sub = snsObj['Subject']
+                if 'Message' in snsObj:
+                    msg = snsObj['Message']
+                    fname_idx = msg.find('fname:')
+                    fname_end_idx = msg.find(':',fname_idx+6)
+                    if fname_idx != -1 and fname_end_idx != -1:
+                        fname = msg[fname_idx+6:fname_end_idx]
+                    bkt_idx = msg.find('bkt:')
+                    bkt_end_idx = msg.find(':',bkt_idx+4)
+                    if bkt_idx != -1 and bkt_end_idx != -1:
+                        bkt = msg[bkt_idx+4:bkt_end_idx]
+                    pref_idx = msg.find('prefix:')
+                    pref_end_idx = msg.find(':',pref_idx+7)
+                    if pref_idx != -1 and pref_end_idx != -1:
+                        prefix = msg[pref_idx+7:pref_end_idx]
+                    cont = str(uuid.uuid4())[:8]
 
     if fname and cont and prefix and bkt:
-        logger.info('s3Mod.handler: writing to s3 bucket {}: {}/{}'.format(bkt,prefix,fname))
+        logger.warn('s3Mod.handler: writing to s3 bucket {}: {}/{}'.format(bkt,prefix,fname))
         s3obj = s3_client.Object('{}'.format(bkt), '{}/{}'.format(prefix,fname))
  	#write 
         s3obj.put(Body=cont)
@@ -52,5 +82,6 @@ if __name__ == "__main__":
     parser.add_argument('fname',action='store',help='fname')
     parser.add_argument('file_content',action='store',help='file_content')
     args = parser.parse_args()
-    event = {'bkt':args.bkt,'prefix':args.prefix,'fname':args.fname,'file_content':args.file_content}
+    #event = {'bkt':args.bkt,'prefix':args.prefix,'fname':args.fname,'file_content':args.file_content}
+    event = {'Message':'foodoofname:cjk1.txt:goprefix:testcjk:oo:bkt:cjklambdatrigger:poo'}
     handler(event,None)
