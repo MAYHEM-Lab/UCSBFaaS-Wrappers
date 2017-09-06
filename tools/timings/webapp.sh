@@ -1,57 +1,49 @@
 #! /bin/bash
 if [ -z ${1+x} ]; then echo 'Unset AWS profile name. Set and rerun. Exiting...!'; exit 1; fi
-if [ -z ${2+x} ]; then echo 'Unset AWS Account ID. Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${2+x} ]; then echo 'Unset count (second var). Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${3+x} ]; then echo 'Unset prefix as arg3 (full path to/including UCSBFaaS-Wrappers). Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${4+x} ]; then echo 'Unset region as arg4. Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${5+x} ]; then echo 'Unset accountID as arg5. Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${6+x} ]; then echo 'Unset trigger bucket as arg6. (the prefix must be set to "pref[C,D,S,T,F]). Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
-ACCT=$2
+COUNT=$2
 PREFIX=$3
-LAMDIR=${PREFIX}/lambda-python
-DYNDBDIR=${PREFIX}/tools/dynamodb
+REG=$4
+ACCT=$5
+TRIGGERBKT=$6
+GRDIR=${PREFIX}/gammaRay
 CWDIR=${PREFIX}/tools/cloudwatch
 TOOLSDIR=${PREFIX}/tools/timings
-MRDIR=${PREFIX}/lambda-python/mr
-SPOTTABLE=spotFns #must match tablename used by SpotWrap.py.template
 TS=1401861965497 #some early date
-REG=us-west-2 #some early date
-FNI=FnInvokerPyNS
-STP=SpotTemplatePyNS
-DBM=DBModPyNS
-S3M=S3ModPyNS
-SNS=SNSPyNS
 
-cd ${LAMDIR}
+#SUFFIXES=( C S D F T )
+SUFFIXES=( F )
+cd ${GRDIR}
 . ./venv/bin/activate
 cd ${CWDIR}
-python downloadLogs.py "/aws/lambda/${FNI}" ${TS} -p ${PROF} --deleteOnly
-python downloadLogs.py "/aws/lambda/${STP}" ${TS} -p ${PROF} --deleteOnly
-python downloadLogs.py "/aws/lambda/${DBM}" ${TS} -p ${PROF} --deleteOnly
-python downloadLogs.py "/aws/lambda/${S3M}" ${TS} -p ${PROF} --deleteOnly
-python downloadLogs.py "/aws/lambda/${SNS}" ${TS} -p ${PROF} --deleteOnly
-deactivate
 
-for i in `seq 1 1`;
+for suf in "${SUFFIXES[@]}"
 do
+    TOPIC="arn:aws:sns:${REG}:${ACCT}:topic${suf}"
+    BKTPREFIX="pref${suf}"
+    LLIST=( "SNSPy${suf}" "FnInvokerPy${suf}" "DBModPy${suf}" "S3ModPy${suf}" )
+    for lambda in "${LLIST[@]}"
+    do
+        #cleanup
+        python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --deleteOnly
+    done
 
-    #run the website app functions
-    echo "Web app invocation..."
-    aws lambda invoke --invocation-type Event --function-name ${FNI} --region ${REG} --profile cjk1 --payload "{\"eventSource\":\"ext:invokeCLI\",\"functionName\":\"arn:aws:lambda:${REG}:${ACCT}:function:${DBM}\",\"tablename\":\"triggerTable\",\"count\":\"10\"}" outputfile
+    for i in `seq 1 ${COUNT}`;
+    do
+        aws lambda invoke --invocation-type Event --function-name SNSPy${suf} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"topic\":\"${TOPIC}\",\"subject\":\"sub1\",\"msg\":\"fname:testfile.txt:prefix:${BKTPREFIX}:bkt:${TRIGGERBKT}:xxx\"}" outputfile
 
-  aws lambda invoke --invocation-type Event --function-name ${SNS} --region ${REG} --profile cjk1 --payload "{\"eventSource\":\"ext:invokeCLI\",\"topic\":\"arn:aws:sns:${REG}:${ACCT}:testtopic\",\"subject\":\"zoegoNS${i}\",\"msg\":\"walk${RANDOM}\"}" outputfile
-
-    aws lambda invoke --invocation-type Event --function-name ${S3M} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"bkt\":\"cjklambdatrigger\",\"prefix\":\"PythonLambda\",\"fname\":\"todo${RANDOM}.txt\",\"file_content\":\"get dog food\"}" outputfile
-
-    /bin/sleep 30 #seconds, so 15mins
-
-    #download cloudwatch logs (and delete them)
-    cd ${CWDIR}
-    mkdir -p cjk/$i/APP/NS
-    python downloadLogs.py "/aws/lambda/${FNI}" ${TS} -p ${PROF} --delete > cjk/$i/APP/NS/fninv.log
-    python downloadLogs.py "/aws/lambda/${SPT}" ${TS} -p ${PROF} --delete > cjk/$i/APP/NS/spottemp.log
-    python downloadLogs.py "/aws/lambda/${DBM}" ${TS} -p ${PROF} --delete > cjk/$i/APP/NS/dbmod.log
-    python downloadLogs.py "/aws/lambda/${S3M}" ${TS} -p ${PROF} --delete > cjk/$i/APP/NS/s3mod.log
-    python downloadLogs.py "/aws/lambda/${SNS}" ${TS} -p ${PROF} --delete > cjk/$i/APP/NS/sns.log
-
-    deactivate
-    
+        /bin/sleep 15 #seconds
+        mkdir -p ${i}/APP/WEBAPP
+        rm -f ${i}/APP/WEBAPP/*.log
+        for lambda in "${LLIST[@]}"
+        do
+            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} > $i/APP/WEBAPP/${lambda}.log
+        done
+    done
 done
-
+deactivate
