@@ -302,7 +302,7 @@ def makeRecord(context,event,duration,errorstr,prefix):
     table.put_item( Item={
         'reqID': requestID,
         'ts': tsint,
-        'gr_payload': payload
+        'payload': payload
         }
     )
 

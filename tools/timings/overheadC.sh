@@ -4,13 +4,13 @@ if [ -z ${1+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_buck
 if [ -z ${2+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_bucket_name prefix'; exit 1; fi
 if [ -z ${3+x} ]; then echo 'USAGE: ./overhead.sh aws_profile num_runs data_bucket_name prefix'; exit 1; fi
 if [ -z ${4+x} ]; then echo 'Unset prefix as arg4 (full path to/including UCSBFaaS-Wrappers). Set and rerun. Exiting...!'; exit 1; fi
-#DATABKT=big-data-benchmark
+if [ -z ${5+x} ]; then echo 'Unset map-reduce-job-bucket as arg5. Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
 COUNT=$2
 DATABKT=$3
 PREFIX=$4
-MRBKT=spot-mr-bkt-ns #must match reducerCoordinator "permission" in config in setupApps.py
-JOBID=job8000  #must match reducerCoordinator "job_id" in config in setupApps.py 
+MRBKT=$5 #must match reducerCoordinator "permission" in config in setupApps.py
+JOBID=$6  #must match reducerCoordinator "job_id" in config in setupApps.py 
 
 #update the below (must match lambda function names in configWestC.json
 MAP="/aws/lambda/mapperC"

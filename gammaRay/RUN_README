@@ -84,11 +84,17 @@ aws --profile ${AWSPROFILE} s3 mb s3://image-proc-s
 aws --profile ${AWSPROFILE} s3 mb s3://image-proc-d
 aws --profile ${AWSPROFILE} s3 mb s3://image-proc-f
 #1 per job type for map reduce app (mine use old names: ns=C and gr=D now, empty=S)
-aws --profile ${AWSPROFILE} s3 mb s3://spot-mr-bkt
-aws --profile ${AWSPROFILE} s3 mb s3://spot-mr-bkt-f
-aws --profile ${AWSPROFILE} s3 mb s3://spot-mr-bkt-gr
-aws --profile ${AWSPROFILE} s3 mb s3://spot-mr-bkt-ns
-aws --profile ${AWSPROFILE} s3 mb s3://spot-mr-bkt-d
+#must match what is used in gammaRays/makeConfigs.py triggerBuckets datastructure for reducerCoordinator lambdas
+MRBKTS=spot-mr-bkt
+MRBKTF=spot-mr-bkt-f
+MRBKTD=spot-mr-bkt-gr
+MRBKTC=spot-mr-bkt-ns
+MRBKTT=spot-mr-bkt-t
+aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTS}
+aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTF}
+aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTD}
+aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTC}
+aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTT}
 
 deactivate
 #$BOTOCORE is passed as first argument to makeConfigs.py
@@ -210,54 +216,78 @@ cd ${PREFIX}/tools
 python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.base
 python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
 
-#run synchronized map reduce job overhead measurement (second param is count)
-export COUNT=50
-nohup ./overheadC.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} &
-#wait between each at least 12 mins to ensure completion to avoid contention
-nohup ./overheadF.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} &
-#wait between each at least 12 mins to ensure completion to avoid contention
-nohup ./overheadT.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} &
-#wait between each at least 12 mins to ensure completion to avoid contention
-nohup ./overheadS.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} &
-#wait between each at least 12 mins to ensure completion to avoid contention
-nohup ./overheadD.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} &
+######################### run the timings!! ################################
 
 #run microbenchmarks (default is 100 times) in gammaRay/micro-benchmarks/ directory
 #modify each of the files replace the bucket with $APITESTBKT and the tablenames with $APITESTTABLE
-cd ${PREFIX}/tools/timings
-
 #microbenchmarks, no streams needed for micro benchmarks
+cd ${PREFIX}/tools/timings
 deactivate
+export COUNT=50
 ./micro.sh ${AWSPROFILE} ${COUNT} ${PREFIX}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
 
-#map-reduce 
+#map-reduce async
+export COUNT=50
+cd ${PREFIX}/tools/timings
 deactivate
-./mr.sh ${AWSPROFILE} ${ACCT} ${COUNT} ${PREFIX}
-
-#webapp
-deactivate
-./webapp.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${ACCT} ${TRIGGERBKT}
-
-#imageProc (and dbsync), capture streams for this one
-deactivate
-./imageProc.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${XREG}
-python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
-diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > imageProcS.stream
-cat imageProcS.stream >> streamS.base
-python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
-diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > imageProcD.stream
-cat imageProcD.stream >> streamD.base
-
+nohup ./mr.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MRBKTC} ${MRBKTD} ${MRBKTF} ${MRBKTS} ${MRBKTT} ${REG} &
 cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 source venv/bin/activate
-cd ${PREFIX}/tools
+cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
 python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
-diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > dbsyncS.stream
-cat dbsyncS.stream >> streamS.base
+diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > mrS.stream
+cat mrS.stream >> streamS.base
 python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
-diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > dbsyncD.stream
-cat dbsyncD.stream >> streamD.base
+diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > mrD.stream
+cat mrD.stream >> streamD.base
 deactivate
+cd ${PREFIX}/tools/timings
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+
+#webapp
+cd ${PREFIX}/tools/timings
+deactivate
+./webapp.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${ACCT} ${TRIGGERBKT}
+cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
+source venv/bin/activate
+cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
+python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
+diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > webappS.stream
+cat webappS.stream >> streamS.base
+python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
+diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > webappD.stream
+cat webappD.stream >> streamD.base
+deactivate
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+
+#imageProc (and dbsync), capture streams for this one
+cd ${PREFIX}/tools/timings
+deactivate
+./imageProc.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${XREG}
+cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
+source venv/bin/activate
+cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
+python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
+diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > imageProcS.stream
+cat imageProcS.stream >> streamS.base
+python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
+diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > imageProcD.stream
+cat imageProcD.stream >> streamD.base
+deactivate
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+
+cd ${PREFIX}/tools/timings
+deactivate
+#run synchronized map reduce job overhead measurement (second param is count, BDBENCH should be the name of your cloned big-data-benchmark folder)
+export COUNT=25
+export JOBID=job8000 #must match what is used in makeConfigs triggerBuckets datastructure for reducerCoordinator lambdas (currently job8000 which you can keep if you like)
+nohup ./overheadMR.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MRBKTC} ${MRBKTD} ${MRBKTF} ${MRBKTS} ${MRBKTT} &
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+
+############################## process data #############################
+#summarize in the excel spreadsheet called result.xlxs in the paper repo
+#commit all of the output files to the paper repo under results
 
 #process timings data (cloudwatch)
 export COUNT=50 #if unset
