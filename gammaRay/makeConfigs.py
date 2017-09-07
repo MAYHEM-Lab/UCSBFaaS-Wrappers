@@ -114,13 +114,14 @@ if __name__ == "__main__":
                 if key == 'driver' or key == 'reducerCoordinator':
                     files_and_dirs.append("apps/map-reduce/lambdautils.py")
 
-                if key == 'FnInvokerPy' or key == 'UpdateWebsite' or key == 'DBModPy' or key == 'DBSyncPy':
+                if key == 'FnInvokerPy' or key == "ImageProcPy" or key == 'UpdateWebsite' or key == 'DBModPy' or key == 'DBSyncPy':
                     #requests is a fleece dependency
-                    files_and_dirs.append("{}/requests".format(other_libs_dir))
-                    files_and_dirs.append("{}/urllib3".format(other_libs_dir))
-                    files_and_dirs.append("{}/chardet".format(other_libs_dir))
-                    files_and_dirs.append("{}/certifi".format(other_libs_dir))
-                    files_and_dirs.append("{}/idna".format(other_libs_dir))
+                    if suffix != 'F' and suffix != 'D': #don't add them twice (will be added below for F and D)
+                        files_and_dirs.append("{}/requests".format(other_libs_dir))
+                        files_and_dirs.append("{}/urllib3".format(other_libs_dir))
+                        files_and_dirs.append("{}/chardet".format(other_libs_dir))
+                        files_and_dirs.append("{}/certifi".format(other_libs_dir))
+                        files_and_dirs.append("{}/idna".format(other_libs_dir))
                 if suffix == 'F' or suffix == 'D':
                     files_and_dirs.append(fleece_dir)
                     files_and_dirs.append("{}/requests".format(other_libs_dir))

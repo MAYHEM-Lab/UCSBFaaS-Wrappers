@@ -1,21 +1,46 @@
 import boto3, json, logging, argparse, time, os, shutil, importlib,uuid, requests
 
-
 def handler(event, context):
     entry = time.time() * 1000
     logger = logging.getLogger()
+    if event:
+        if 'Records' in event:  #for DBSync app
+            #triggered 
+            rec = event['Records'][0]
+            es = 'unknown'
+            if 'EventSource' in rec:
+                es = rec['EventSource']
+            elif 'eventSource' in rec:
+                es = rec['eventSource']
+            logger.warn('DBSyncPy::handler: triggered by {} event: {}'.format(es,event))
+            reg = 'us-west-2'
+            dynamodb = boto3.resource('dynamodb', region_name=reg)
+            table = dynamodb.Table('imageLabels') 
+            try:
+                item = table.get_item( Key={'id': 'imgProc/d1.jpg'})
+                logger.warn('completed read')
+            except:
+                logger.warn('read failed')
+                raise
+            reg = 'us-east-1'
+            dynamodb = boto3.resource('dynamodb', region_name=reg)
+            table = dynamodb.Table('eastSyncTable') 
+            key = str(uuid.uuid4())[:4]
+            val = 17
+            try:
+                table.put_item( Item={
+                    'name': key,
+                    'age': val,
+                    }
+                )
+            except:
+                logger.warn('write failed')
+                raise
+            return "DBSync completed"
 
-    if context:
-        logger.info('dbMod::handler: context: {}'.format(context))
+    if context: #invoke some other way...
+        logger.info('DBSync::handler: context: {}'.format(context))
         #read a record from imageLabels in us-west-2
-        reg = 'us-west-2'
-        dynamodb = boto3.resource('dynamodb', region_name=reg)
-        table = dynamodb.Table('imageLabels') 
-        try:
-            item = table.get_item( Key={'id': 'imgProc/xray3.png'})
-            logger.warn('completed read')
-        except:
-            logger.warn('read failed')
 
         if event:
             reg = 'us-west-2'
@@ -41,6 +66,15 @@ def handler(event, context):
             caller = event['functionName']
         if 'tableName' in event:
             tablename = event['tableName']
+        if 'Records' in event:  #for DBSync app
+            #triggered 
+            rec = event['Records'][0]
+            es = 'unknown'
+            if 'EventSource' in rec:
+                es = rec['EventSource']
+            elif 'eventSource' in rec:
+                es = rec['eventSource']
+            logger.warn('DBSyncPy::handler: triggered by {} event: {}'.format(es,event))
 
     key = str(uuid.uuid4())[:4]
     val = 17
@@ -66,7 +100,7 @@ def handler(event, context):
     return me_str
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='dbMod Test')
+    parser = argparse.ArgumentParser(description='DBSync Test')
     # for this table, we assume key is name of type String
     parser.add_argument('tablename',action='store',help='dynamodb table name')
     parser.add_argument('mykey',action='store',help='key')

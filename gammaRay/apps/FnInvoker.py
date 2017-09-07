@@ -57,7 +57,14 @@ def handler(event,context):
                 es = rec['eventSource']
             logger.warn('FnInvokerPy::handler: triggered by {} event: {}'.format(es,event))
             idx = me.find(':FnInvokerPy')
-            assert idx != -1
+            if (idx == -1):
+                #invoked for the ImageProcPy via DBSync, so just post to the website
+                key = str(uuid.uuid4())[:4]
+                val = 17
+                r = requests.post('http://httpbin.org/post', data = {key:val})
+                print('HTTP POST status: {}'.format(r.status_code))
+                return('UpdateWebsite complete')
+   
             tail = me[idx+12:]
             arn = me[0:idx]
             if 'aws:s3' in es:
