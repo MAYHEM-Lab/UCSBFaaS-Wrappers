@@ -86,6 +86,15 @@
             "name": "ImageProc_S_Py"
         },
         {
+            "name": "dbwriteC"
+        },
+        {
+            "name": "S3EventProcessor"
+        },
+        {
+            "name": "UploadObjectToS3"
+        },
+        {
             "name": "S3ModPy"
         }
     ]

@@ -6,6 +6,7 @@ export PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
 export ACCT=443592014519
 export ROLE=adminlambda
 export AWSRole=arn:aws:iam::${ACCT}:role/${ROLE}
+export AWSROLE=arn:aws:iam::${ACCT}:role/${ROLE}
 export AWSPROFILE=cjk1
 export REG=us-west-2
 export XREG=us-east-1
@@ -32,68 +33,50 @@ export APITESTTABLE=noTriggerTestTable
 export WEBAPPTRIGGERTABLE=triggerTable
 export IMAGEPROC_DBSYNC=imageLabels
 
-#create each of the above if needed
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${XREG} --table-name ${EASTSYNCTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${WEBAPPTRIGGERTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-#when done, delete them via:
+#CLEAN_DB
+#to start fresh delete them first
+aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
+aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
+#also for the ones that the apps use
+#NOTE That if you delete/recreate these you will need to go in and manually add back in the triggers via Lambda Management console (see TRIGGERS below)
 aws dynamodb delete-table --table-name ${EASTSYNCTABLE} --profile ${AWSPROFILE} --region ${XREG}
 aws dynamodb delete-table --table-name ${APITESTTABLE} --profile ${AWSPROFILE} --region ${REG}
 aws dynamodb delete-table --table-name ${WEBAPPTRIGGERTABLE} --profile ${AWSPROFILE} --region ${REG}
+aws dynamodb delete-table --table-name ${IMAGEPROC_DBSYNC} --profile ${AWSPROFILE}
+#verify they are gone in the dynamoDB management console (east and west): https://us-west-2.console.aws.amazon.com/dynamodb/home?region=us-west-2
 
-#if you haven't done so already, clone the big-data-benchmark to the west 
+#create tables needed for apps
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${XREG} --table-name ${EASTSYNCTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${WEBAPPTRIGGERTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${IMAGEPROC_DBSYNC} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+
+# make tables needed for GammaRay (S=static=SPOTTABLE and D=dynamic=GAMMATABLE)
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+#note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
+#just put the date/time component (after .../stream/) from LatestStreamArn below for later use
+export SPOT_STREAMID=2017-09-07T18:35:46.003
+
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+#note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
+#just put the date/time component (after .../stream/) here for later use
+export GR_STREAMID=2017-09-07T18:36:33.398
+
+############## do this set of things only once! ################
+#if you haven't done so already, clone the big-data-benchmark to the west; only do this ONCE!
 aws --profile ${AWSPROFILE} s3 mb s3://${BDBENCH}
+#this takes a super long time!
 aws --profile ${AWSPROFILE} s3 sync s3://big-data-benchmark s3://${BDBENCH)
+#setup the microbenchmarks
+cd ${PREFIX}/gammaRay/micro-benchmarks
+#do this ONLY once to fill the table with data (modify the file to set S3BKT=$APITESTBKT and DYNAMODB=$APITESTTABLE)
+./prepare.sh ${APITESTBKT} ${APITESTTABLE}
+###############################################################
 
 #if you haven't done so already, make the buckets and table
 aws --profile ${AWSPROFILE} s3 mb s3://${SPOTBKTWEST}
 aws --profile ${AWSPROFILE} s3 mb s3://${SPOTBKTEAST}
 aws --profile ${AWSPROFILE} s3 mb s3://${APITESTBKT}
-# make tables if you have not already in DynamoDB
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
-#note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
-#just put the date/time component (after .../stream/) here for later use
-export SPOT_STREAMID=2017-09-06T21:22:39.210
-
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
-#note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
-#just put the date/time component (after .../stream/) here for later use
-export GR_STREAMID=2017-09-06T21:23:44.758
-
-#make the subscriptions for sns topics to trigger S3ModPy (webapp)
-cd ${PREFIX}/tools
-./make_subs.sh ${AWSPROFILE} ${ACCT} ${REG} 
-#to delete them (if ever you need to, go to the SNS Management Console, click Subscriptions and Topics, select and use Action->Delete
-#to delete --> also check Lambda Mgmnt Console for each lambda and the triggers tab (& delete if there)
-
-Next, add triggers to FnInvokerPy[C,F,D,S,T] via the Lambda Management Console for DynamoDB for table ${WEBAPPTRIGGERTABLE}, trim horizon
---> make it one table per function if you don't want to trigger them all every time. 
-Its likely fine to just have one table for all functions, we can make this change later (for a final
-version of a paper if accepted). TODO: turn this into a script like make_subs.sh
-
-Next, add triggers to DBSyncPy[C,F,D,S,T] via the Lambda Management Console for DynamoDB for table ${IMAGEPROC_DBSYNC}, trim horizon
---> make it one table per function if you don't want to trigger them all every time -- if you do this, you also need to 
-change imageProc to write to the right version of each table depending on its name (eg ImageProcPyC writes to imageProcS table which triggers DBSyncS function),
-you will need to add code to imageProc.py to do this.  
-Its likely fine to just have one table for all functions, we can make this change later (for a final
-version of a paper if accepted). TODO: turn this into a script like make_subs.sh
-
-Next, add triggers to UpdateWebsite[C,F,D,S,T] ***in us-east-1 (${XREG})*** via the Lambda Management Console for DynamoDB for table ${IMAGEPROC_DBSYNC}, trim horizon
-Its likely fine to just have one table for all functions, we can make this change later (for a final
-version of a paper if accepted). TODO: turn this into a script like make_subs.sh
-
-Next, add a jpg image (any picture of something) to the $SPOTBKTWEST bucket in a folder called imgProc with a file name d1.jpg.
-If you change the name or folder, then change this in tools/timings/imgProc.sh which runs the jobs.
-We pass this into ImageProcPy apps as input, the image is processed with rekognition in AWS to generate labels.
-ImageProcPy apps store the labels in table $IMAGEPROC_DBSYNC (us-west-2)
-
-#go and add a stream to both your GAMMATABLE and SPOTTABLE so that we can download the data in order
-#DynamoDB Mgmnt Console -> Tables, select table, Overview, note "Latest stream ARN" under Stream details, if any. If missing, click on Manage Stream:
-#keep old and new data in the stream
-#Then note the date/time component (after .../stream/) and store in these vars for use later:
-
 #1 per job type for imageProc app
 aws --profile ${AWSPROFILE} s3 mb s3://image-proc-c
 aws --profile ${AWSPROFILE} s3 mb s3://image-proc-t
@@ -137,19 +120,14 @@ virtualenv venv --python=python3
 source venv/bin/activate
 pip install 'fleece==0.13.0' --force-reinstall #fleece installs boto3 the version will work fine for local testing
 
-#setup the microbenchmarks
-cd ${PREFIX}/gammaRay/micro-benchmarks
-#do this ONLY once to fill the table with data (modify the file to set S3BKT=$APITESTBKT and DYNAMODB=$APITESTTABLE)
-./prepare.sh ${APITESTBKT} ${APITESTTABLE}
-
+deactivate
 cd ${PREFIX}/tools/timings
 #clean up all logs if any
 ./cleanupAWS.sh ${AWSPROFILE} ${REG}
+#Next: clean out the SPOTTABLE and GAMMATABLE databases
+#see above (CLEAN_DB) to remove the databases and add them back (with a delay in between to ensure they get deleted)
 
-#clean out the databases, if they are too big, this won't so delete the tables and remake them (see steps under CLEANUP below)
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX} 
-
-#delete all of the lambdas by name, in AWS
+#Next: delete all of the lambdas by name, in AWS
 #modify restConfigsWest.json and restConfigsEast.json to add the names of the other lambdas you want to delete
 #note that this deletes everything!  any names that aren't found are just skipped (missing lambda names are not a problem)
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
@@ -158,12 +136,12 @@ cd ${PREFIX}/tools/timings
 
 #generate the config files for the lambdas for all cases (CASES list is below)
 cd ${PREFIX}/gammaRay
+source venv/bin/activate
 rm -rf configs
 mkdir -p configs
 #edit makeConfigs to update triggerBuckets and triggerTables datastructures to have your bucket names
 #triggerBuckets for reducerCoordinator must match those in overhead??.sh files and runs below
 python makeConfigs.py configs ${BOTOCORE} ${FLEECE} ${LOCALLIBS} --swbkt ${SPOTBKTWEST} --swbkteast ${SPOTBKTEAST}
-
 #three each: make, West, East for
 ###nothing / clean (C)
 ###fleece only (tracing) (T)
@@ -186,6 +164,37 @@ python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --spotFnsTableName 
 python setupApps.py -f configs/configEastS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion ${REG}
 python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay
 python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay
+deactivate
+
+#make the subscriptions for sns topics to trigger S3ModPy (webapp)
+cd ${PREFIX}/tools
+./make_subs.sh ${AWSPROFILE} ${ACCT} ${REG} 
+#to delete them (if ever you need to, go to the SNS Management Console, click Subscriptions and Topics, select and use Action->Delete
+#to delete --> also check Lambda Mgmnt Console for each lambda and the triggers tab (& delete if there)
+
+#TRIGGERS  ############## Event Source Setup for apps #######################
+Next, add triggers to FnInvokerPy[C,F,D,S,T] via the Lambda Management Console for DynamoDB 
+Delete any tables that are there that have been previously deleted/recreated ("Problem..." 
+will be in the Latest Result) for table ${WEBAPPTRIGGERTABLE}, use trim horizon
+--> make it one table per function if you don't want to trigger them all every time. 
+Its likely fine to just have one table for all functions, we can make this change later (for a final
+version of a paper if accepted). TODO: turn this into a script like make_subs.sh
+
+Next, add triggers to DBSyncPy[C,F,D,S,T] via the Lambda Management Console for DynamoDB for table ${IMAGEPROC_DBSYNC}, trim horizon
+--> make it one table per function if you don't want to trigger them all every time -- if you do this, you also need to 
+change imageProc to write to the right version of each table depending on its name (eg ImageProcPyC writes to imageProcS table which triggers DBSyncS function),
+you will need to add code to imageProc.py to do this.  
+Its likely fine to just have one table for all functions, we can make this change later (for a final
+version of a paper if accepted). TODO: turn this into a script like make_subs.sh
+
+Next, add triggers to UpdateWebsite[C,F,D,S,T] ***in us-east-1 (${XREG})*** via the Lambda Management Console for DynamoDB for table ${EASTSYNCTABLE}, trim horizon
+Its likely fine to just have one table for all functions, we can make this change later (for a final
+version of a paper if accepted). TODO: turn this into a script like make_subs.sh
+
+Next, add a jpg image (any picture of something) to the $SPOTBKTWEST bucket in a folder called imgProc with a file name d1.jpg.  (${SPOTBKTWEST}/imgProc/d1.jpg)
+If you change the name or folder, then change this in tools/timings/imgProc.sh which runs the jobs.
+We pass this into ImageProcPy apps as input, the image is processed with rekognition in AWS to generate labels.
+ImageProcPy apps store the labels in table $IMAGEPROC_DBSYNC (us-west-2)
 
 #only if you want to: blow away the timings directories from past runs, update END to the last directory ID
 export END=100
@@ -193,7 +202,7 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/gammaRay/apps/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/gammaRay/apps/map-reduce/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/dynamodb/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/${i}; done
-for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/logs/; done
+for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/logs/*; done
 
 #download the streams, you will use these to diff out the old stuff when you get new stuff
 #update these commands with your stream name

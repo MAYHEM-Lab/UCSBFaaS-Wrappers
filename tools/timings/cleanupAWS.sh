@@ -140,6 +140,8 @@ LLIST=(
 /aws/lambda/s3writeF \
 /aws/lambda/s3writeS \
 /aws/lambda/s3writeD \
+/aws/lambda/S3EventProcessor \
+/aws/lambda/UploadObjectToS3 \
 )
 
 for f in "${LLIST[@]}"
