@@ -98,6 +98,8 @@ def handler(event, context):
 
     if labels:
         table = dynamodb.Table(tablename) # we assume key is id of type String
+        key = '{}{}'.format(key,str(uuid.uuid4())[:4])
+        print('posting key {} to {}'.format(key,tablename))
         table.put_item( Item={
             'id': key,
             'labels': json.dumps(labels)
