@@ -8,6 +8,7 @@ export ROLE=adminlambda
 export AWSRole=arn:aws:iam::${ACCT}:role/${ROLE}
 export AWSPROFILE=cjk1
 export REG=us-west-2
+export XREG=us-east-1
 export FLEECEDIR=${PREFIX}/fleece0.13.0
 export FLEECE=${FLEECEDIR}/venv/lib/python3.6/site-packages/fleece
 export BOTOCOREDIR=${PREFIX}/boto144
@@ -15,14 +16,30 @@ export BOTOCORE=${BOTOCOREDIR}/venv/lib/python3.6/site-packages/botocore
 export LOCALLIBDIR=${PREFIX}/gammaRay
 export LOCALLIBS=${LOCALLIBDIR}/venv/lib/python3.6/site-packages
 
-export SPOTBKTWEST=cjktestbkt
-export SPOTBKTEAST=cjktestbkteast
 export BDBENCH=cjk-gammaray-bdbenchmark
-export APITESTBKT=cjk-apitest-bucket
-export APITESTTABLE=noTriggerTestTable
-export WEBAPPTRIGGERTABLE=triggerTable
 export SPOTTABLE=spotFns
 export GAMMATABLE=gammaRays
+export SPOTBKTWEST=cjktestbkt
+export SPOTBKTEAST=cjktestbkteast
+
+#s3 buckets used by apps and apis
+export APITESTBKT=cjk-apitest-bucket
+export TRIGGERBKT=cjklambdatrigger
+
+#tables used by apps and apis
+export EASTSYNCTABLE=eastSyncTable
+export APITESTTABLE=noTriggerTestTable
+export WEBAPPTRIGGERTABLE=triggerTable
+export IMAGEPROC_DBSYNC=imageLabels
+
+#create each of the above if needed
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${XREG} --table-name ${EASTSYNCTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${WEBAPPTRIGGERTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+#when done, delete them via:
+aws dynamodb delete-table --table-name ${EASTSYNCTABLE} --profile ${AWSPROFILE} --region ${XREG}
+aws dynamodb delete-table --table-name ${APITESTTABLE} --profile ${AWSPROFILE} --region ${REG}
+aws dynamodb delete-table --table-name ${WEBAPPTRIGGERTABLE} --profile ${AWSPROFILE} --region ${REG}
 
 #if you haven't done so already, clone the big-data-benchmark to the west 
 aws --profile ${AWSPROFILE} s3 mb s3://${BDBENCH}
@@ -52,7 +69,25 @@ cd ${PREFIX}/tools
 #to delete --> also check Lambda Mgmnt Console for each lambda and the triggers tab (& delete if there)
 
 Next, add triggers to FnInvokerPy[C,F,D,S,T] via the Lambda Management Console for DynamoDB for table ${WEBAPPTRIGGERTABLE}, trim horizon
---> make it one table per function if you don't want to trigger them all every time
+--> make it one table per function if you don't want to trigger them all every time. 
+Its likely fine to just have one table for all functions, we can make this change later (for a final
+version of a paper if accepted). TODO: turn this into a script like make_subs.sh
+
+Next, add triggers to DBSyncPy[C,F,D,S,T] via the Lambda Management Console for DynamoDB for table ${IMAGEPROC_DBSYNC}, trim horizon
+--> make it one table per function if you don't want to trigger them all every time -- if you do this, you also need to 
+change imageProc to write to the right version of each table depending on its name (eg ImageProcPyC writes to imageProcS table which triggers DBSyncS function),
+you will need to add code to imageProc.py to do this.  
+Its likely fine to just have one table for all functions, we can make this change later (for a final
+version of a paper if accepted). TODO: turn this into a script like make_subs.sh
+
+Next, add triggers to UpdateWebsite[C,F,D,S,T] ***in us-east-1 (${XREG})*** via the Lambda Management Console for DynamoDB for table ${IMAGEPROC_DBSYNC}, trim horizon
+Its likely fine to just have one table for all functions, we can make this change later (for a final
+version of a paper if accepted). TODO: turn this into a script like make_subs.sh
+
+Next, add a jpg image (any picture of something) to the $SPOTBKTWEST bucket in a folder called imgProc with a file name d1.jpg.
+If you change the name or folder, then change this in tools/timings/imgProc.sh which runs the jobs.
+We pass this into ImageProcPy apps as input, the image is processed with rekognition in AWS to generate labels.
+ImageProcPy apps store the labels in table $IMAGEPROC_DBSYNC (us-west-2)
 
 #go and add a stream to both your GAMMATABLE and SPOTTABLE so that we can download the data in order
 #DynamoDB Mgmnt Console -> Tables, select table, Overview, note "Latest stream ARN" under Stream details, if any. If missing, click on Manage Stream:
@@ -110,8 +145,8 @@ cd ${PREFIX}/gammaRay/micro-benchmarks
 cd ${PREFIX}/tools/timings
 #clean up all logs if any
 ./cleanupAWS.sh ${AWSPROFILE} ${REG}
+
 #clean out the databases, if they are too big, this won't so delete the tables and remake them (see steps under CLEANUP below)
-#run it repeatedly until it says 'Table 'tableName' is empty.'
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX} 
 
 #delete all of the lambdas by name, in AWS
@@ -181,17 +216,6 @@ nohup ./overheadD.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} &
 #run microbenchmarks (default is 100 times) in gammaRay/micro-benchmarks/ directory
 #modify each of the files replace the bucket with $APITESTBKT and the tablenames with $APITESTTABLE
 cd ${PREFIX}/tools/timings
-#todo: setup triggers
-
-#imageProc app, diff out the differences between the streams and the base and store them in base for next program
-deactivate
-./ohead_imgProc.sh ${AWSPROFILE} ${PREFIX}
-python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
-diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > imageProcS.stream
-cat imageProcS.stream >> streamS.base
-python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
-diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > imageProcD.stream
-cat imageProcD.stream >> streamD.base
 
 #microbenchmarks, no streams needed for micro benchmarks
 deactivate
@@ -203,11 +227,17 @@ deactivate
 
 #webapp
 deactivate
-./webapp.sh ${AWSPROFILE} ${ACCT} ${COUNT} ${PREFIX}
+./webapp.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${ACCT} ${TRIGGERBKT}
 
-#dbsync, capture streams for this one
+#imageProc (and dbsync), capture streams for this one
 deactivate
-./dbsync.sh ${AWSPROFILE} ${ACCT} ${COUNT} ${PREFIX}
+./imageProc.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${XREG}
+python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
+diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > imageProcS.stream
+cat imageProcS.stream >> streamS.base
+python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
+diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > imageProcD.stream
+cat imageProcD.stream >> streamD.base
 
 cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 source venv/bin/activate
@@ -239,6 +269,11 @@ python ddb_parser.py dbsyncS.stream
 python ddb_parser.py imageProcS.stream
 deactivate
 
+#######  TROUBLESHOOTING ############
+- if there are problems send Chandra the details and she can help until you get this all setup
+- to see the logs after a run, remove the --delete from the downloadlogs.py calls and they will stay in cloudwatch for you to interrogate
+
+
 #######  CLEANUP ############
 #delete everything in AWS, and I mean everything! 
 cd ${PREFIX}/tools/timings
@@ -260,6 +295,11 @@ aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name $
 #note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
 #just put the date/time component (after .../stream/) here for later use
 export GR_STREAMID=2017-09-06T21:23:44.758
+
+#delete the others if needed (steps to remake them are at the top
+aws dynamodb delete-table --table-name ${EASTSYNCTABLE} --profile ${AWSPROFILE} --region ${XREG} 
+aws dynamodb delete-table --table-name ${APITESTTABLE} --profile ${AWSPROFILE} --region ${REG}
+aws dynamodb delete-table --table-name ${WEBAPPTRIGGERTABLE} --profile ${AWSPROFILE} --region ${REG}
 
 #delete all of the lambdas by name, in AWS (edit restConfigs[West,East].json to add others)
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}

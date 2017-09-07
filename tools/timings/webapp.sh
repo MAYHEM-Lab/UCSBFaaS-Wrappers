@@ -42,7 +42,7 @@ do
         rm -f ${i}/APP/WEBAPP/*.log
         for lambda in "${LLIST[@]}"
         do
-            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} > $i/APP/WEBAPP/${lambda}.log
+            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --delete > $i/APP/WEBAPP/${lambda}.log
         done
     done
 done
