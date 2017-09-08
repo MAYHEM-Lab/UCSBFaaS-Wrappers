@@ -45,12 +45,19 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
     for n in range(1,jobcount+1):
         if n > 1 or not skipFirst:
             fnames.append('{}/{}{}/'.format(dirname,n,ns_str)) #dirnames
-    FILE_LIST = ["dbread","dbwrite","empty","pubsns","s3read","s3write"]
+    FILE_LIST = ["dbread","dbwrite","empty","emptySbig","pubsns","s3read","s3write"]
 
     #for each file, collect job timings for each for jobcount runs
     for postfix in FILE_LIST:
+        BIGTEST = False
         for suffix in suffixes:
-            outfname = '{}_{}{}.out'.format(ofile,postfix,suffix)
+            if postfix == "emptySbig": 
+                if suffix != 'C':
+                    continue
+                outfname = '{}_{}.out'.format(ofile,postfix)
+                BIGTEST = True
+            else:
+                outfname = '{}_{}{}.out'.format(ofile,postfix,suffix)
             with open(outfname,'w') as outf:
                 count = 0
                 tlist = []
@@ -58,7 +65,10 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
                 reqs = []
                 writtenTo = False
                 for fname in fnames:
-                    fname += '{}{}.log'.format(postfix,suffix)
+                    if not BIGTEST:
+                        fname += '{}{}.log'.format(postfix,suffix)
+                    else:
+                        fname += '{}.log'.format(postfix)
                     if not os.path.isfile(fname):
                         continue
                     with open(fname,'r') as f:

@@ -41,7 +41,7 @@ do
         fi
         /bin/sleep 30 #seconds
         mkdir -p $i/APIS/
-        python downloadLogs.py "/aws/lambda/${f}" ${TS} -p ${PROF} --delete > $i/APIS/${f}.log
+        python downloadLogs.py "/aws/lambda/${f}" ${TS} -p ${PROF} > $i/APIS/${f}.log
     done
 done
 deactivate
