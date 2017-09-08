@@ -185,6 +185,17 @@ will be in the Latest Result) for table ${WEBAPPTRIGGERTABLE}, use trim horizon
 --> make it one table per function if you don't want to trigger them all every time. 
 Its likely fine to just have one table for all functions, we can make this change later (for a final
 version of a paper if accepted). TODO: turn this into a script like make_subs.sh
+Next, add permission from WEBAPPTRIGGERTABLE to each FnInvokerPy lambda via:
+in the following do this for FnInvokerPyC,D,F,S,T
+aws lambda add-permission \
+--function-name FnInvokerPyC \
+--region ${REG} \
+--statement-id id1 \
+--action "lambda:InvokeFunction" \
+--principal s3.amazonaws.com \
+--source-arn arn:aws:s3:::${WEBAPPTRIGGERTABLE} \
+--source-account ${ACCT} \
+--profile ${AWSPROFILE}
 
 Next, add triggers to DBSyncPy[C,F,D,S,T] via the Lambda Management Console for DynamoDB for table ${IMAGEPROC_DBSYNC}, trim horizon
 --> make it one table per function if you don't want to trigger them all every time -- if you do this, you also need to 
@@ -192,10 +203,33 @@ change imageProc to write to the right version of each table depending on its na
 you will need to add code to imageProc.py to do this.  
 Its likely fine to just have one table for all functions, we can make this change later (for a final
 version of a paper if accepted). TODO: turn this into a script like make_subs.sh
+Next, add permission from IMAGEPROC_DBSYNC to each DBSyncPy lambda via:
+in the following do this for DBSyncPyC,D,F,S,T
+aws lambda add-permission \
+--function-name DBSyncPyC \
+--region ${REG} \
+--statement-id id1 \
+--action "lambda:InvokeFunction" \
+--principal s3.amazonaws.com \
+--source-arn arn:aws:s3:::${IMAGEPROC_DBSYNC} \
+--source-account ${ACCT} \
+--profile ${AWSPROFILE}
 
 Next, add triggers to UpdateWebsite[C,F,D,S,T] ***in us-east-1 (${XREG})*** via the Lambda Management Console for DynamoDB for table ${EASTSYNCTABLE}, trim horizon
 Its likely fine to just have one table for all functions, we can make this change later (for a final
 version of a paper if accepted). TODO: turn this into a script like make_subs.sh
+Next, add permission from EASTSYNCTABLE to each UpdateWebsite lambda via:
+in the following do this for UpdateWebsiteC,D,F,S,T
+aws lambda add-permission \
+--function-name UpdateWebsiteC \
+--region ${XREG} \
+--statement-id id1 \
+--action "lambda:InvokeFunction" \
+--principal s3.amazonaws.com \
+--source-arn arn:aws:s3:::${EASTSYNCTABLE} \
+--source-account ${ACCT} \
+--profile ${AWSPROFILE}
+
 
 Next, add a jpg image (any picture of something) to the $SPOTBKTWEST bucket in a folder called imgProc with a file name d1.jpg.  (${SPOTBKTWEST}/imgProc/d1.jpg)
 If you change the name or folder, then change this in tools/timings/imgProc.sh which runs the jobs.
@@ -226,6 +260,7 @@ deactivate
 export COUNT=50
 ./micro.sh ${AWSPROFILE} ${COUNT} ${PREFIX}
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}  #if this keeps saying there are entries, you will need to delete the table (see CLEAN_DB) above)
 
 #map-reduce async
 export COUNT=50

@@ -10,57 +10,107 @@ def callIt(event,context):
     return SpotTemplate.handler(event,context)
 
 def handleRequest(event, context):
+    if not event or not context:
+        logger.warn('SpotWrapPython::no context or event')
+        return {'statusCode':400}
+        
     logger = logging.getLogger()
     entry = time.time() * 1000
 
-    ''' Download the zip file from s3, unzip it into libdir, 
-        put it in the path and reload botocore.client to get the changes.
-    '''
-    libdir = '/tmp/spotlibs'
-    botoname = '{}/botocore'.format(libdir)
-    #first check if here (container reuse), if not then load it, else use it
-    if not os.path.exists(botoname): 
-        bkt = 'XXXX' #do not change this text as it is replaced
-        fname = 'YYYY' #do not change this text as it is replaced
-        tmpfname = '/tmp/{}'.format(fname)
-        s3 = boto3.resource('s3')
-        try:
-            s3.Bucket(bkt).download_file(fname, tmpfname)
-        except Exception as e:
-            print('Error, s3 GET exception (unable to download libfile {}/{} to tmp):\n{}'.format(bkt,fname,e))
-        with zipfile.ZipFile(tmpfname, 'r') as z:
-            z.extractall(path=libdir)
-
-    sys.path.insert(0, libdir)
-    import botocore
-    importlib.invalidate_caches()
-    importlib.import_module('botocore')
-    importlib.reload(botocore)
-    importlib.reload(botocore.client)
+    sfx = ''
+    if not 'nolibload' in event:
+        ''' Download the zip file from s3, unzip it into libdir, 
+            put it in the path and reload botocore.client to get the changes.
+        '''
+        libdir = '/tmp/spotlibs'
+        botoname = '{}/botocore'.format(libdir)
+        #first check if here (container reuse), if not then load it, else use it
+        if not os.path.exists(botoname): 
+            bkt = 'XXXX' #do not change this text as it is replaced
+            fname = 'YYYY' #do not change this text as it is replaced
+            tmpfname = '/tmp/{}'.format(fname)
+            s3 = boto3.resource('s3')
+            try:
+                s3.Bucket(bkt).download_file(fname, tmpfname)
+            except Exception as e:
+                print('Error, s3 GET exception (unable to download libfile {}/{} to tmp):\n{}'.format(bkt,fname,e))
+            with zipfile.ZipFile(tmpfname, 'r') as z:
+                z.extractall(path=libdir)
+    
+        sys.path.insert(0, libdir)
+        import botocore
+        importlib.invalidate_caches()
+        importlib.import_module('botocore')
+        importlib.reload(botocore)
+        importlib.reload(botocore.client)
+    else: 
+        sfx = 'nolibload'
 
     reqID = 'unknown'
     arn = 'unknown'
     if context:
         reqID = context.aws_request_id
         arn = context.invoked_function_arn
+    payload = 'pl:{}'.format(arn)
+    if 'eventSource' in event:
+        payload += ':es:{}'.format(event['eventSource'])
+    if 'Records' in event:
+        recs = event['Records']
+        parent_obj = recs[0]
+        if 'dynamodb' in parent_obj: 
+            obj = parent_obj['dynamodb']
+            payload += ':es:ddb'
+            subobj = obj['Keys']
+            payload += ':keys'
+            for key in subobj:
+                payload += ':{}'.format(key)
+            payload += ':op:{}'.format(parent_obj['eventName'])
+        elif 'Sns' in parent_obj: 
+            obj = parent_obj['Sns']
+            payload += ':es:sns'
+            payload += ':sub:{}'.format(obj['Subject'])
+            payload += ':op:{}'.format(obj['TopicArn'])
+        elif 's3' in parent_obj: 
+            payload += ':es:s3'
+            obj = parent_obj['s3']
+            subobj = obj['bucket']
+            payload += ':bkt:{}'.format(subobj['name'])
+            subobj = obj['object']
+            payload += ':key:{}'.format(subobj['key'])
+            payload += ':op:{}'.format(parent_obj['eventName'])
+
+    dynamodb = boto3.resource('dynamodb', region_name='ZZZZ')
+    table = dynamodb.Table('QQQQ')
+    unique_str = str(uuid.uuid4())[:8]
+    entstr = 'entry{}'.format(unique_str)
+    exstr = 'exit{}'.format(unique_str)
+    tsint = int(round(time.time() * 1000)) #msecs in UTC
+    reqID += ':{}'.format(entstr)
+    table.put_item( Item={
+        'reqID': reqID,
+        'ts': tsint,
+        'payload': payload
+        }
+    )
+
     os.environ['spotReqID'] = reqID
     os.environ['myArn'] = arn
     os.environ['gammaTable'] = 'QQQQ'
     os.environ['gammaRegion'] = 'ZZZZ'
     errorstr = 'SpotWrapPython'
-    logger.warn('SpotWrapPython::reqID:{}'.format(reqID))
-    ERR = False
-    unique_str = str(uuid.uuid4())[:8]
-    entstr = 'entry{}'.format(unique_str)
-    exstr = 'exit{}'.format(unique_str)
-    makeRecord(context,event,0,errorstr,entstr)
     respObj = {}
+    if 'nowrap' in event:
+        sfx += ':nowrap'
+        respObj = None
+    logger.warn('SpotWrapPython::reqID:{}:{}'.format(reqID,sfx))
+    ERR = False
     returnObj = {}
     status = '200'
     delta = 0
     wrappedentry = time.time() * 1000
     try: 
-        respObj = callIt(event,context)
+        if 'nowrap' not in event:
+            respObj = callIt(event,context)
         if not respObj:
             respObj = {}
             respObj['SpotWrapMessage'] = 'NoResponseReturned'
@@ -80,9 +130,18 @@ def handleRequest(event, context):
     finally: 
         if errorstr != 'SpotWrapPython':
             print('SpotWrapPy caught error: {}'.format(errorstr))
-        delta = (time.time() * 1000) - wrappedentry
+        exittime = time.time()*1000
+        delta = exittime - wrappedentry
         duration = int(round(delta))
-        makeRecord(context,None,duration,errorstr,exstr) #end event (event arg = null)
+        tsint = int(round(exittime)) #msecs in UTC
+        reqID += ':{}'.format(exstr)
+        payload = 'end'
+        table.put_item( Item={
+            'reqID': reqID,
+            'ts': tsint,
+            'payload': payload
+            }
+        )
 
     if not respObj: 
         respObj = {}
@@ -91,218 +150,8 @@ def handleRequest(event, context):
         respObj['SpotWrapError']=errorstr
     returnObj['statusCode'] = status
     returnObj['body'] = respObj
-    selfdelta = (time.time() * 1000) - entry
-    logger.info('SpotWrapPython::handleRequest:TIMER:CALL:{}:WRAPPEDCALL:{}:status:{}:response:{}'.format(selfdelta,delta,status,respObj))
+    exittime = time.time() * 1000
+    selfdelta = exittime - entry
+    logger.warn('SpotWrapPython::handleRequest:TIMER:CALL:{}:WRAPPEDCALL:{}:status:{}:response:{}'.format(selfdelta,delta,status,respObj))
     return returnObj
-    
-def makeRecord(context,event,duration,errorstr,prefix): 
-    logger = logging.getLogger()
-    #setup record defaults
-    eventSource = "unknown"
-    eventOp = "unknown"
-    caller = "unknown"
-    sourceIP = "unknown"
-    msg = "unset" #random info
-    requestID = sessionID #reqID of this aws lambda function set random as default
-    functionName = "unset" #this aws lambda function name
-    myarn = "unset"
-    region = "unset"
-    accountID = "unset"
-    APIGW = 1
-    DYNDB = 2
-    S3 = 3
-    SNS = 4
-    INVCLI = 5
-    UNKNOWN = 0
-    flag = UNKNOWN
-
-    if context:
-        myarn = context.invoked_function_arn
-        arns = myarn.split(":")
-        accountID = arns[4]
-        region = arns[3]
-        requestID = context.aws_request_id
-        functionName = context.function_name
-
-    if event:
-        if 'requestId' in event:
-            caller = event['requestId']
-        if 'eventSource' in event:
-            eventSource = event['eventSource']
-
-        #figure out source and process appropriately
-        if 'requestContext' in event:
-            #API Gateway
-            flag = APIGW
-            req = event['requestContext']
-            eventSource = 'aws:APIGateway:{}'.format(req['apiId'])
-            msg = req['resourceId']
-            acct = req['accountId']
-            if accountID == 'unset':
-                accountID = acct
-            elif acct != accountID:
-                accountID +=':{}'.format(acct)
-            caller = req['requestId']
-            eventOp = req['path']
-            tmpObj = req['identity']
-            sourceIP = tmpObj['sourceIp']
-            if 'queryStringParameters' in event:
-                req = event['queryStringParameters']
-                if req: 
-                    if 'msg' in req:
-                        msg += ':{}'.format(req['msg'])
-                else: #req is null, try body
-                    req = event['body']
-                    if req:
-                        msg += ':curl:{}'.format(req)
-  
-        elif 'Records' in event:
-            #S3 or DynamoDB or SNS or unknown
-            recs = event['Records']
-            obj = recs[0]
-            if 'eventSource' in obj:
-                eventSource = obj['eventSource']
-            if 'EventSource' in obj: #aws:sns
-                eventSource = obj['EventSource']
-            if eventSource.startswith('aws:sns'):
-                flag = SNS
-                if 'EventSubscriptionArn' in obj:
-                    eventSource = obj['EventSubscriptionArn']
-                else: 
-                    eventSource = 'unknown_aws:sns'
-                if 'Sns' in obj:
-                    snsObj = obj['Sns']
-                    if 'Type' in snsObj:
-                        eventOp = snsObj['Type']
-                    if 'MessageId' in snsObj:
-                        caller = snsObj['MessageId']
-                    if 'Subject' in snsObj:
-                        msg = snsObj['Subject']
-                    if 'Message' in snsObj:
-                        msg += ':{}'.format(snsObj['Message'])
-		
-            elif eventSource.startswith('aws:s3'):
-                flag = S3
-                s3obj = None
-                s3bkt = None
-                s3bktobj = None
-                if 's3' in obj:
-                    s3obj = obj['s3']
-                if 'responseElements' in obj:
-                    caller = obj['responseElements']['x-amz-request-id']
-                if 'requestParameters' in obj:
-                    sourceIP = obj['requestParameters']['sourceIPAddress']
-                if 'userIdentity' in obj:
-                    accountID = obj['userIdentity']['principalId']
-                if 'awsRegion' in obj:
-                    reg = obj['awsRegion']
-                    if region != reg:
-                        region +=':{}'.format(reg)
-                if 'eventName' in obj:
-                    eventOp = obj['eventName']
-                if s3obj:
-                    if 'bucket' in s3obj:
-                        s3bkt = s3obj['bucket']
-                        if 'arn' in s3bkt:
-                            eventSource = '{}:{}'.format(s3bkt['arn'],eventOp)
-                    if 'object' in s3obj:
-                        s3bktobj = s3obj['object']
-                if s3bkt and s3bktobj:
-                    size = 0
-                    if 'size' in s3bktobj:
-                        size = s3bktobj['size']
-                    msg = '{}:{}:{}:{}'.format(s3bkt['name'],s3bktobj['key'],size,obj['eventTime'])
-                    caller += ':{}'.format(s3bktobj['sequencer'])
-                else:
-                    msg = 'Error, unexpected JSON object and bucket'
-
-            elif eventSource.startswith('aws:dynamodb'):
-                flag = DYNDB
-                caller = obj['eventID']
-                eventSource = obj['eventSource']
-                ev = obj['eventName']
-                eventOp = ev
-                ddbobj = obj['dynamodb']
-                mod = ''
-                if 'NewImage' in ddbobj:
-                    mod += 'New:{}'.format(str(ddbobj['NewImage']))
-                if 'OldImage' in ddbobj:
-                    mod += ':Old:{}'.format(str(ddbobj['OldImage']))
-                msg = mod
-                if 'SequenceNumber' in ddbobj:
-                    caller += ':{}'.format(ddbobj['SequenceNumber'])
-                if 'eventSourceARN' in obj:
-                    arn = obj['eventSourceARN']
-                    eventSource = arn
-                    arns = arn.split(":")
-                    acct = arns[4]
-                    if accountID == 'unset':
-                        accountID = acct
-                    elif acct != accountID:
-                        accountID +=':{}'.format(acct)
-                    reg = arns[3]
-                    if region == 'unset':
-                        region = reg
-                    elif reg != region:              
-                        region += ':{}'.format(reg)
-            else:
-                flag = UNKNOWN
-        elif eventSource.startswith('ext:invokeCLI'):
-            flag = INVCLI
-        elif eventSource.startswith('int:invokeCLI'):
-            flag = INVCLI
-        elif eventSource.startswith('lib:invokeCLI'):
-            flag = INVCLI
-        else:
-            flag = UNKNOWN
-
-        if flag == INVCLI:
-            eventSource = 'aws:CLIInvoke:{}'.format(event['eventSource']);
-            #caller set above ('requestId')
-            if 'msg' in event:
-                msg = event['msg']
-            if 'accountId' in event:
-                acct = event['accountId']
-                if accountID == 'unset':
-                    accountID = acct
-                elif acct != accountID:
-                    accountID +=':{}'.format(acct)
-            if 'functionName' in event:
-                eventOp = event['functionName']
-            #else: leave eventOp unset
-            
-
-        if flag == UNKNOWN:
-            eventSource = 'unknown_source:{}'.format(functionName)
-
-    if eventSource == 'unset':
-        #if functionName is "unset" then context is null!
-        eventSource = 'unknown_source:{}'.format(functionName)
-
-    dynamodb = boto3.resource('dynamodb', region_name='ZZZZ')
-    table = dynamodb.Table('QQQQ')
-    tsint = int(round(time.time() * 1000)) #msecs in UTC
-    #since timestamps may be only second resolution, 
-    #two events may record at the same ts
-    #spotFns is indexed on timestamp and requestID, so distinguish 
-    #two events with the same timestamp via postfix on requestID
-    requestID += ':{}'.format(prefix)
-    payload = 'start:thisFnARN:{arn}:caller:{callr}:eventSource:{es}:eventOp:{eo}:region:{reg}:accountID:{acct}:sourceIP:{srcip}:message:{msg}:duration:{dur}:error:{err}'.format(
-        arn = myarn,
-        callr = caller,
-        es = eventSource,
-        eo = eventOp,
-        reg = region,
-        acct = accountID,
-        srcip = sourceIP,
-        msg = msg,
-        dur = str(round(duration)),
-        err = errorstr
-    )
-    table.put_item( Item={
-        'reqID': requestID,
-        'ts': tsint,
-        'payload': payload
-        }
-    )
 

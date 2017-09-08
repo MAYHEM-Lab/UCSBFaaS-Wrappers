@@ -23,6 +23,47 @@ def handleRequest(event, context):
     if context:
         reqID = context.aws_request_id
         arn = context.invoked_function_arn
+    payload = 'pl:{}:{}'.format(reqID,arn)
+    if 'eventSource' in event:
+        payload += ':es:{}'.format(event['eventSource'])
+    if 'Records' in event:
+        recs = event['Records']
+        parent_obj = recs[0]
+        if 'dynamodb' in parent_obj: 
+            obj = parent_obj['dynamodb']
+            payload += ':es:ddb'
+            subobj = obj['Keys']
+            payload += ':keys'
+            for key in subobj:
+                payload += ':{}'.format(key)
+            payload += ':op:{}'.format(parent_obj['eventName'])
+        elif 'Sns' in parent_obj: 
+            obj = parent_obj['Sns']
+            payload += ':es:sns'
+            payload += ':sub:{}'.format(obj['Subject'])
+            payload += ':op:{}'.format(obj['TopicArn'])
+        elif 's3' in parent_obj: 
+            payload += ':es:s3'
+            obj = parent_obj['s3']
+            subobj = obj['bucket']
+            payload += ':bkt:{}'.format(subobj['name'])
+            subobj = obj['object']
+            payload += ':key:{}'.format(subobj['key'])
+            payload += ':op:{}'.format(parent_obj['eventName'])
+
+    dynamodb = boto3.resource('dynamodb', region_name='ZZZZ')
+    table = dynamodb.Table('QQQQ')
+    unique_str = str(uuid.uuid4())[:8]
+    entstr = 'entry{}'.format(unique_str)
+    tsint = int(round(time.time() * 1000)) #msecs in UTC
+    reqID += ':{}'.format(entstr)
+    table.put_item( Item={
+        'reqID': reqID,
+        'ts': tsint,
+        'payload': payload
+        }
+    )
+
     os.environ['spotReqID'] = reqID
     os.environ['myArn'] = arn
     os.environ['gammaTable'] = 'QQQQ'
@@ -36,7 +77,10 @@ def handleRequest(event, context):
     wrappedentry = time.time() * 1000
     ERR = False
     try: 
-        respObj = callIt(event,context)
+        if 'nowrap' in event:
+            respObj = None
+        else:
+            respObj = callIt(event,context)
         if not respObj:
             respObj = {}
             respObj['GammaWrapMessage'] = 'NoResponseReturned'

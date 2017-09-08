@@ -2,9 +2,6 @@
  Driver to deploy SpotWrapped Apps
  Author: Chandra Krintz
  License and Copyright in ../LICENSE
-    #from fleece.xray import (monkey_patch_botocore_for_xray, monkey_patch_requests_for_xray, trace_xray_subsegment)
-    #monkey_patch_botocore_for_xray()
-    #monkey_patch_requests_for_xray()
 '''
 import boto3,botocore,json
 import sys,time,glob,subprocess,argparse,os,tempfile,shutil,random
