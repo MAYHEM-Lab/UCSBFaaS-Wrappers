@@ -1,5 +1,5 @@
---- xray.py	2017-09-03 11:24:20.000000000 -0700
-+++ xray.py.new	2017-09-03 18:17:58.000000000 -0700
+--- xray.py	2017-09-08 08:33:44.000000000 -0700
++++ xray.py.new	2017-09-08 15:30:10.000000000 -0700
 @@ -25,6 +25,11 @@
  
  from fleece import log
@@ -117,7 +117,7 @@
      if 'operation_name' in kwargs:
          operation_name = kwargs['operation_name']
      else:
-@@ -402,7 +458,23 @@
+@@ -402,7 +458,25 @@
          metadata['aws']['table_name'] = kwargs['TableName']
      if 'QueueUrl' in kwargs:
          metadata['aws']['queue_url'] = kwargs['QueueUrl']
@@ -127,6 +127,8 @@
 +        reqID = os.environ['spotReqID']
 +        payload = 'payload'
 +        for k in kwargs:
++            if k == 'Body':
++                continue
 +            payload += ':{}:{}'.format(k,kwargs[k])
 +        metadata['aws']['gr_payload']= payload
 +        #insert this caller's reqID to the callee's payload for tracing
