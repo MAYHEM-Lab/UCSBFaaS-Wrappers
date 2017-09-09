@@ -29,8 +29,8 @@ def handler(event, context):
             val = 17
             try:
                 table.put_item( Item={
-                    'name': key,
-                    'age': val,
+                    'id': key,
+                    'val': val,
                     }
                 )
             except:

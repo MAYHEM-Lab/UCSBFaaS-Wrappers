@@ -1,5 +1,5 @@
 --- xray.py	2017-09-08 08:33:44.000000000 -0700
-+++ xray.py.new	2017-09-08 18:06:54.000000000 -0700
++++ xray.py.new	2017-09-09 13:20:35.000000000 -0700
 @@ -25,6 +25,12 @@
  
  from fleece import log
@@ -13,7 +13,7 @@
  LOGGER = log.get_logger('fleece.xray')
  
  XRAY_DAEMON_HEADER = {'format': 'json', 'version': 1}
-@@ -120,22 +126,52 @@
+@@ -120,27 +126,62 @@
  
  
  def send_segment_document_to_xray_daemon(segment_document):
@@ -30,6 +30,10 @@
 +        #return
 +        NoDaemon = True
 +
++    if 'spotReqID' in os.environ and 'http' in segment_document:
++        #no gr_payload in object yet b/c only formed on aws API call
++        segment_document['gr_payload']=segment_document['http']
++
 +    doc=json.dumps(
 +       segment_document,
 +       ensure_ascii=False,
@@ -45,6 +49,11 @@
 +        document=doc
      )
  
+-    send_data_on_udp(
+-        ip_address=xray_daemon.ip_address,
+-        port=xray_daemon.port,
+-        data=message,
+-    )
 +    #GammaRay
 +    if 'spotReqID' in os.environ:
 +        idx = doc.find('gr_payload') #gr_payload is only added if in GAMMATABLE
@@ -71,10 +80,16 @@
 +    if NoDaemon:
 +        return
 +
-     send_data_on_udp(
-         ip_address=xray_daemon.ip_address,
-         port=xray_daemon.port,
-@@ -236,7 +272,28 @@
++    if not ('PutItem' in message and 'gammaRays' in message):
++        send_data_on_udp(
++            ip_address=xray_daemon.ip_address,
++            port=xray_daemon.port,
++            data=message,
++        )
+ 
+ 
+ def send_subsegment_to_xray_daemon(subsegment_id, parent_id,
+@@ -236,7 +277,30 @@
          # Request not sampled by X-Ray, let's get to the call
          # immediately.
          LOGGER.debug('Request not sampled by X-Ray, skipping trace')
@@ -84,12 +99,13 @@
 +            if args and len(args) > 1:
 +                if args[0] == 'PutItem': 
 +                    obj = args[1]
++                    tname = "unknown"
 +                    if 'gammaTable' in os.environ:
 +                        tname = os.environ['gammaTable']
 +                    if 'TableName' in obj and obj['TableName'] == tname:
 +                        return wrapped(*args, **kwargs)
 +        else:
-+            #print('Request not sampled by X-Ray, skipping trace')
++            print('Request not sampled by X-Ray, skipping trace')
 +            return wrapped(*args, **kwargs)
 +    else: #sampled
 +        if TESTING or 'spotReqID' in os.environ:
@@ -97,6 +113,7 @@
 +            if args and len(args) > 1:
 +                if args[0] == 'PutItem': 
 +                    obj = args[1]
++                    tname = "unknown"
 +                    if 'gammaTable' in os.environ:
 +                        tname = os.environ['gammaTable']
 +                    if 'TableName' in obj and obj['TableName'] == tname:
@@ -104,7 +121,7 @@
  
      start_time = time.time()
      error = False
-@@ -363,6 +420,17 @@
+@@ -363,6 +427,17 @@
          return instance._service_model.metadata['endpointPrefix']
      return instance._service_model.metadata['serviceAbbreviation']
  
@@ -122,7 +139,7 @@
  
  def extract_aws_metadata(wrapped, instance, args, kwargs, return_value):
      """Provide AWS metadata for improved visualization.
-@@ -377,6 +445,7 @@
+@@ -377,6 +452,7 @@
          kwargs=kwargs,
          response=response,
      )
@@ -130,7 +147,7 @@
      if 'operation_name' in kwargs:
          operation_name = kwargs['operation_name']
      else:
-@@ -388,7 +457,6 @@
+@@ -388,7 +464,6 @@
          kwargs = args[1]
  
      region_name = instance._client_config.region_name
@@ -138,17 +155,20 @@
      response_metadata = response.get('ResponseMetadata')
  
      metadata = {
-@@ -402,7 +470,27 @@
+@@ -402,7 +477,27 @@
          metadata['aws']['table_name'] = kwargs['TableName']
      if 'QueueUrl' in kwargs:
          metadata['aws']['queue_url'] = kwargs['QueueUrl']
 -
 +    #GammaRay
 +    if 'spotReqID' in os.environ: #this will be set to 'unknown' if outside of lambda
-+        #Only create gr_payload if operation_name is one of the ones in the list GAMMATABLE
++        #Only create gr_payload if operation_name is in the list GAMMATABLE
 +        if operation_name in GAMMATABLE:
 +            reqID = os.environ['spotReqID']
-+            payload = 'payload'
++            myArn = 'unknown'
++            if 'myArn' in os.environ:
++                myArn = os.environ['myArn']
++            payload = 'payload:{}'.format(myArn)
 +            for k in kwargs:
 +                if k == 'Body':
 +                    continue
@@ -156,9 +176,6 @@
 +            metadata['aws']['gr_payload']= payload
 +            #insert this caller's reqID to the callee's payload for tracing
 +            if 'Payload' in kwargs:
-+                myArn = 'unknown'
-+                if 'myArn' in os.environ:
-+                    myArn = os.environ['myArn']
 +                if 'eventSource' in kwargs['Payload']:
 +                    fixup_kwargs(kwargs,myArn,reqID,True)
 +                else:

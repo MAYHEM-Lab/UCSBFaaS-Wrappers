@@ -1,5 +1,5 @@
 import boto3
-import os, json, logging, time, argparse, requests, uuid
+import os, json, logging, time, argparse, requests, uuid, random
 
 def handler(event,context):
     entry = time.time() * 1000
@@ -67,11 +67,11 @@ def handler(event,context):
    
             tail = me[idx+12:]
             arn = me[0:idx]
-            if 'aws:s3' in es:
+            if 'aws:s3' in es: #webapp
                 fn = '{}:DBModPy{}'.format(arn,tail)
                 key = str(uuid.uuid4())[:4]
-                val = str(uuid.uuid4())[:4]
-                msg = {'writetablename':'triggerTable','tablename':'noTriggerTestTable','mykey':key,'myval':val,'keyname':'name','valname':'age','readkeyname':'id','readkey':100,'from':me}
+                val = random.randint(1, 1000)
+                msg = {'writetablename':'triggerTable','tablename':'noTriggerTestTable','mykey':key,'myval':val,'keyname':'id','valname':'age','readkeyname':'id','readkey':100,'from':me}
                 payload=json.dumps(msg)
                 print('Invoking {}'.format(fn))
                 invoke_response = lambda_client.invoke(FunctionName=fn,

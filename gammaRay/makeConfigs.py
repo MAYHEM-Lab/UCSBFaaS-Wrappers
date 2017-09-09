@@ -66,6 +66,12 @@ if __name__ == "__main__":
     #specify the bucket and prefix (folder) in bucket to use to trigger function lambda_name
     #bucket names must be unique and identifiable (for run type: C,T,F,S,D,B)
     triggerBuckets = {  #lambda_name:bucket:bucket_prefix
+        ('FnInvokerPyC','cjklambdatrigger','prefC'),
+        ('FnInvokerPyT','cjklambdatrigger','prefT'),
+        ('FnInvokerPyF','cjklambdatrigger','prefF'),
+        ('FnInvokerPyS','cjklambdatrigger','prefS'),
+        ('FnInvokerPyD','cjklambdatrigger','prefD'),
+        ('FnInvokerPyB','cjklambdatrigger','prefB'),
         ('ImageProcPyC','image-proc-c','imageProc'),
         ('ImageProcPyT','image-proc-t','imageProc'),
         ('ImageProcPyF','image-proc-f','imageProc'),

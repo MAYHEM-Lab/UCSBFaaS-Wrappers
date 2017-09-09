@@ -4,11 +4,14 @@ if [ -z ${2+x} ]; then echo 'Unset count (second var). Set and rerun. Exiting...
 if [ -z ${3+x} ]; then echo 'Unset prefix as arg3 (full path to/including UCSBFaaS-Wrappers). Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${4+x} ]; then echo 'Unset region where starting lambda (ImageProcPy*) is as arg4. Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${5+x} ]; then echo 'Unset region where cross-region lambda (UpdateWeb*) is as arg5. Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${6+x} ]; then echo 'Unset bucket where /imgProc/d1.jpg (any picture will work here) is as arg6. Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
 COUNT=$2
 PREFIX=$3
 REG=$4
 ACCT=$5
+BKT=$6
+BKTKEY=imgProc/d1.jpg
 GRDIR=${PREFIX}/gammaRay
 CWDIR=${PREFIX}/tools/cloudwatch
 TOOLSDIR=${PREFIX}/tools/timings
@@ -19,10 +22,15 @@ cd ${GRDIR}
 . ./venv/bin/activate
 cd ${CWDIR}
 
+#see RUN_README for env. variable settings
+#imageProc.sh: ImgProc_ -> CLI Invoked calls http, rekognition, ${IMAGEPROC_DBSYNC} DB table write
+        #${IMAGEPROC_DBSYNC} write triggers DBSyncPy (all of them which is fine b/c we only download the _ log)
+        #DBSyncPy writes ${EASTSYNCTABLE} in east region
+        #UpdateWebsite (all of them) in east is triggered by ${EASTSYNCTABLE} write and
+        #invokes http
+
 for suf in "${SUFFIXES[@]}"
 do
-    TOPIC="arn:aws:sns:${REG}:${ACCT}:topic${suf}"
-    BKTPREFIX="pref${suf}"
     LLIST=( "ImageProcPy${suf}" "DBSyncPy${suf}" "UpdateWebsite${suf}" )
     for lambda in "${LLIST[@]}"
     do
@@ -37,7 +45,7 @@ do
 
     for i in `seq 1 ${COUNT}`;
     do
-        aws lambda invoke --invocation-type Event --function-name ImageProcPy${suf} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"name\":\"cjktestbkt\",\"key\":\"imgProc/d1.jpg\"}" outputfile
+        aws lambda invoke --invocation-type Event --function-name ImageProcPy${suf} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"name\":\"${BKT}\",\"key\":\"${BKTKEY}\"}" outputfile
 
         /bin/sleep 30 #seconds
         mkdir -p ${i}/APP/IMGPROC

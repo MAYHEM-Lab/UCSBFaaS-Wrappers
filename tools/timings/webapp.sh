@@ -16,11 +16,17 @@ CWDIR=${PREFIX}/tools/cloudwatch
 TOOLSDIR=${PREFIX}/tools/timings
 TS=1401861965497 #some early date
 
-SUFFIXES=( C S D F T B )
-#SUFFIXES=( F )
+#SUFFIXES=( C S D F T B )
+SUFFIXES=( C )
 cd ${GRDIR}
 . ./venv/bin/activate
 cd ${CWDIR}
+
+#see RUN_README for env. variable settings
+#webapp.sh:SNSPy (topic_) -> triggers S3ModPy_ passes in bkt:${TRIGGERBKT}, fname:xxx, prefix:xxx in msg
+        #S3Mod writes ${TRIGGERBKT} -> triggers FnInvoker, invokes DBMod ->
+        #DBMod reads testTable and writes triggerTable (see FnInvoker.py for invoke call with params),
+        #write to triggerTable -> triggers FnInvoker (does not invoke DBMod)
 
 for suf in "${SUFFIXES[@]}"
 do

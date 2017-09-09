@@ -38,15 +38,17 @@ def handler(event, context):
             valname = event['valname']
         if 'mykey' in event:
             key = event['mykey']
+            if keyname == 'id':
+                key = int(key)
         if 'myval' in event:
             val = event['myval']
         if 'functionName' in event:
             caller = event['functionName']
-        if 'tableName' in event:
+        if 'tableName' in event:  #read readkeyname:readkey
             tablename = event['tableName']
-        if 'tablename' in event:
+        if 'tablename' in event:  #read readkeyname:readkey
             tablename = event['tablename']
-        if 'writetablename' in event:
+        if 'writetablename' in event: #write keyname=key, valname=val
             writetablename = event['writetablename']
     if not tablename:
         tablename = 'MissingTable'
