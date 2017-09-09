@@ -44,12 +44,12 @@ do
         aws lambda invoke --invocation-type Event --function-name SNSPy${suf} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"topic\":\"${TOPIC}\",\"subject\":\"sub1\",\"msg\":\"fname:testfile.txt:prefix:${BKTPREFIX}:bkt:${TRIGGERBKT}:xxx\"}" outputfile
 
         /bin/sleep 15 #seconds
-        mkdir -p ${i}/APP/WEBAPP
-        rm -f ${i}/APP/WEBAPP/*.log
+        mkdir -p ${i}/APP/WEBAPP/${suf}
+        rm -f ${i}/APP/WEBAPP/${suf}/*.log
         for lambda in "${LLIST[@]}"
         do
-            #python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --delete > $i/APP/WEBAPP/${lambda}.log
-            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} > $i/APP/WEBAPP/${lambda}.log
+            #python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --delete > $i/APP/WEBAPP/${suf}/${lambda}.log
+            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} > $i/APP/WEBAPP/${suf}/${lambda}.log
         done
     done
 done

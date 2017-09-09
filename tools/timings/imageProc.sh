@@ -48,15 +48,15 @@ do
         aws lambda invoke --invocation-type Event --function-name ImageProcPy${suf} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"name\":\"${BKT}\",\"key\":\"${BKTKEY}\"}" outputfile
 
         /bin/sleep 30 #seconds
-        mkdir -p ${i}/APP/IMGPROC
-        rm -f ${i}/APP/IMGPROC/*.log
+        mkdir -p ${i}/APP/IMGPROC/${suf}
+        rm -f ${i}/APP/IMGPROC/${suf}/*.log
         for lambda in "${LLIST[@]}"
         do
         if [[ ${lambda} == UpdateWeb* ]] ;
         then
-            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --region us-east-1 > $i/APP/IMGPROC/${lambda}.log
+            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --region us-east-1 > $i/APP/IMGPROC/${suf}/${lambda}.log
         else
-            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} > $i/APP/IMGPROC/${lambda}.log
+            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} > $i/APP/IMGPROC/${suf}/${lambda}.log
         fi
         done
     done
