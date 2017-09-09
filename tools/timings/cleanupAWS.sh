@@ -129,11 +129,13 @@ LLIST=(
 /aws/lambda/dbreadF \
 /aws/lambda/dbreadS \
 /aws/lambda/dbreadD \
+/aws/lambda/dbreadB \
 /aws/lambda/dbwriteC \
 /aws/lambda/dbwriteT \
 /aws/lambda/dbwriteF \
 /aws/lambda/dbwriteS \
 /aws/lambda/dbwriteD \
+/aws/lambda/dbwriteB \
 /aws/lambda/emptyC \
 /aws/lambda/emptyT \
 /aws/lambda/emptyF \
