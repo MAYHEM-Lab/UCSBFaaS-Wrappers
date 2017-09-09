@@ -1,8 +1,10 @@
 #! /bin/bash
 if [ -z ${1+x} ]; then echo 'Unset aws_profile (arg1). Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${2+x} ]; then echo 'Unset region (arg2). Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${3+x} ]; then echo 'Unset cross-region name (arg3). Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
-REG=$2
+REG=$2 #us-west-2
+XREG=$3 #us-east-1
 
 #delete s3 entries for map/reduce jobs
 MRBKT=spot-mr-bkt #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run without --no_spotwrap
@@ -10,6 +12,7 @@ MRBKTNS=spot-mr-bkt-ns #must match reducerCoordinator "permission" in setupconfi
 MRBKTGR=spot-mr-bkt-gr #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
 MRBKTF=spot-mr-bkt-f #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
 MRBKTT=spot-mr-bkt-t #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
+MRBKTT=spot-mr-bkt-b #must match reducerCoordinator "permission" in setupconfig.json when setupApps.py is run with --no_spotwrap
 aws s3 rm s3://${MRBKT}/ --recursive --profile ${PROF}
 aws s3 rm s3://${MRBKTNS}/ --recursive --profile ${PROF}
 aws s3 rm s3://${MRBKTGR}/ --recursive --profile ${PROF}
@@ -61,6 +64,16 @@ LLIST=(
 /aws/lambda/DBSyncPyD \
 /aws/lambda/FnInvokerPyD \
 /aws/lambda/ImageProcPyD \
+/aws/lambda/mapperB \
+/aws/lambda/reducerB \
+/aws/lambda/driverB \
+/aws/lambda/reducerCoordinatorB \
+/aws/lambda/SNSPyB \
+/aws/lambda/S3ModPyB \
+/aws/lambda/DBModPyB \
+/aws/lambda/DBSyncPyB \
+/aws/lambda/FnInvokerPyB \
+/aws/lambda/ImageProcPyB \
 /aws/lambda/SNSPyF \
 /aws/lambda/S3ModPyF \
 /aws/lambda/DBModPyF \
@@ -110,6 +123,7 @@ LLIST=(
 /aws/lambda/UpdateWebsiteF \
 /aws/lambda/UpdateWebsiteS \
 /aws/lambda/UpdateWebsiteD \
+/aws/lambda/UpdateWebsiteB \
 /aws/lambda/dbreadC \
 /aws/lambda/dbreadT \
 /aws/lambda/dbreadF \
@@ -125,21 +139,26 @@ LLIST=(
 /aws/lambda/emptyF \
 /aws/lambda/emptyS \
 /aws/lambda/emptyD \
+/aws/lambda/emptyB \
+/aws/lambda/emptySbig \
 /aws/lambda/pubsnsC \
 /aws/lambda/pubsnsT \
 /aws/lambda/pubsnsF \
 /aws/lambda/pubsnsS \
 /aws/lambda/pubsnsD \
+/aws/lambda/pubsnsB \
 /aws/lambda/s3readC \
 /aws/lambda/s3readT \
 /aws/lambda/s3readF \
 /aws/lambda/s3readS \
 /aws/lambda/s3readD \
+/aws/lambda/s3readB \
 /aws/lambda/s3writeC \
 /aws/lambda/s3writeT \
 /aws/lambda/s3writeF \
 /aws/lambda/s3writeS \
 /aws/lambda/s3writeD \
+/aws/lambda/s3writeB \
 /aws/lambda/S3EventProcessor \
 /aws/lambda/UploadObjectToS3 \
 )
@@ -147,5 +166,10 @@ LLIST=(
 for f in "${LLIST[@]}"
 do
     echo "processing ${f}"
-    aws logs delete-log-group --region ${REG} --profile ${PROF} --log-group-name ${f}
+    if [[ ${lambda} == UpdateWeb* ]] ;
+    then
+        aws logs delete-log-group --region ${XREG} --profile ${PROF} --log-group-name ${f}
+    else
+        aws logs delete-log-group --region ${REG} --profile ${PROF} --log-group-name ${f}
+    fi
 done
