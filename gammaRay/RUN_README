@@ -12,6 +12,8 @@ export REG=us-west-2
 export XREG=us-east-1
 export FLEECEDIR=${PREFIX}/fleece0.13.0
 export FLEECE=${FLEECEDIR}/venv/lib/python3.6/site-packages/fleece
+export BFLEECEDIR=${PREFIX}/fleece0.13.0lite
+export BFLEECE=${BFLEECEDIR}/venv/lib/python3.6/site-packages/fleece
 export BOTOCOREDIR=${PREFIX}/boto144
 export BOTOCORE=${BOTOCOREDIR}/venv/lib/python3.6/site-packages/botocore
 export LOCALLIBDIR=${PREFIX}/gammaRay
@@ -83,6 +85,7 @@ aws --profile ${AWSPROFILE} s3 mb s3://image-proc-t
 aws --profile ${AWSPROFILE} s3 mb s3://image-proc-s
 aws --profile ${AWSPROFILE} s3 mb s3://image-proc-d
 aws --profile ${AWSPROFILE} s3 mb s3://image-proc-f
+aws --profile ${AWSPROFILE} s3 mb s3://image-proc-b
 #1 per job type for map reduce app (mine use old names: ns=C and gr=D now, empty=S)
 #must match what is used in gammaRays/makeConfigs.py triggerBuckets datastructure for reducerCoordinator lambdas
 MRBKTS=spot-mr-bkt
@@ -90,11 +93,13 @@ MRBKTF=spot-mr-bkt-f
 MRBKTD=spot-mr-bkt-gr
 MRBKTC=spot-mr-bkt-ns
 MRBKTT=spot-mr-bkt-t
+MRBKTB=spot-mr-bkt-b
 aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTS}
 aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTF}
 aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTD}
 aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTC}
 aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTT}
+aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTB}
 
 deactivate
 #$BOTOCORE is passed as first argument to makeConfigs.py
@@ -147,7 +152,7 @@ rm -rf configs
 mkdir -p configs
 #edit makeConfigs to update triggerBuckets and triggerTables datastructures to have your bucket names
 #triggerBuckets for reducerCoordinator must match those in overhead??.sh files and runs below
-python makeConfigs.py configs ${BOTOCORE} ${FLEECE} ${LOCALLIBS} --swbkt ${SPOTBKTWEST} --swbkteast ${SPOTBKTEAST}
+python makeConfigs.py configs ${BOTOCORE} ${FLEECE} ${LOCALLIBS} --swbkt ${SPOTBKTWEST} --swbkteast ${SPOTBKTEAST} --Bversion ${BFLEECE}
 #three each: make, West, East for
 ###nothing / clean (C)
 ###fleece only (tracing) (T)
@@ -155,10 +160,17 @@ python makeConfigs.py configs ${BOTOCORE} ${FLEECE} ${LOCALLIBS} --swbkt ${SPOTB
 ###original spotwrap (static insertion of wrapper) (S)
 ###gammaray (dynamic insertion of wrapper) (D)
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --deleteAll
+python setupApps.py -f configs/configEastC.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configT.json -p ${AWSPROFILE} --deleteAll
+python setupApps.py -f configs/configEastT.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configF.json -p ${AWSPROFILE} --deleteAll
+python setupApps.py -f configs/configEastF.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --deleteAll
+python setupApps.py -f configs/configEastS.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --deleteAll
+python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --deleteAll
+python setupApps.py -f configs/configB.json -p ${AWSPROFILE} --deleteAll
+python setupApps.py -f configs/configEastB.json -p ${AWSPROFILE} --deleteAll
 
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --no_spotwrap 
 python setupApps.py -f configs/configEastC.json -p ${AWSPROFILE} --no_spotwrap 
@@ -170,6 +182,8 @@ python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --spotFnsTableName 
 python setupApps.py -f configs/configEastS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion ${REG}
 python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay
 python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay
+python setupApps.py -f configs/configB.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay --turn_on_tracing
+python setupApps.py -f configs/configEastB.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay --turn_on_tracing
 deactivate
 
 #make the subscriptions for sns topics to trigger S3ModPy (webapp)

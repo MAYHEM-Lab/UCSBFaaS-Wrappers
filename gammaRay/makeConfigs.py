@@ -13,6 +13,7 @@ if __name__ == "__main__":
     parser.add_argument('botocore_dir',action='store',help='full path to patched botocore directory')
     parser.add_argument('fleece_dir',action='store',help='full path to patched fleece directory')
     parser.add_argument('other_libs_dir',action='store',help='full path to directory with other libraries in it')
+    parser.add_argument('--Bversion',action='store',default=None,help='full path to directory with fleece_lite version')
     args = parser.parse_args()
     
     fleece_dir = args.fleece_dir
@@ -24,6 +25,10 @@ if __name__ == "__main__":
     if not os.path.isdir(fleece_dir) or not fleece_dir.endswith('fleece'):
         print('Error, filename passed in for fleece must be an existing directory (...site-packages/fleece): {}'.format(fleece_dir))
         sys.exit(1)
+    if args.Bversion:
+        if not os.path.isdir(args.Bversion) or not args.Bversion.endswith('fleece'):
+            print('Error, filename passed in for fleece (Bversion) must be an existing directory (...site-packages/fleece): {}'.format(fleece_dir))
+            sys.exit(1)
     if not os.path.isdir(botocore_dir) or not botocore_dir.endswith('botocore'):
         print('Error, filename passed in for botocore must be an existing directory (...site-packages/botocore): {}'.format(botocore_dir))
         sys.exit(1)
@@ -37,6 +42,7 @@ if __name__ == "__main__":
         'F', #tracing + fleece turned on
         'S', #static GammaRay (original spotwrap)
         'D', #dynamic GammaRay (spotwrap reimplemented using fleece)
+        'B', #both tracing and dynamic GammaRay for writes only
     ]
     apps = {
         'DBSyncPy':'apps/DBSync.py',
@@ -58,18 +64,20 @@ if __name__ == "__main__":
         's3write':'micro-benchmarks/s3write.py',
     }
     #specify the bucket and prefix (folder) in bucket to use to trigger function lambda_name
-    #bucket names must be unique and identifiable (for run type: C,T,F,S,D)
+    #bucket names must be unique and identifiable (for run type: C,T,F,S,D,B)
     triggerBuckets = {  #lambda_name:bucket:bucket_prefix
         ('ImageProcPyC','image-proc-c','imageProc'),
         ('ImageProcPyT','image-proc-t','imageProc'),
         ('ImageProcPyF','image-proc-f','imageProc'),
         ('ImageProcPyS','image-proc-s','imageProc'),
         ('ImageProcPyD','image-proc-d','imageProc'),
+        ('ImageProcPyB','image-proc-b','imageProc'),
         ('reducerCoordinatorC','spot-mr-bkt-ns','job8000'),
         ('reducerCoordinatorT','spot-mr-bkt-t','job8000'),
         ('reducerCoordinatorF','spot-mr-bkt-f','job8000'),
         ('reducerCoordinatorS','spot-mr-bkt','job8000'),
-        ('reducerCoordinatorD','spot-mr-bkt-gr','job8000')
+        ('reducerCoordinatorD','spot-mr-bkt-gr','job8000'),
+        ('reducerCoordinatorB','spot-mr-bkt-b','job8000')
     }
 
     #specify the DynamoDB table stream that triggers lambda function lambda_name
@@ -108,6 +116,10 @@ if __name__ == "__main__":
                     '{}'.format(entry)
                 ]
 
+                if args.Bversion and suffix == 'B':
+                    final_fleece_dir = args.Bversion
+                else:
+                    final_fleece_dir = fleece_dir
 
                 #append other libs and python files here via files_and_dirs.append
                 #adding them to the local/gammaray virtualenv (other_libs_dir) is easiest 
@@ -116,14 +128,14 @@ if __name__ == "__main__":
 
                 if key == 'FnInvokerPy' or key == "ImageProcPy" or key == 'UpdateWebsite' or key == 'DBModPy' or key == 'DBSyncPy':
                     #requests is a fleece dependency
-                    if suffix != 'F' and suffix != 'D': #don't add them twice (will be added below for F and D)
+                    if suffix != 'F' and suffix != 'D' and suffix != 'B': #don't add them twice (will be added below for F and D and B)
                         files_and_dirs.append("{}/requests".format(other_libs_dir))
                         files_and_dirs.append("{}/urllib3".format(other_libs_dir))
                         files_and_dirs.append("{}/chardet".format(other_libs_dir))
                         files_and_dirs.append("{}/certifi".format(other_libs_dir))
                         files_and_dirs.append("{}/idna".format(other_libs_dir))
-                if suffix == 'F' or suffix == 'D':
-                    files_and_dirs.append(fleece_dir)
+                if suffix == 'F' or suffix == 'D' or suffix == 'B':
+                    files_and_dirs.append(final_fleece_dir)
                     files_and_dirs.append("{}/requests".format(other_libs_dir))
                     files_and_dirs.append("{}/urllib3".format(other_libs_dir))
                     files_and_dirs.append("{}/chardet".format(other_libs_dir))

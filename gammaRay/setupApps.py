@@ -305,9 +305,9 @@ if __name__ == "__main__":
     if args.gammaRay and not args.no_spotwrap:
         print('Error, must set --gammaRay and --no_spotwrap to use the gammaRay support')
         sys.exit(1)
-    if args.gammaRay and args.turn_on_tracing:
-        print('Error, --gammaRay and --turn_on_tracing cannot be used together')
-        sys.exit(1)
+    #if args.gammaRay and args.turn_on_tracing:
+        #print('Error, --gammaRay and --turn_on_tracing cannot be used together')
+        #sys.exit(1)
     if not os.path.isfile(args.config):
         print('Error, no json config file found!')
         sys.exit(1)
@@ -315,8 +315,6 @@ if __name__ == "__main__":
     if args.turn_on_tracing:
         args.no_spotwrap = True #safety condition
         args.no_boto_core_change = True
-    if args.gammaRay and args.no_spotwrap:
-        args.turn_on_tracing = False
    
     processLambda(args.config,
         args.profile,
