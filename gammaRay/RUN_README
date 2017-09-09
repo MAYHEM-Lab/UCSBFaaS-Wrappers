@@ -36,7 +36,7 @@ export WEBAPPTRIGGERTABLE=triggerTable
 export IMAGEPROC_DBSYNC=imageLabels
 
 #others explained below
-export GR_STREAMID=2017-09-07T18:36:33.398
+export GR_STREAMID=2017-09-09T20:03:35.795
 export SPOT_STREAMID=2017-09-07T18:35:46.003
 export MRBKTS=spot-mr-bkt
 export MRBKTF=spot-mr-bkt-f
@@ -322,7 +322,7 @@ cd ${PREFIX}/tools  #download the stream data and append it to stream base (save
 python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
 diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > mrS.stream
 cat mrS.stream >> streamS.base
-python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
+python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.new
 diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > mrD.stream
 cat mrD.stream >> streamD.base
 deactivate
@@ -339,7 +339,7 @@ cd ${PREFIX}/tools  #download the stream data and append it to stream base (save
 python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
 diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > webappS.stream
 cat webappS.stream >> streamS.base
-python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
+python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.new
 diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > webappD.stream
 cat webappD.stream >> streamD.base
 deactivate
@@ -355,7 +355,7 @@ cd ${PREFIX}/tools  #download the stream data and append it to stream base (save
 python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
 diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > imageProcS.stream
 cat imageProcS.stream >> streamS.base
-python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
+python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.new
 diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > imageProcD.stream
 cat imageProcD.stream >> streamD.base
 deactivate
@@ -417,7 +417,7 @@ export SPOT_STREAMID=2017-09-06T21:22:39.210
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 #note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
 #just put the date/time component (after .../stream/) here for later use
-export GR_STREAMID=2017-09-06T21:23:44.758
+export GR_STREAMID=2017-09-09T20:03:35.795
 
 #delete the others if needed (steps to remake them are at the top)
 aws dynamodb delete-table --table-name ${EASTSYNCTABLE} --profile ${AWSPROFILE} --region ${XREG} 
