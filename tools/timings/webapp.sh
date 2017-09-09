@@ -16,8 +16,8 @@ CWDIR=${PREFIX}/tools/cloudwatch
 TOOLSDIR=${PREFIX}/tools/timings
 TS=1401861965497 #some early date
 
-#SUFFIXES=( C S D F T B )
-SUFFIXES=( C )
+SUFFIXES=( C S D F T B )
+#SUFFIXES=( C )
 cd ${GRDIR}
 . ./venv/bin/activate
 cd ${CWDIR}
