@@ -7,12 +7,16 @@ PREFIX=$2
 REG=$3
 LAMBDANAME=S3ModPy
 TOPICNAME=topic
+#SUFFIXLIST=( 
+    #B \
+#)
 SUFFIXLIST=( 
     C \
     F \
     T \
     S \
     D \
+    B \
 )
 for suffix in "${SUFFIXLIST[@]}"
 do
