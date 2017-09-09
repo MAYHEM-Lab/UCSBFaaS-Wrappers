@@ -98,7 +98,7 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
                             
             if len(tlist) > jobcount:
                 print('longer list??? {} {}'.format(len(tlist),tlist))
-            if count > 0:
+            if len(tlist) > 0:
                 print('{}{}:{}:{}:{}:{}:{}'.format(
                     postfix,suffix,len(tlist),
                     statistics.mean(tlist),statistics.stdev(tlist),
