@@ -41,10 +41,13 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
     fnames = []
     ns_str = '/APIs'
     suffixes = ['C','T','F','D','S','B']
- 
-    for n in range(1,jobcount+1):
-        if n > 1 or not skipFirst:
-            fnames.append('{}/{}{}/'.format(dirname,n,ns_str)) #dirnames
+
+    #CJK here
+    n = 50
+    fnames.append('{}/{}{}/'.format(dirname,n,ns_str)) #dirnames
+    #for n in range(1,jobcount+1):
+        #if n > 1 or not skipFirst:
+            #fnames.append('{}/{}{}/'.format(dirname,n,ns_str)) #dirnames
     FILE_LIST = ["dbread","dbwrite","empty","emptySbig","pubsns","s3read","s3write"]
 
     #for each file, collect job timings for each for jobcount runs
@@ -98,11 +101,15 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
                             
             if len(tlist) > jobcount:
                 print('longer list??? {} {}'.format(len(tlist),tlist))
-            if len(tlist) > 0:
+            if len(tlist) > 1:
                 print('{}{}:{}:{}:{}:{}:{}'.format(
                     postfix,suffix,len(tlist),
                     statistics.mean(tlist),statistics.stdev(tlist),
                     statistics.mean(mlist),statistics.stdev(mlist)
+                ))
+            else:
+                print('{}{}:{}:{}:{}:{}:{}'.format(
+                    postfix,suffix,len(tlist),0.0,0.0,0.0,0.0
                 ))
 
 def processCW(dirname,jobcount,NSJob,ofile,skipFirst=False):
