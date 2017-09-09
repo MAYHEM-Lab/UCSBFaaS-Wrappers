@@ -22,6 +22,9 @@ FILELIST=(
     emptySbig \
     emptyD \
 )
+#FILELIST=( 
+    #emptySbig \
+#)
 
 cd ${GRDIR}
 . ./venv/bin/activate

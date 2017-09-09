@@ -40,7 +40,7 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
         print('processMicro')
     fnames = []
     ns_str = '/APIs'
-    suffixes = ['C','T','F','D','S']
+    suffixes = ['C','T','F','D','S','B']
  
     for n in range(1,jobcount+1):
         if n > 1 or not skipFirst:
@@ -86,7 +86,6 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
                             req = strs[1]
                             if req in reqs:
                                 continue #skip it if we've already see it
-
                             #Fn:reqID:duration_billed:mem_used	//Record
                             reqs.append(req)
                             tlist.append(float(strs[2]))

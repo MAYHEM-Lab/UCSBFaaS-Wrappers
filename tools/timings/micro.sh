@@ -20,6 +20,7 @@ FILELIST=(
     emptyD dbreadD dbwriteD s3readD s3writeD pubsnsD \
     emptyF dbreadF dbwriteF s3readF s3writeF pubsnsF \
     emptyT dbreadT dbwriteT s3readT s3writeT pubsnsT  \
+    emptyB dbreadB dbwriteB s3readB s3writeB pubsnsB  \
 )
 
 cd ${GRDIR}
@@ -40,7 +41,7 @@ do
         aws lambda invoke --invocation-type Event --function-name ${f} --region ${REG} --profile ${PROF} --payload "{}" outputfile
         /bin/sleep 30 #seconds
         mkdir -p $i/APIS/
-        python downloadLogs.py "/aws/lambda/${f}" ${TS} -p ${PROF} --delete > $i/APIS/${f}.log
+        python downloadLogs.py "/aws/lambda/${f}" ${TS} -p ${PROF} > $i/APIS/${f}.log
     done
 done
 aws s3 rm s3://${S3TESTBKT}/write --recursive --profile ${PROF}

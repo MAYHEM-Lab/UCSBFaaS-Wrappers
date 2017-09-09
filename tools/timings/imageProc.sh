@@ -14,7 +14,7 @@ CWDIR=${PREFIX}/tools/cloudwatch
 TOOLSDIR=${PREFIX}/tools/timings
 TS=1401861965497 #some early date
 
-SUFFIXES=( C S D F T )
+SUFFIXES=( C S D F T B )
 cd ${GRDIR}
 . ./venv/bin/activate
 cd ${CWDIR}
@@ -46,9 +46,9 @@ do
         do
         if [[ ${lambda} == UpdateWeb* ]] ;
         then
-            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --delete --region us-east-1 > $i/APP/IMGPROC/${lambda}.log
+            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --region us-east-1 > $i/APP/IMGPROC/${lambda}.log
         else
-            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --delete > $i/APP/IMGPROC/${lambda}.log
+            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} > $i/APP/IMGPROC/${lambda}.log
         fi
         done
     done

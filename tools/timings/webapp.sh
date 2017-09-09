@@ -16,7 +16,7 @@ CWDIR=${PREFIX}/tools/cloudwatch
 TOOLSDIR=${PREFIX}/tools/timings
 TS=1401861965497 #some early date
 
-SUFFIXES=( C S D F T )
+SUFFIXES=( C S D F T B )
 #SUFFIXES=( F )
 cd ${GRDIR}
 . ./venv/bin/activate
@@ -42,7 +42,8 @@ do
         rm -f ${i}/APP/WEBAPP/*.log
         for lambda in "${LLIST[@]}"
         do
-            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --delete > $i/APP/WEBAPP/${lambda}.log
+            #python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --delete > $i/APP/WEBAPP/${lambda}.log
+            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} > $i/APP/WEBAPP/${lambda}.log
         done
     done
 done

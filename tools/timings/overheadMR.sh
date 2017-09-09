@@ -1,6 +1,6 @@
 #! /bin/bash
 if [ "$#" -ne 10 ]; then
-    echo "USAGE: ./overhead.sh aws_profile num_runs data_bucket_name prefix jobid C_job_bkt D_job_bkt F_job_bkt  S_job_bkt  T_job_bkt"
+    echo "USAGE: ./overhead.sh aws_profile num_runs data_bucket_name prefix jobid C_job_bkt D_job_bkt F_job_bkt  S_job_bkt  T_job_bkt B_job_bkt"
     exit 1
 fi
 PROF=$1
@@ -14,6 +14,7 @@ MRBKTD=$7 #must match reducerCoordinator "permission" in config in setupApps.py 
 MRBKTF=$8 #must match reducerCoordinator "permission" in config in setupApps.py for triggerBuckets
 MRBKTS=$9 #must match reducerCoordinator "permission" in config in setupApps.py for triggerBuckets
 MRBKTT=${10} #must match reducerCoordinator "permission" in config in setupApps.py for triggerBuckets
+MRBKTT=${11} #must match reducerCoordinator "permission" in config in setupApps.py for triggerBuckets
 
 #0-base indexed via "${BKTLIST[2]}" (is F)
 #must be in same order as SUFFIXES!!
@@ -23,10 +24,11 @@ BKTLIST=(
     ${MRBKTF} \
     ${MRBKTS} \
     ${MRBKTT} \
+    ${MRBKTB} \
 )
-SUFFIXES=( C D F S T )
+SUFFIXES=( C D F S T B )
 #for testing or re-running, put the suffixes in here that you want to run
-RUNTHESE=( C D F S T )
+RUNTHESE=( C D F S T B )
 
 #update the below (must match lambda function names in configWestC.json
 FMAP="/aws/lambda/mapper"

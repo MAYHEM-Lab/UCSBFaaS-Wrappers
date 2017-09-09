@@ -35,6 +35,21 @@ export APITESTTABLE=noTriggerTestTable
 export WEBAPPTRIGGERTABLE=triggerTable
 export IMAGEPROC_DBSYNC=imageLabels
 
+#others explained below
+export GR_STREAMID=2017-09-07T18:36:33.398
+export SPOT_STREAMID=2017-09-07T18:35:46.003
+export MRBKTS=spot-mr-bkt
+export MRBKTF=spot-mr-bkt-f
+export MRBKTD=spot-mr-bkt-gr
+export MRBKTC=spot-mr-bkt-ns
+export MRBKTT=spot-mr-bkt-t
+export MRBKTB=spot-mr-bkt-b
+export END=100
+export COUNT=10
+export JOBID=job8000 
+export MRDIR=${PREFIX}/gammaRay/apps/map-reduce
+export CWDIR=${PREFIX}/tools/cloudwatch
+
 #CLEAN_DB
 #to start fresh delete them first
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
@@ -88,12 +103,12 @@ aws --profile ${AWSPROFILE} s3 mb s3://image-proc-f
 aws --profile ${AWSPROFILE} s3 mb s3://image-proc-b
 #1 per job type for map reduce app (mine use old names: ns=C and gr=D now, empty=S)
 #must match what is used in gammaRays/makeConfigs.py triggerBuckets datastructure for reducerCoordinator lambdas
-MRBKTS=spot-mr-bkt
-MRBKTF=spot-mr-bkt-f
-MRBKTD=spot-mr-bkt-gr
-MRBKTC=spot-mr-bkt-ns
-MRBKTT=spot-mr-bkt-t
-MRBKTB=spot-mr-bkt-b
+export MRBKTS=spot-mr-bkt
+export MRBKTF=spot-mr-bkt-f
+export MRBKTD=spot-mr-bkt-gr
+export MRBKTC=spot-mr-bkt-ns
+export MRBKTT=spot-mr-bkt-t
+export MRBKTB=spot-mr-bkt-b
 aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTS}
 aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTF}
 aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTD}
@@ -124,6 +139,17 @@ cd ${FLEECE}
 patch -b < ${PREFIX}/gammaRay/xray0130.patch
 deactivate
 
+#$BFLEECE is passed as second argument to makeConfigs.py
+mkdir -p ${BFLEECEDIR}
+cd ${BFLEECEDIR}
+virtualenv venv --python=python3
+source venv/bin/activate
+pip install --upgrade pip setuptools wheel
+pip install 'fleece==0.13.0' --force-reinstall
+cd ${BFLEECE}
+patch -b < ${PREFIX}/gammaRay/xray0130lite.patch
+deactivate
+
 #$LOCALLIBS is passed as third argument to makeConfigs.py
 cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 virtualenv venv --python=python3
@@ -134,7 +160,7 @@ pip install 'fleece==0.13.0' --force-reinstall #fleece installs boto3 the versio
 deactivate
 cd ${PREFIX}/tools/timings
 #clean up all logs if any
-./cleanupAWS.sh ${AWSPROFILE} ${REG}
+./cleanupAWS.sh ${AWSPROFILE} ${REG} ${XREG}
 #Next: clean out the SPOTTABLE and GAMMATABLE databases
 #see above (CLEAN_DB) to remove the databases and add them back (with a delay in between to ensure they get deleted)
 
@@ -158,7 +184,8 @@ python makeConfigs.py configs ${BOTOCORE} ${FLEECE} ${LOCALLIBS} --swbkt ${SPOTB
 ###fleece only (tracing) (T)
 ###fleece only (tracing+daemon) (F)
 ###original spotwrap (static insertion of wrapper) (S)
-###gammaray (dynamic insertion of wrapper) (D)
+###gammaray (dynamic insertion of wrapper:tracing_all+timing) (D)
+###gammaray (dynamic insertion of wrapper: fleece+minimal_tracing) (B)
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configEastC.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configT.json -p ${AWSPROFILE} --deleteAll
@@ -193,14 +220,14 @@ cd ${PREFIX}/tools
 #to delete --> also check Lambda Mgmnt Console for each lambda and the triggers tab (& delete if there)
 
 #TRIGGERS  ############## Event Source Setup for apps #######################
-Next, add triggers to FnInvokerPy[C,F,D,S,T] via the Lambda Management Console for DynamoDB 
+Next, add triggers to FnInvokerPy[C,F,D,S,T,B] via the Lambda Management Console for DynamoDB 
 Delete any tables that are there that have been previously deleted/recreated ("Problem..." 
 will be in the Latest Result) for table ${WEBAPPTRIGGERTABLE}, use trim horizon
 --> make it one table per function if you don't want to trigger them all every time. 
 Its likely fine to just have one table for all functions, we can make this change later (for a final
 version of a paper if accepted). TODO: turn this into a script like make_subs.sh
 Next, add permission from WEBAPPTRIGGERTABLE to each FnInvokerPy lambda via:
-in the following do this for FnInvokerPyC,D,F,S,T
+in the following do this for FnInvokerPyC,D,F,S,T,B
 aws lambda add-permission \
 --function-name FnInvokerPyC \
 --region ${REG} \
@@ -211,7 +238,7 @@ aws lambda add-permission \
 --source-account ${ACCT} \
 --profile ${AWSPROFILE}
 
-Next, add triggers to DBSyncPy[C,F,D,S,T] via the Lambda Management Console for DynamoDB for table ${IMAGEPROC_DBSYNC}, trim horizon
+Next, add triggers to DBSyncPy[C,F,D,S,T,B] via the Lambda Management Console for DynamoDB for table ${IMAGEPROC_DBSYNC}, trim horizon
 --> make it one table per function if you don't want to trigger them all every time -- if you do this, you also need to 
 change imageProc to write to the right version of each table depending on its name (eg ImageProcPyC writes to imageProcS table which triggers DBSyncS function),
 you will need to add code to imageProc.py to do this.  
@@ -277,10 +304,10 @@ export COUNT=50
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}  #if this keeps saying there are entries, you will need to delete the table (see CLEAN_DB) above)
 
 #map-reduce async
-export COUNT=50
+export COUNT=25
 cd ${PREFIX}/tools/timings
 deactivate
-nohup ./mr.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MRBKTC} ${MRBKTD} ${MRBKTF} ${MRBKTS} ${MRBKTT} ${REG} &
+./mr.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MRBKTC} ${MRBKTD} ${MRBKTF} ${MRBKTS} ${MRBKTT} ${MRBKTB} ${REG} 
 cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 source venv/bin/activate
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
@@ -331,7 +358,7 @@ deactivate
 #run synchronized map reduce job overhead measurement (second param is count, BDBENCH should be the name of your cloned big-data-benchmark folder)
 export COUNT=25
 export JOBID=job8000 #must match what is used in makeConfigs triggerBuckets datastructure for reducerCoordinator lambdas (currently job8000 which you can keep if you like)
-nohup ./overheadMR.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MRBKTC} ${MRBKTD} ${MRBKTF} ${MRBKTS} ${MRBKTT} &
+nohup ./overheadMR.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MRBKTC} ${MRBKTD} ${MRBKTF} ${MRBKTS} ${MRBKTT} ${MRBKTB}&
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
 
 ############################## process data #############################
@@ -367,7 +394,7 @@ deactivate
 cd ${PREFIX}/tools/timings
 #add any other lambdas you want to delete to restConfigsWest.json and restConfigsEast.json
 #depending on where your lambdas are
-./cleanupAWS.sh ${AWSPROFILE} ${REG}
+./cleanupAWS.sh ${AWSPROFILE} ${REG} ${XREG}
 
 #you can/should run cleanupDB.sh repeatedly until it says that the table is empty! this can take awhile
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}    #you may have to temporarily increased provisioned writes if this hangs or takes a long time until you get to empty!

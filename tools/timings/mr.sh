@@ -1,6 +1,6 @@
 #! /bin/bash
-if [ "$#" -ne 11 ]; then
-    echo "USAGE: ./overhead.sh aws_profile num_runs data_bucket_name prefix jobid C_job_bkt D_job_bkt F_job_bkt  S_job_bkt  T_job_bkt REGION"
+if [ "$#" -ne 12 ]; then
+    echo "USAGE: ./overhead.sh aws_profile num_runs data_bucket_name prefix jobid C_job_bkt D_job_bkt F_job_bkt  S_job_bkt  T_job_bkt B_job_bkt REGION"
     exit 1
 fi
 PROF=$1
@@ -14,8 +14,9 @@ MRBKTD=$7 #must match reducerCoordinator "permission" in config in setupApps.py 
 MRBKTF=$8 #must match reducerCoordinator "permission" in config in setupApps.py for triggerBuckets
 MRBKTS=$9 #must match reducerCoordinator "permission" in config in setupApps.py for triggerBuckets
 MRBKTT=${10} #must match reducerCoordinator "permission" in config in setupApps.py for triggerBuckets
+MRBKTB=${11} #must match reducerCoordinator "permission" in config in setupApps.py for triggerBuckets
 
-REG=${11} 
+REG=${12} 
 
 #0-base indexed via "${BKTLIST[2]}" (is F)
 #must be in same order as SUFFIXES!!
@@ -25,10 +26,11 @@ BKTLIST=(
     ${MRBKTF} \
     ${MRBKTS} \
     ${MRBKTT} \
+    ${MRBKTB} \
 )
-SUFFIXES=( C D F S T )
+SUFFIXES=( C D F S T B )
 #for testing or re-running, put the suffixes in here that you want to run
-RUNTHESE=( C D F S T )
+RUNTHESE=( C D F S T B )
 
 #update the below (must match lambda function names in configWestC.json
 FMAP="/aws/lambda/mapper"
@@ -85,7 +87,6 @@ do
             python downloadLogs.py ${DRI} ${TS} -p ${PROF} --deleteOnly
             #run job
             cd ${MRDIR}
-            rm -f overhead.out
             #use the API
             echo "Invoking:" $DRI $REG $PROF $JOBID $MAP $RED $DATABKT $MRBKT 
             aws lambda invoke --invocation-type Event --function-name ${DRI_NAME} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"prefix\":\"pavlo/text/1node/uservisits/\",\"job_id\":\"${JOBID}\",\"mapper\":\"${MAP_NAME}\",\"reducer\":\"${RED_NAME}\",\"bucket\":\"${DATABKT}\",\"jobBucket\":\"${MRBKT}\",\"region\":\"${REG}\",\"full_async\":\"yes\"}" outputfile
@@ -95,7 +96,6 @@ do
             #download cloudwatch logs (and delete them)
             cd ${CWDIR}
             mkdir -p ${i}/${suf}/MRASYNC
-            rm -f ${i}/${suf}/MRASYNC/*.log
             echo ${MAP} ${TS} ${PROF} ${i}/${suf}
             python downloadLogs.py ${MAP} ${TS} -p ${PROF} > ${i}/${suf}/MRASYNC/map.log
             python downloadLogs.py ${RED} ${TS} -p ${PROF} > ${i}/${suf}/MRASYNC/red.log
