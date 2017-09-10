@@ -14,8 +14,8 @@ def handleRequest(event, context):
     entry = time.time() * 1000
 
     sfx = ''
-    if event:
-        if not 'nolibload' in event:
+    if context:
+        if not event or 'nolibload' not in event:
             ''' Download the zip file from s3, unzip it into libdir, 
                 put it in the path and reload botocore.client to get the changes.
             '''
