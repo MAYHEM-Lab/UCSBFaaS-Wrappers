@@ -75,6 +75,7 @@ def process_msg(msg):
                 duration = float(m[2])
             retn = '{}:{}'.format(reqid,duration)
     else: #Cloudwatch Report entry
+        print(msg)
         assert 'REPORT' in msg
         m = msg.split(' ')
         reqid = m[2].split('\t')[0]
@@ -84,9 +85,10 @@ def process_msg(msg):
     return retn        
 
 ############ find_events ##################
-def find_events(logs, log_group, stream, token, last_token, start,end):
+def find_events(logs, log_group, stream, token, last_token, start,end, noSummarize=False):
     def valid_event(event):
         msg = event['message']
+        #return (msg.startswith('REPORT') or msg.find('TIMER:') or msg.startswith('UDP') != -1)
         return (msg.startswith('REPORT') or msg.find('TIMER:') != -1)
 
     if token:
@@ -95,7 +97,10 @@ def find_events(logs, log_group, stream, token, last_token, start,end):
         data = logs.get_log_events(logGroupName=log_group, logStreamName=stream, startFromHead=True)
 
     for event in list(filter(valid_event, data['events'])):
-        msg = process_msg(event['message'].strip())
+        msg = event['message'].strip()
+        print(msg)
+        if not noSummarize:
+            msg = process_msg(msg)
         print('{}:{}'.format(log_group,msg))
 
     if data['nextForwardToken'] != last_token:
@@ -110,6 +115,7 @@ def main():
     parser.add_argument('startTs',action='store',help='Filter streams where creationTime is no earlier than this *UTC/GMT* value (value expected in UTC epoch millisecs, else use the --useString option for datetime UTC string in %Y-%m-%d %H:%M:%S format)')
     parser.add_argument('--endTs',action='store',default=None,help='Filter streams where creationTime is not after this value. default = now, value must be UTC epoch millisecs, else use the --useString option for datetime UTC string in %Y-%m-%d %H:%M:%S format)')
     parser.add_argument("--useString",default=False, help="Use string datetime for start and end instead of epoch milliseconds")
+    parser.add_argument("--noSummarize",action='store_true',default=False, help="don't summarize, just dump everything")
     parser.add_argument("--profile","-p",default=None, help="AWS credentials file profile to use.")
     parser.add_argument('--region','-r',action='store',default='us-west-2',help='AWS Region log is in')
     parser.add_argument('--delete',action='store_true',default=False,help='Delete streams once downloaded')
@@ -145,7 +151,7 @@ def main():
         streams = [stream['logStreamName'] for stream in full_streams]
         for stream in streams:
             if not args.deleteOnly:
-                find_events(logs, log_group, stream, None, None, start,end)
+                find_events(logs, log_group, stream, None, None, start,end,args.noSummarize)
             if args.delete or args.deleteOnly:
                 logs.delete_log_stream(logGroupName=log_group,logStreamName=stream)
 
