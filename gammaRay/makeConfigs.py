@@ -65,25 +65,50 @@ if __name__ == "__main__":
     }
     #specify the bucket and prefix (folder) in bucket to use to trigger function lambda_name
     #bucket names must be unique and identifiable (for run type: C,T,F,S,D,B)
+    if 'FNI_TRIGGERBKTF' not in os.environ \
+        or 'FNI_TRIGGERBKTC' not in os.environ \
+        or 'FNI_TRIGGERBKTD' not in os.environ \
+        or 'FNI_TRIGGERBKTS' not in os.environ \
+        or 'FNI_TRIGGERBKTT' not in os.environ \
+        or 'FNI_TRIGGERBKTB' not in os.environ:
+        print('Error: you must set FNI_TRIGGERBKTX env variables for s3 bucket names  (X=FCDSTB)')
+        sys.exit(1)
+    if 'IMG_TRIGGERBKTF' not in os.environ \
+        or 'IMG_TRIGGERBKTC' not in os.environ \
+        or 'IMG_TRIGGERBKTD' not in os.environ \
+        or 'IMG_TRIGGERBKTS' not in os.environ \
+        or 'IMG_TRIGGERBKTT' not in os.environ \
+        or 'IMG_TRIGGERBKTB' not in os.environ:
+        print('Error: you must set IMG_TRIGGERBKTX env variables for s3 bucket names  (X=FCDSTB)')
+        sys.exit(1)
+    if 'MR_TRIGGERBKTF' not in os.environ \
+        or 'MR_TRIGGERBKTC' not in os.environ \
+        or 'MR_TRIGGERBKTD' not in os.environ \
+        or 'MR_TRIGGERBKTS' not in os.environ \
+        or 'MR_TRIGGERBKTT' not in os.environ \
+        or 'MR_TRIGGERBKTB' not in os.environ:
+        print('Error: you must set MR_TRIGGERBKTX env variables for s3 bucket names  (X=FCDSTB)')
+        sys.exit(1)
+
     triggerBuckets = {  #lambda_name:bucket:bucket_prefix
-        ('FnInvokerPyC','cjklambdatrigger','prefC'),
-        ('FnInvokerPyT','cjklambdatrigger','prefT'),
-        ('FnInvokerPyF','cjklambdatrigger','prefF'),
-        ('FnInvokerPyS','cjklambdatrigger','prefS'),
-        ('FnInvokerPyD','cjklambdatrigger','prefD'),
-        ('FnInvokerPyB','cjklambdatrigger','prefB'),
-        ('ImageProcPyC','image-proc-c','imageProc'),
-        ('ImageProcPyT','image-proc-t','imageProc'),
-        ('ImageProcPyF','image-proc-f','imageProc'),
-        ('ImageProcPyS','image-proc-s','imageProc'),
-        ('ImageProcPyD','image-proc-d','imageProc'),
-        ('ImageProcPyB','image-proc-b','imageProc'),
-        ('reducerCoordinatorC','spot-mr-bkt-ns','job8000'),
-        ('reducerCoordinatorT','spot-mr-bkt-t','job8000'),
-        ('reducerCoordinatorF','spot-mr-bkt-f','job8000'),
-        ('reducerCoordinatorS','spot-mr-bkt','job8000'),
-        ('reducerCoordinatorD','spot-mr-bkt-gr','job8000'),
-        ('reducerCoordinatorB','spot-mr-bkt-b','job8000')
+        ('FnInvokerPyC',os.environ['FNI_TRIGGERBKTC'],'prefC'),
+        ('FnInvokerPyT',os.environ['FNI_TRIGGERBKTT'],'prefT'),
+        ('FnInvokerPyF',os.environ['FNI_TRIGGERBKTF'],'prefF'),
+        ('FnInvokerPyS',os.environ['FNI_TRIGGERBKTS'],'prefS'),
+        ('FnInvokerPyD',os.environ['FNI_TRIGGERBKTD'],'prefD'),
+        ('FnInvokerPyB',os.environ['FNI_TRIGGERBKTB'],'prefB'),
+        ('ImageProcPyC',os.environ['IMG_TRIGGERBKTC'],'imageProc'),
+        ('ImageProcPyT',os.environ['IMG_TRIGGERBKTT'],'imageProc'),
+        ('ImageProcPyF',os.environ['IMG_TRIGGERBKTF'],'imageProc'),
+        ('ImageProcPyS',os.environ['IMG_TRIGGERBKTS'],'imageProc'),
+        ('ImageProcPyD',os.environ['IMG_TRIGGERBKTD'],'imageProc'),
+        ('ImageProcPyB',os.environ['IMG_TRIGGERBKTB'],'imageProc'),
+        ('reducerCoordinatorC',os.environ['MR_TRIGGERBKTC'],'job8000'),
+        ('reducerCoordinatorT',os.environ['MR_TRIGGERBKTT'],'job8000'),
+        ('reducerCoordinatorF',os.environ['MR_TRIGGERBKTF'],'job8000'),
+        ('reducerCoordinatorS',os.environ['MR_TRIGGERBKTS'],'job8000'),
+        ('reducerCoordinatorD',os.environ['MR_TRIGGERBKTD'],'job8000'),
+        ('reducerCoordinatorB',os.environ['MR_TRIGGERBKTB'],'job8000')
     }
 
     #specify the DynamoDB table stream that triggers lambda function lambda_name

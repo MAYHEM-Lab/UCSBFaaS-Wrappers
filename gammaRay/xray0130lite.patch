@@ -1,5 +1,5 @@
 --- xray.py	2017-09-08 08:33:44.000000000 -0700
-+++ xray.py.new	2017-09-09 13:20:35.000000000 -0700
++++ xray.py.new	2017-09-10 11:37:16.000000000 -0700
 @@ -25,6 +25,12 @@
  
  from fleece import log
@@ -13,7 +13,7 @@
  LOGGER = log.get_logger('fleece.xray')
  
  XRAY_DAEMON_HEADER = {'format': 'json', 'version': 1}
-@@ -120,27 +126,62 @@
+@@ -120,27 +126,68 @@
  
  
  def send_segment_document_to_xray_daemon(segment_document):
@@ -29,10 +29,6 @@
 +        #LOGGER.error('X-Ray Daemon not running, skipping send')
 +        #return
 +        NoDaemon = True
-+
-+    if 'spotReqID' in os.environ and 'http' in segment_document:
-+        #no gr_payload in object yet b/c only formed on aws API call
-+        segment_document['gr_payload']=segment_document['http']
 +
 +    doc=json.dumps(
 +       segment_document,
@@ -55,32 +51,42 @@
 -        data=message,
 -    )
 +    #GammaRay
-+    if 'spotReqID' in os.environ:
-+        idx = doc.find('gr_payload') #gr_payload is only added if in GAMMATABLE
-+        if idx > -1:
-+            if DDBTABLE is None:
-+                tname = 'gammaRays'
-+                if 'gammaTable' in os.environ:
-+                    tname = os.environ['gammaTable']
-+                if 'gammaRegion' in os.environ:
-+                    reg = os.environ['gammaRegion']
-+                dynamodb = boto3.resource('dynamodb', region_name=reg)
-+                DDBTABLE = dynamodb.Table(tname)
-+            tail = '{}'.format(str(uuid.uuid4())[:8])
-+            reqID = '{}:{}'.format(os.environ['spotReqID'],tail)
-+            ts = time.time() * 1000 #msecs
-+            tsint = int(round(ts))
-+            DDBTABLE.put_item( Item={
-+                'reqID': reqID,
-+                'ts': tsint,
-+                'payload': doc,
-+                }
-+            )
++    if 'spotReqID' in os.environ and 'in_progress' not in segment_document:
++        if ('aws' in segment_document and 'gr_payload' in segment_document['aws']) or 'http' in segment_document:
++            if not ('aws' in segment_document and 'gr_payload' in segment_document['aws']):
++                #dump the http entry to a string for recording 
++                #(it is non-API request invocation and gr_payload 
++                #in segment_document['aws'] only captures api calls)
++                doc = json.dumps(
++                    segment_document['http'],
++                    ensure_ascii=False,
++                    cls=StringJSONEncoder,
++                 )
++            else:
++                if DDBTABLE is None:
++                    tname = 'gammaRays'
++                    if 'gammaTable' in os.environ:
++                        tname = os.environ['gammaTable']
++                    if 'gammaRegion' in os.environ:
++                        reg = os.environ['gammaRegion']
++                    dynamodb = boto3.resource('dynamodb', region_name=reg)
++                    DDBTABLE = dynamodb.Table(tname)
++                tail = '{}'.format(str(uuid.uuid4())[:8])
++                reqID = '{}:{}'.format(os.environ['spotReqID'],tail)
++                ts = time.time() * 1000 #msecs
++                tsint = int(round(ts))
++                DDBTABLE.put_item( Item={
++                    'reqID': reqID,
++                    'ts': tsint,
++                    'payload': doc,
++                    }
++                )
 +
 +    if NoDaemon:
 +        return
 +
 +    if not ('PutItem' in message and 'gammaRays' in message):
++        #print('UDP: {}'.format(doc))
 +        send_data_on_udp(
 +            ip_address=xray_daemon.ip_address,
 +            port=xray_daemon.port,
@@ -89,7 +95,7 @@
  
  
  def send_subsegment_to_xray_daemon(subsegment_id, parent_id,
-@@ -236,7 +277,30 @@
+@@ -236,7 +283,30 @@
          # Request not sampled by X-Ray, let's get to the call
          # immediately.
          LOGGER.debug('Request not sampled by X-Ray, skipping trace')
@@ -121,7 +127,7 @@
  
      start_time = time.time()
      error = False
-@@ -363,6 +427,17 @@
+@@ -363,6 +433,17 @@
          return instance._service_model.metadata['endpointPrefix']
      return instance._service_model.metadata['serviceAbbreviation']
  
@@ -139,7 +145,7 @@
  
  def extract_aws_metadata(wrapped, instance, args, kwargs, return_value):
      """Provide AWS metadata for improved visualization.
-@@ -377,6 +452,7 @@
+@@ -377,6 +458,7 @@
          kwargs=kwargs,
          response=response,
      )
@@ -147,7 +153,7 @@
      if 'operation_name' in kwargs:
          operation_name = kwargs['operation_name']
      else:
-@@ -388,7 +464,6 @@
+@@ -388,7 +470,6 @@
          kwargs = args[1]
  
      region_name = instance._client_config.region_name
@@ -155,7 +161,7 @@
      response_metadata = response.get('ResponseMetadata')
  
      metadata = {
-@@ -402,7 +477,27 @@
+@@ -402,7 +483,27 @@
          metadata['aws']['table_name'] = kwargs['TableName']
      if 'QueueUrl' in kwargs:
          metadata['aws']['queue_url'] = kwargs['QueueUrl']

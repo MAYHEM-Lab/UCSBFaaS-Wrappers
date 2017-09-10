@@ -17,14 +17,14 @@ REG=us-west-2
 #python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion ${REG}
 #using the config at the bottom of this file 
 
-FILELIST=( 
-    emptyS \
-    emptySbig \
-    emptyD \
-)
 #FILELIST=( 
+    #emptyS \
     #emptySbig \
+    #emptyD \
 #)
+FILELIST=( 
+    emptySbig \
+)
 
 cd ${GRDIR}
 . ./venv/bin/activate

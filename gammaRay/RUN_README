@@ -27,7 +27,6 @@ export SPOTBKTEAST=cjktestbkteast
 
 #s3 buckets used by apps and apis
 export APITESTBKT=cjk-apitest-bucket
-export TRIGGERBKT=cjklambdatrigger
 
 #tables used by apps and apis
 export EASTSYNCTABLE=eastSyncTable
@@ -38,12 +37,6 @@ export IMAGEPROC_DBSYNC=imageLabels
 #others explained below
 export GR_STREAMID=2017-09-09T20:03:35.795
 export SPOT_STREAMID=2017-09-07T18:35:46.003
-export MRBKTS=spot-mr-bkt
-export MRBKTF=spot-mr-bkt-f
-export MRBKTD=spot-mr-bkt-gr
-export MRBKTC=spot-mr-bkt-ns
-export MRBKTT=spot-mr-bkt-t
-export MRBKTB=spot-mr-bkt-b
 export END=100
 export COUNT=10
 export JOBID=job8000 
@@ -81,6 +74,11 @@ aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name $
 #just put the date/time component (after .../stream/) here for later use
 export GR_STREAMID=2017-09-09T20:03:35.795
 
+#if you haven't done so already, make the buckets and table
+aws --profile ${AWSPROFILE} s3 mb s3://${SPOTBKTWEST}
+aws --profile ${AWSPROFILE} s3 mb s3://${SPOTBKTEAST}
+aws --profile ${AWSPROFILE} s3 mb s3://${APITESTBKT}
+
 ############## do this set of things only once! ################
 #if you haven't done so already, clone the big-data-benchmark to the west; only do this ONCE!
 aws --profile ${AWSPROFILE} s3 mb s3://${BDBENCH}
@@ -91,11 +89,6 @@ cd ${PREFIX}/gammaRay/micro-benchmarks
 #do this ONLY once to fill the table with data (modify the file to set S3BKT=$APITESTBKT and DYNAMODB=$APITESTTABLE)
 ./prepare.sh ${APITESTBKT} ${APITESTTABLE}
 ###############################################################
-
-#if you haven't done so already, make the buckets and table
-aws --profile ${AWSPROFILE} s3 mb s3://${SPOTBKTWEST}
-aws --profile ${AWSPROFILE} s3 mb s3://${SPOTBKTEAST}
-aws --profile ${AWSPROFILE} s3 mb s3://${APITESTBKT}
 
 #$BOTOCORE is passed as first argument to makeConfigs.py
 deactivate
@@ -155,31 +148,23 @@ cd ${PREFIX}/tools/timings
 ############# setup the apps #################
 #map-reduce
 setup: bucket that triggers reducerCoordinator (written to by mapper and reducer)
-- this is now done for you in setupApps.py for these buckets, edit makeConfigs.py and
-grep for reducerCoordinator and change
-these bucket names to be yours, mine are 
-(which must match those passed to mr.sh and overheadMR.sh):
-S=spot-mr-bkt
-F=spot-mr-bkt-f
-D=spot-mr-bkt-gr
-C=spot-mr-bkt-ns
-T=spot-mr-bkt-t
-B=spot-mr-bkt-b
-prefix can stay job8000 (if you change this you need to change mr.sh and overheadMR.sh in timings)
-then update these with your bucket names
-export MRBKTS=spot-mr-bkt
-export MRBKTF=spot-mr-bkt-f
-export MRBKTD=spot-mr-bkt-gr
-export MRBKTC=spot-mr-bkt-ns
-export MRBKTT=spot-mr-bkt-t
-export MRBKTB=spot-mr-bkt-b
-#then create the buckets if they aren't already created
-aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTS}
-aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTF}
-aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTD}
-aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTC}
-aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTT}
-aws --profile ${AWSPROFILE} s3 mb s3://${MRBKTB}
+- this is now done for you in setupApps.py for these buckets just set them in your environment variables 
+prior to running makeConfigs.py and setupApps.py on the configs generated.
+The prefix can stay job8000 (if you change this you need to change mr.sh and overheadMR.sh in tools/timings)
+export MR_TRIGGERBKTS=spot-mr-bkt
+export MR_TRIGGERBKTF=spot-mr-bkt-f
+export MR_TRIGGERBKTD=spot-mr-bkt-gr
+export MR_TRIGGERBKTC=spot-mr-bkt-ns
+export MR_TRIGGERBKTT=spot-mr-bkt-t
+export MR_TRIGGERBKTB=spot-mr-bkt-b
+#create the buckets if they aren't already created
+aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTC}
+aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTT}
+aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTF}
+aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTD}
+aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTS}
+aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTB}
+(after this run makeConfigs.py below followed by setupApps.py)
 
 #webapp:
 what it does:
@@ -189,7 +174,21 @@ tools/timings/webapp.sh:SNSPy (topic_) ->
         DBMod reads testTable and writes triggerTable (see FnInvoker.py for invoke call with params), 
         write to triggerTable -> triggers FnInvoker (does not invoke DBMod)
 setup:
-1) makeConfigs and setupApps sets up ${TRIGGERBKT}->FnInvoker for you, change this name (cjklambdatrigger) to be yours in makeConfigs.py
+1) makeConfigs and setupApps sets this up (${TRIGGERBKT}->FnInvoker) for you.
+just set s3 names in your environment variables 
+export FNI_TRIGGERBKTF=cjk-fninvtrigger-f
+export FNI_TRIGGERBKTC=cjk-fninvtrigger-c
+export FNI_TRIGGERBKTD=cjk-fninvtrigger-d
+export FNI_TRIGGERBKTS=cjk-fninvtrigger-s
+export FNI_TRIGGERBKTT=cjk-fninvtrigger-t
+export FNI_TRIGGERBKTB=cjk-fninvtrigger-b
+aws --profile ${AWSPROFILE} s3 mb s3://${FNI_TRIGGERBKTF}
+aws --profile ${AWSPROFILE} s3 mb s3://${FNI_TRIGGERBKTC}
+aws --profile ${AWSPROFILE} s3 mb s3://${FNI_TRIGGERBKTD}
+aws --profile ${AWSPROFILE} s3 mb s3://${FNI_TRIGGERBKTS}
+aws --profile ${AWSPROFILE} s3 mb s3://${FNI_TRIGGERBKTT}
+aws --profile ${AWSPROFILE} s3 mb s3://${FNI_TRIGGERBKTB}
+(after this run makeConfigs.py below followed by setupApps.py)
 2)make the subscriptions for sns topics to trigger S3ModPy (for webapp) 
 cd ${PREFIX}/tools
 ./make_subs.sh ${AWSPROFILE} ${ACCT} ${REG} 
@@ -216,12 +215,19 @@ tools/timings/imageProc.sh: ImgProc_ -> CLI Invoked calls http, rekognition, ${I
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${XREG} --table-name ${EASTSYNCTABLE} --attribute-definitions AttributeName=id,AttributeType=S --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
 2)Make the buckets if you haven't already, 1 per job type for imageProc app
 #these aren't used to trigger ImgProc in imageProc.sh timings as we just call the function directly for simplicity, thes can be used for later though and makeConfigs/setupApps does set these as triggers for the lambdas
-aws --profile ${AWSPROFILE} s3 mb s3://image-proc-c
-aws --profile ${AWSPROFILE} s3 mb s3://image-proc-t
-aws --profile ${AWSPROFILE} s3 mb s3://image-proc-s
-aws --profile ${AWSPROFILE} s3 mb s3://image-proc-d
-aws --profile ${AWSPROFILE} s3 mb s3://image-proc-f
-aws --profile ${AWSPROFILE} s3 mb s3://image-proc-b
+export IMG_TRIGGERBKTF=image-proc-f
+export IMG_TRIGGERBKTC=image-proc-c
+export IMG_TRIGGERBKTD=image-proc-d
+export IMG_TRIGGERBKTS=image-proc-s
+export IMG_TRIGGERBKTT=image-proc-t
+export IMG_TRIGGERBKTB=image-proc-b
+aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTF}
+aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTC}
+aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTD}
+aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTS}
+aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTT}
+aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTB}
+(after this run makeConfigs.py below followed by setupApps.py)
 3) Next, add triggers to DBSyncPy[C,F,D,S,T,B] via the Lambda Management Console 
 for DynamoDB for table ${IMAGEPROC_DBSYNC}, trim horizon
 --> one table for all functions is fine for now
@@ -315,7 +321,7 @@ export COUNT=50
 export COUNT=25
 cd ${PREFIX}/tools/timings
 deactivate
-./mr.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MRBKTC} ${MRBKTD} ${MRBKTF} ${MRBKTS} ${MRBKTT} ${MRBKTB} ${REG} 
+./mr.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MR_TRIGGERBKTC} ${MR_TRIGGERBKTD} ${MR_TRIGGERBKTF} ${MR_TRIGGERBKTS} ${MR_TRIGGERBKTT} ${MR_TRIGGERBKTB} ${REG} 
 cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 source venv/bin/activate
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
@@ -366,7 +372,7 @@ deactivate
 #run synchronized map reduce job overhead measurement (second param is count, BDBENCH should be the name of your cloned big-data-benchmark folder)
 export COUNT=25
 export JOBID=job8000 #must match what is used in makeConfigs triggerBuckets datastructure for reducerCoordinator lambdas (currently job8000 which you can keep if you like)
-nohup ./overheadMR.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MRBKTC} ${MRBKTD} ${MRBKTF} ${MRBKTS} ${MRBKTT} ${MRBKTB}&
+nohup ./overheadMR.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MR_TRIGGERBKTC} ${MR_TRIGGERBKTD} ${MR_TRIGGERBKTF} ${MR_TRIGGERBKTS} ${MR_TRIGGERBKTT} ${MR_TRIGGERBKTB}&
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
 
 ############################## process data #############################
@@ -440,9 +446,25 @@ python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/
 python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
 #now you can start fresh
 ======================
+other tools
+
+#to download cloudwatch logs
+deactivate
+cd ${LOCALLIBDIR}
+source venv/bin/activate
+cd ${CWDIR}
+#for log summaries since date time 1401861965497 
+python downloadLogs.py /aws/lambda/FunctionName 1401861965497 -p ${AWSPROFILE} > log.out
+#for log dump since date time 1401861965497 -- modify filter (boolean) at top of find_events in valid_event to add other lines based on strings in them
+python downloadLogs.py /aws/lambda/FunctionName 1401861965497 -p ${AWSPROFILE} --noSummarize > log.out
+#to delete all logs
+python downloadLogs.py /aws/lambda/FunctionName 1401861965497 -p ${AWSPROFILE} --deleteOnly 
+deactivate
+======================
 CASES:
 C - nothing/clean
 T - tracing
 F - tracing + fleece daemon
 S - static spotwrap (original)
 D - dynamic spotwrap (gammaray)
+B - fleece with dynamic spotwrap only for dependencies (gammaray) Publish, PutItem, PutObject

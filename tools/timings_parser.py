@@ -43,11 +43,11 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
     suffixes = ['C','T','F','D','S','B']
 
     #CJK here
-    n = 50
-    fnames.append('{}/{}{}/'.format(dirname,n,ns_str)) #dirnames
-    #for n in range(1,jobcount+1):
-        #if n > 1 or not skipFirst:
-            #fnames.append('{}/{}{}/'.format(dirname,n,ns_str)) #dirnames
+    #n = 50
+    #fnames.append('{}/{}{}/'.format(dirname,n,ns_str)) #dirnames
+    for n in range(1,jobcount+1):
+        if n > 1 or not skipFirst:
+            fnames.append('{}/{}{}/'.format(dirname,n,ns_str)) #dirnames
     FILE_LIST = ["dbread","dbwrite","empty","emptySbig","pubsns","s3read","s3write"]
 
     #for each file, collect job timings for each for jobcount runs
