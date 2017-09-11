@@ -76,6 +76,8 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
                         continue
                     with open(fname,'r') as f:
                         for line in f:
+                            if DEBUG:
+                                print('processing: {}:{}'.format(fname,line))
                             line = line.strip()
                             if line.startswith('No streams'):
                                 break
@@ -112,6 +114,68 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
                     postfix,suffix,len(tlist),0.0,0.0,0.0,0.0
                 ))
 
+def processMRNew(dirname,jobcount,ofile,skipFirst=False):
+    fnames = [] 
+    if DEBUG:
+        print('processMR overheadMR.sh output')
+    suffixes = ['C','T','F','D','S','B']
+    #dirname/4/suffix/[coord,map,red].log
+    #fnames.append('{}/{}/{}/red.log'.format(dirname,n,suffix)) #filenames
+    postfixes = ['coord.log','map.log','red.log']
+    for postfix in postfixes:
+        for suffix in suffixes:
+            outfname = '{}_{}{}.out'.format(ofile,postfix,suffix)
+            writtenTo = False
+            count = 0
+            tlist = []
+            mlist = []
+            reqs = []
+            with open(outfname,'w') as outf:  #ex: out_coord.logS.out
+                for n in range(1,jobcount+1):
+                    if n > 1 or not skipFirst:
+                        fname = '{}/{}/{}/{}'.format(dirname,n,suffix,postfix)
+                        if not os.path.isfile(fname):
+                            if DEBUG:
+                                print('file not found {}'.format(fname))
+                            continue
+                        with open(fname,'r') as f:
+                            for line in f:
+                                if DEBUG:
+                                    print('processing: {}:{}'.format(fname,line))
+                                line = line.strip()
+                                if line.startswith('No streams'):
+                                    break
+                                if line == '':
+                                    continue
+            
+                                strs = line.split(':')
+                                if len(strs) != 4: #only process Record and GammaRay (S,D) values for now
+                                    continue
+                                fn = strs[0]
+                                req = strs[1]
+                                if req in reqs:
+                                    continue #skip it if we've already see it
+                                #Fn:reqID:duration_billed:mem_used	//Record
+                                reqs.append(req)
+                                tlist.append(float(strs[2]))
+                                mlist.append(float(strs[3]))
+                                count += 1
+                                outf.write('{} {}\n'.format(float(strs[2]),float(strs[3])))
+                                writtenTo = True
+                if not writtenTo:
+                    os.remove(outfname)
+                    
+                if len(tlist) > 1:
+                    print('{}{}:{}:{}:{}:{}:{}'.format(
+                        postfix,suffix,len(tlist),
+                        statistics.mean(tlist),statistics.stdev(tlist),
+                        statistics.mean(mlist),statistics.stdev(mlist)
+                    ))
+                else:
+                    print('{}{}:{}:{}:{}:{}:{}'.format(
+                        postfix,suffix,len(tlist),0.0,0.0,0.0,0.0
+                    ))
+            
 def processCW(dirname,jobcount,NSJob,ofile,skipFirst=False):
     '''      coord.log    driv.log     map.log      s3mod.log    spottemp.log
 	     dbmod.log    fninv.log    red.log      sns.log
@@ -307,6 +371,7 @@ if __name__ == "__main__":
     parser.add_argument('mrdir',action='store',help='full path to directory containing dirs named 1-10 under mr')
     parser.add_argument('cwdir',action='store',help='full path to directory containing dirs named 1-10 under cloudwatch')
     parser.add_argument('output_file_prefix',action='store',help='output file name prefix')
+    parser.add_argument('--process_MRnew',action='store_true',default=False,help='Run only the MR overhead processing')
     parser.add_argument('--process_MR_only',action='store_true',default=False,help='Run only the MR overhead processing')
     parser.add_argument('--process_NS_only',action='store_true',default=False,help='process the NS subdirectories (a non-SpotWrap job)')
     parser.add_argument('--process_spot_only',action='store_true',default=False,help='process the NS subdirectories (a non-SpotWrap job)')
@@ -329,6 +394,10 @@ if __name__ == "__main__":
         run = 'SPOT'
     elif args.process_NS_only:
         run = 'NS'
-    
-    parseIt(args.output_file_prefix,event,run,args.skip_first,args.process_MR_only,args.micro_only)
+
+
+    if args.process_MRnew:
+        processMRNew(args.cwdir,args.count,args.output_file_prefix)
+    else:
+        parseIt(args.output_file_prefix,event,run,args.skip_first,args.process_MR_only,args.micro_only)
 

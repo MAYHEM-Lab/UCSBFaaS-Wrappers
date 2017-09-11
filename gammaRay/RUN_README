@@ -375,6 +375,9 @@ export JOBID=job8000 #must match what is used in makeConfigs triggerBuckets data
 nohup ./overheadMR.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MR_TRIGGERBKTC} ${MR_TRIGGERBKTD} ${MR_TRIGGERBKTF} ${MR_TRIGGERBKTS} ${MR_TRIGGERBKTT} ${MR_TRIGGERBKTB}&
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
 
+as an example:
+./overheadMR.sh cjk1 5 cjk-gammaray-bdbenchmark /Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers job8000 spot-mr-bkt-ns spot-mr-bkt-gr spot-mr-bkt-f pot-mr-bkt spot-mr-bkt-t spot-mr-bkt-b
+
 ############################## process data #############################
 #summarize in the excel spreadsheet called result.xlxs in the paper repo
 #commit all of the output files to the paper repo under results
