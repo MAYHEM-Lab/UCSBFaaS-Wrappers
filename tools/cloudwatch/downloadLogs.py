@@ -75,7 +75,6 @@ def process_msg(msg):
                 duration = float(m[2])
             retn = '{}:{}'.format(reqid,duration)
     else: #Cloudwatch Report entry
-        print(msg)
         assert 'REPORT' in msg
         m = msg.split(' ')
         reqid = m[2].split('\t')[0]
@@ -98,7 +97,6 @@ def find_events(logs, log_group, stream, token, last_token, start,end, noSummari
 
     for event in list(filter(valid_event, data['events'])):
         msg = event['message'].strip()
-        print(msg)
         if not noSummarize:
             msg = process_msg(msg)
         print('{}:{}'.format(log_group,msg))
