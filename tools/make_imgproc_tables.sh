@@ -34,11 +34,11 @@ do
     LAMBDA=${LAM_PREF}${suf}
     echo "processing ${TABLE} table and lambda: ${LAMBDA}"
     echo "deleting table (ResourceNotFoundException can be ignored)..."
-    aws dynamodb delete-table --table-name ${TABLE} --profile ${PROF} >&  /dev/null
+    aws dynamodb delete-table --region ${REG} --table-name ${TABLE} --profile ${PROF} >&  /dev/null
     while :
     do
         /bin/sleep 5 #seconds
-        aws dynamodb describe-table --table-name ${TABLE} --profile ${PROF} >& /dev/null
+        aws dynamodb describe-table --region ${REG} --table-name ${TABLE} --profile ${PROF} >& /dev/null
         result="$?"
         if [ "$result" -ne 0 ]; then #loop until you get a ResourceNotFoundException error
             echo 'table deleted!'
@@ -52,6 +52,7 @@ do
 
     echo "extracting ARN ..."
     ARN=`python getEleFromJson.py TableDescription:LatestStreamArn ${TMPFILE}`
+
     echo "creating source event using ARN: ${ARN}"
     aws lambda create-event-source-mapping --region ${REG} --function-name ${LAMBDA} --event-source ${ARN} --batch-size 1 --starting-position TRIM_HORIZON --profile ${PROF} >& /dev/null
     result="$?"
