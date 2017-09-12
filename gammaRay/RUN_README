@@ -32,7 +32,6 @@ export APITESTBKT=cjk-apitest-bucket
 export EASTSYNCTABLE=eastSyncTable
 export APITESTTABLE=noTriggerTestTable
 export WEBAPPTRIGGERTABLE=triggerTable
-export IMAGEPROC_DBSYNC=imageLabels
 
 #others explained below
 export GR_STREAMID=2017-09-09T20:03:35.795
@@ -52,7 +51,6 @@ aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${EASTSYNCTABLE} --profile ${AWSPROFILE} --region ${XREG}
 aws dynamodb delete-table --table-name ${APITESTTABLE} --profile ${AWSPROFILE} --region ${REG}
 aws dynamodb delete-table --table-name ${WEBAPPTRIGGERTABLE} --profile ${AWSPROFILE} --region ${REG}
-aws dynamodb delete-table --table-name ${IMAGEPROC_DBSYNC} --profile ${AWSPROFILE}
 #verify they are gone in the dynamoDB management console (east and west): https://us-west-2.console.aws.amazon.com/dynamodb/home?region=us-west-2
 
 #create tables needed for apps
@@ -60,7 +58,6 @@ aws dynamodb delete-table --table-name ${IMAGEPROC_DBSYNC} --profile ${AWSPROFIL
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${WEBAPPTRIGGERTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
 #primary key is 'id':'S'
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${IMAGEPROC_DBSYNC} --attribute-definitions AttributeName=id,AttributeType=S --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${XREG} --table-name ${EASTSYNCTABLE} --attribute-definitions AttributeName=id,AttributeType=S --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
 
 # make tables needed for GammaRay (S=static=SPOTTABLE and D=dynamic=GAMMATABLE)
@@ -210,10 +207,7 @@ tools/timings/imageProc.sh: ImgProc_ -> CLI Invoked calls http, rekognition, ${I
         DBSyncPy writes ${EASTSYNCTABLE} in east region
         UpdateWebsite (all of them) in east is triggered by ${EASTSYNCTABLE} write and 
         invokes http
-0) ${EASTSYNCTABLE} is hard coded in gammaRay/apps/DBSync.py Edit this code and change eastSyncTable to your talblename if different.  should be OK though to just use the same name
-1) create ${EASTSYNCTABLE} if you haven't already (id:'S' is primary key)
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${XREG} --table-name ${EASTSYNCTABLE} --attribute-definitions AttributeName=id,AttributeType=S --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-2)Make the buckets if you haven't already, 1 per job type for imageProc app
+1)Make the buckets if you haven't already, 1 per job type for imageProc app
 #these aren't used to trigger ImgProc in imageProc.sh timings as we just call the function directly for simplicity, thes can be used for later though and makeConfigs/setupApps does set these as triggers for the lambdas
 export IMG_TRIGGERBKTF=image-proc-f
 export IMG_TRIGGERBKTC=image-proc-c
@@ -228,24 +222,43 @@ aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTS}
 aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTT}
 aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTB}
 (after this run makeConfigs.py below followed by setupApps.py)
-3) Next, add triggers to DBSyncPy[C,F,D,S,T,B] via the Lambda Management Console 
-for DynamoDB for table ${IMAGEPROC_DBSYNC}, trim horizon
---> one table for all functions is fine for now
-4) Next, add triggers to UpdateWebsite[C,F,D,S,T,B] via the Lambda Management Console *** ${XREG} region ***
-for DynamoDB for table ${EASTSYNCTABLE}, trim horizon
---> one table for all functions is fine for now
-5) Next, add a jpg image (any picture of something) to the $SPOTBKTWEST bucket in a folder 
+
+2) Edit DBSync.py to change the hardcoded string "eastSyncTable-" 
+(which is EASTSYNC_TRIGGER_TABLE_PREFIX value below) if you would 
+like to change the table name to something else.  However you can leave it
+as is and everything should work.
+
+3) Next, add triggers to DBSyncPy[C,F,D,S,T,B] in the ${REG} region
+deactivate
+cd ${PREFIX}/tools
+export IMG_DBSYNC_TRIGGER_TABLE_PREFIX=image-proc-
+export IMG_DBSYNC_FUNCTION_NAME_PREFIX=DBSyncPy
+./make_imgproc_tables.sh ${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} ${IMG_DBSYNC_FUNCTION_NAME_PREFIX} ${AWSPROFILE} ${REG} ${PREFIX}
+
+4) Next, add triggers to UpdateWebsite[C,F,D,S,T,B] in the *** ${XREG} region ***
+deactivate
+cd ${PREFIX}/tools
+export EASTSYNC_TRIGGER_TABLE_PREFIX=eastSyncTable-
+export EASTSYNC_FUNCTION_NAME_PREFIX=UpdateWebsite
+./make_imgproc_tables.sh ${EASTSYNC_TRIGGER_TABLE_PREFIX} ${EASTSYNC_FUNCTION_NAME_PREFIX} ${AWSPROFILE} ${XREG} ${PREFIX}
+
+5) Next, upload a jpg image (any picture of something) to the $SPOTBKTWEST bucket in a folder 
 called imgProc with a file name d1.jpg.  (${SPOTBKTWEST}/imgProc/d1.jpg) (update timings/imageProc.sh if you change prefix and/or key)
 # we use this to simulate a user dropping an image into a webapp or bucket that triggers the lambdas,
 #however in imageProc.sh we just invoke the function directly passing in this file, for simplicity
 #it is setup and does work if an image is dropped into th image-proc-?/pref?/ buckets/folders above
 If you change the name or folder, then change this in tools/timings/imgProc.sh which runs the jobs.
 We pass this into ImageProcPy apps as input, the image is processed with rekognition in AWS to generate labels.
-ImageProcPy apps store the labels in table $IMAGEPROC_DBSYNC (us-west-2)
+
 6) test that there are 5 functions triggered (look at Xray and Cloudwatch logs): ImageProcPyF,DBSyncPyF,UpdateWebsiteF in ${XREG} region
-aws lambda invoke --invocation-type Event --function-name ImageProcPyF --region ${REG} --profile ${AWSPROFILE} --payload "{\"eventSource\":\"ext:invokeCLI\",}" outputfile
-You should see successful execution of:
-ImageProcPyF->DBSyncPyF->UpdateWebsiteF(in east)
+aws lambda invoke --invocation-type Event --function-name ImageProcPyF --region ${REG} --profile ${AWSPROFILE} --payload "{\"eventSource\":\"ext:invokeCLI\",\"name\":\"${SPOTBKTWEST}\",\"key\":\"imgProc/d1.jpg\"}" outputfile
+You should see successful execution of: ImageProcPyF(in west)->DBSyncPyF(in west)->UpdateWebsiteF(in east)
+
+If it works, then you will be able to run the experiments below (imageProc.sh) by passing in these
+environment variables
+${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} ${IMG_DBSYNC_FUNCTION_NAME_PREFIX} ${EASTSYNC_TRIGGER_TABLE_PREFIX} ${EASTSYNC_FUNCTION_NAME_PREFIX}
+
+cjk HERE - fix DBSync to use the prefix eastSyncTable-
 
 ############ make the lambdas ############################
 #generate the config files for the lambdas for all cases (CASES list is below)
