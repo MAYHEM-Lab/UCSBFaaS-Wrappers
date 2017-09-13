@@ -34,10 +34,9 @@ cd ${CWDIR}
 for suf in "${SUFFIXES[@]}"
 do
     LLIST=( "ImageProcPy${suf}" "DBSyncPy${suf}" "UpdateWebsite${suf}" )
-    for lambda in "${LLIST[@]}"
+    for i in `seq 1 ${COUNT}`;
     do
-
-        for i in `seq 1 ${COUNT}`;
+        for lambda in "${LLIST[@]}"
         do
             #cleanup
             if [[ ${lambda} == UpdateWeb* ]] ;
@@ -47,6 +46,7 @@ do
                 python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --deleteOnly
             fi
         done
+
         #runit
         aws lambda invoke --invocation-type Event --function-name ImageProcPy${suf} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"name\":\"${BKT}\",\"key\":\"${BKTKEY}\",\"tableName\":\"${TABLEPREF}${suf}\"}" outputfile
 
@@ -55,12 +55,12 @@ do
         rm -f ${i}/APP/IMGPROC/${suf}/*.log
         for lambda in "${LLIST[@]}"
         do
-        if [[ ${lambda} == UpdateWeb* ]] ;
-        then
-            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --region us-east-1 > $i/APP/IMGPROC/${suf}/${lambda}.log
-        else
-            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} > $i/APP/IMGPROC/${suf}/${lambda}.log
-        fi
+            if [[ ${lambda} == UpdateWeb* ]] ;
+            then
+                python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --region us-east-1 > ${i}/APP/IMGPROC/${suf}/${lambda}.log
+            else
+                python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} > ${i}/APP/IMGPROC/${suf}/${lambda}.log
+            fi
         done
     done
 done

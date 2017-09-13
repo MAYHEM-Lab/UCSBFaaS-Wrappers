@@ -36,7 +36,8 @@ for suf in "${SUFFIXES[@]}"
 do
     TOPIC="arn:aws:sns:${REG}:${ACCT}:topic${suf}"
     BKTPREFIX="pref${suf}"
-    BKT="${TRIGGERBKTPREFIX}${suf}"
+    lowersuf="$(tr [A-Z] [a-z] <<< "$suf")"
+    BKT="${TRIGGERBKTPREFIX}-${lowersuf}"
     LLIST=( "SNSPy${suf}" "FnInvokerPy${suf}" "DBModPy${suf}" "S3ModPy${suf}" )
 
     for i in `seq 1 ${COUNT}`;
