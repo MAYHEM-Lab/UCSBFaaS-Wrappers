@@ -411,7 +411,7 @@ as an example:
 #summarize in the excel spreadsheet called result.xlxs in the paper repo
 #commit all of the output files to the paper repo under results
 
-#process timings data (cloudwatch)
+#process timings data (cloudwatch) for micro
 export COUNT=50 #if unset
 cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 source venv/bin/activate
@@ -419,10 +419,25 @@ cd ${PREFIX}/tools
 export MRDIR=${PREFIX}/gammaRay/apps/map-reduce
 export CWDIR=${PREFIX}/tools/cloudwatch
 python timings_parser.py ${MRDIR} ${CWDIR} out --micro_only --count ${COUNT} >micro.summary
-#data is in out_jobname.out, e.g. out_s3writeS.out
+#data is in out_lambdanameSuffix.out, e.g. out_s3writeS.out
 deactivate
 
+#process timings data (cloudwatch) for webapp and imageProc
+export COUNT=50 #if unset
+cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
+source venv/bin/activate
+cd ${PREFIX}/tools
+export CWDIR=${PREFIX}/tools/cloudwatch
+python apps_timings_parser.py ${CWDIR} out --count ${COUNT} > webapp_image_proc.summary
+#data is in out_lambdaname_Suffix.out, e.g. out_ImageProcPy_S.out and out_SNSPy_S.out
+deactivate
+
+#timings_parser.py (processMicro function) needs to be extended to process mr results.
+
+
 #process streams to generate pdfs for S (D is the same)
+#this hasn't been tested for awhile and needs to be rewritten to get new format of data
+#do not use until fixed
 cd ${PREFIX}/tools
 cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 source venv/bin/activate
