@@ -27,17 +27,27 @@ def processJson(fname,getReq=None,fns=[]):
            
         if getReq and not req.startswith(getReq):
             continue
+        print('\nITEM: {}'.format(item))
         ts = float(item['ts']['N'])
         payload = item['payload']['S']
         if payload.startswith('pl:'): #pl:reqID:arn functionEntry
-            print('ENTRY:{} {}'.format(req,payload))
+            print('\nENTRY:{} {}'.format(req,payload))
         else:
             try:
                 pl = json.loads(payload)
             except json.decoder.JSONDecodeError as e:
-                print('{} {}'.format(req,payload))
+                print('skipping {} {}'.format(req,payload))
                 continue
             start = float(pl['start_time'])
+            if 'aws' not in pl:
+                if 'in_progress' not in pl:
+                    print('Error, unknown string: {}'.format(pl))
+                tr = pl['trace_id']
+                parent = pl['parent_id']
+                ssid = pl['id']
+                print('partial {} tr:{} par:{} id:{}'.format(req,tr,parent,ssid))
+                continue
+ 
             aws = pl['aws']
             op = aws['operation']
             print('{} {}'.format(start,json.dumps(aws)))

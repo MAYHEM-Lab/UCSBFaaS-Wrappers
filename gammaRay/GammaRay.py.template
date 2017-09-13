@@ -52,12 +52,18 @@ def handleRequest(event, context):
                 payload += ':key:{}'.format(subobj['key'])
                 payload += ':op:{}'.format(parent_obj['eventName'])
 
+    os.environ['spotReqID'] = reqID
+    os.environ['myArn'] = arn
+    os.environ['gammaTable'] = 'QQQQ'
+    os.environ['gammaRegion'] = 'ZZZZ'
+    errorstr = "GammaWrapPython"
+
     dynamodb = boto3.resource('dynamodb', region_name='ZZZZ')
     table = dynamodb.Table('QQQQ')
     unique_str = str(uuid.uuid4())[:8]
     entstr = 'entry{}'.format(unique_str)
     tsint = int(round(time.time() * 1000)) #msecs in UTC
-    reqID += ':{}'.format(entstr)
+    reqID = '{}:{}'.format(reqID,entstr)
     table.put_item( Item={
         'reqID': reqID,
         'ts': tsint,
@@ -65,11 +71,6 @@ def handleRequest(event, context):
         }
     )
 
-    os.environ['spotReqID'] = reqID
-    os.environ['myArn'] = arn
-    os.environ['gammaTable'] = 'QQQQ'
-    os.environ['gammaRegion'] = 'ZZZZ'
-    errorstr = "GammaWrapPython"
     logger.warn('GammaWrapPython::reqID:{}'.format(reqID))
     respObj = None
     returnObj = {}
@@ -103,6 +104,18 @@ def handleRequest(event, context):
         if errorstr != 'GammaWrapPython':
             print('GammaWrapPy caught error: {}'.format(errorstr))
         delta = (time.time() * 1000) - wrappedentry
+
+    if arn.endswith('D'): #log the exit for a Dynamic configuration of gammaRay
+        unique_str = str(uuid.uuid4())[:8]
+        entstr = 'exit{}'.format(unique_str)
+        tsint = int(round(time.time() * 1000)) #msecs in UTC
+        reqID = '{}:{}'.format(reqID,entstr)
+        table.put_item( Item={
+            'reqID': reqID,
+            'ts': tsint,
+            'payload': 'end'
+            }
+        )
 
     if not respObj: 
         respObj = {}
