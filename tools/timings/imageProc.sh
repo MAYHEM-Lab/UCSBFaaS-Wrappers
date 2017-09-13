@@ -20,7 +20,6 @@ TOOLSDIR=${PREFIX}/tools/timings
 TS=1401861965497 #some early date
 
 SUFFIXES=( C S D F T B )
-SUFFIXES=( C )
 cd ${GRDIR}
 . ./venv/bin/activate
 cd ${CWDIR}
@@ -37,20 +36,21 @@ do
     LLIST=( "ImageProcPy${suf}" "DBSyncPy${suf}" "UpdateWebsite${suf}" )
     for lambda in "${LLIST[@]}"
     do
-        #cleanup
-        if [[ ${lambda} == UpdateWeb* ]] ;
-        then
-            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --deleteOnly --region us-east-1
-        else
-            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --deleteOnly
-        fi
-    done
 
-    for i in `seq 1 ${COUNT}`;
-    do
+        for i in `seq 1 ${COUNT}`;
+        do
+            #cleanup
+            if [[ ${lambda} == UpdateWeb* ]] ;
+            then
+                python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --deleteOnly --region us-east-1
+            else
+                python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --deleteOnly
+            fi
+        done
+        #runit
         aws lambda invoke --invocation-type Event --function-name ImageProcPy${suf} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"name\":\"${BKT}\",\"key\":\"${BKTKEY}\",\"tableName\":\"${TABLEPREF}${suf}\"}" outputfile
 
-        /bin/sleep 30 #seconds
+        /bin/sleep 45 #seconds
         mkdir -p ${i}/APP/IMGPROC/${suf}
         rm -f ${i}/APP/IMGPROC/${suf}/*.log
         for lambda in "${LLIST[@]}"

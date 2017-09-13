@@ -38,17 +38,19 @@ do
     BKTPREFIX="pref${suf}"
     BKT="${TRIGGERBKTPREFIX}${suf}"
     LLIST=( "SNSPy${suf}" "FnInvokerPy${suf}" "DBModPy${suf}" "S3ModPy${suf}" )
-    for lambda in "${LLIST[@]}"
-    do
-        #cleanup
-        python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --deleteOnly
-    done
 
     for i in `seq 1 ${COUNT}`;
     do
+        for lambda in "${LLIST[@]}"
+        do
+            #cleanup
+            python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --deleteOnly
+        done
+
+        #runit
         aws lambda invoke --invocation-type Event --function-name SNSPy${suf} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"topic\":\"${TOPIC}\",\"subject\":\"sub1\",\"msg\":\"fname:testfile.txt:prefix:${BKTPREFIX}:bkt:${BKT}:xxx\"}" outputfile
 
-        /bin/sleep 15 #seconds
+        /bin/sleep 30 #seconds
         mkdir -p ${i}/APP/WEBAPP/${suf}
         rm -f ${i}/APP/WEBAPP/${suf}/*.log
         for lambda in "${LLIST[@]}"
