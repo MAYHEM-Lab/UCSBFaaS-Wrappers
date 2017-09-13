@@ -4,13 +4,13 @@ if [ -z ${2+x} ]; then echo 'Unset count (second var). Set and rerun. Exiting...
 if [ -z ${3+x} ]; then echo 'Unset prefix as arg3 (full path to/including UCSBFaaS-Wrappers). Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${4+x} ]; then echo 'Unset region as arg4. Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${5+x} ]; then echo 'Unset accountID as arg5. Set and rerun. Exiting...!'; exit 1; fi
-if [ -z ${6+x} ]; then echo 'Unset trigger bucket as arg6. (the prefix must be set to "pref[C,D,S,T,F]). Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${6+x} ]; then echo 'Unset trigger bucket prefix (FNI_TRIGGERBKT) as arg6. This script will add the suffixes [C,D,S,T,F]). Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
 COUNT=$2
 PREFIX=$3
 REG=$4
 ACCT=$5
-TRIGGERBKT=$6
+TRIGGERBKTPREFIX=$6
 GRDIR=${PREFIX}/gammaRay
 CWDIR=${PREFIX}/tools/cloudwatch
 TOOLSDIR=${PREFIX}/tools/timings
@@ -23,15 +23,20 @@ cd ${GRDIR}
 cd ${CWDIR}
 
 #see RUN_README for env. variable settings
-#webapp.sh:SNSPy (topic_) -> triggers S3ModPy_ passes in bkt:${TRIGGERBKT}, fname:xxx, prefix:xxx in msg
-        #S3Mod writes ${TRIGGERBKT} -> triggers FnInvoker, invokes DBMod ->
-        #DBMod reads testTable and writes triggerTable (see FnInvoker.py for invoke call with params),
-        #write to triggerTable -> triggers FnInvoker (does not invoke DBMod)
+#tools/timings/webapp.sh:SNSPy (topic_) ->
+        #triggers S3ModPy_ passes in via the SNS message:
+        #bkt:${FNI_TRIGGERBKT_}, fname:xxx, prefix:pref_ (_=[CBDSTF]) anywhere in message
+        #S3Mod writes ${FNI_TRIGGERBKT_}
+        #--> which triggers FnInvokerPy_ which invokes DBModPy_ ->
+        #DBMod reads testTable and writes ${WEBAPP_DBMOD_TRIGGER_TABLE_PREFIX_}  for _=[CBDSTF]
+        #(see FnInvoker.py for invoke call with params),
+        #the write to ${WEBAPP_DBMOD_TRIGGER_TABLE_PREFIX_}->triggers FnInvokerPy (does not invoke DBModPy)
 
 for suf in "${SUFFIXES[@]}"
 do
     TOPIC="arn:aws:sns:${REG}:${ACCT}:topic${suf}"
     BKTPREFIX="pref${suf}"
+    BKT="${TRIGGERBKTPREFIX}${suf}"
     LLIST=( "SNSPy${suf}" "FnInvokerPy${suf}" "DBModPy${suf}" "S3ModPy${suf}" )
     for lambda in "${LLIST[@]}"
     do
@@ -41,7 +46,7 @@ do
 
     for i in `seq 1 ${COUNT}`;
     do
-        aws lambda invoke --invocation-type Event --function-name SNSPy${suf} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"topic\":\"${TOPIC}\",\"subject\":\"sub1\",\"msg\":\"fname:testfile.txt:prefix:${BKTPREFIX}:bkt:${TRIGGERBKT}:xxx\"}" outputfile
+        aws lambda invoke --invocation-type Event --function-name SNSPy${suf} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"topic\":\"${TOPIC}\",\"subject\":\"sub1\",\"msg\":\"fname:testfile.txt:prefix:${BKTPREFIX}:bkt:${BKT}:xxx\"}" outputfile
 
         /bin/sleep 15 #seconds
         mkdir -p ${i}/APP/WEBAPP/${suf}

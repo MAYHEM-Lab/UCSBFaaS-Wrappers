@@ -32,8 +32,8 @@ export APITESTBKT=cjk-apitest-bucket
 export APITESTTABLE=noTriggerTestTable
 
 #others explained below
-export GR_STREAMID=2017-09-09T20:03:35.795
-export SPOT_STREAMID=2017-09-07T18:35:46.003
+export GR_STREAMID=2017-09-13T00:39:21.716  #set elsewhere in this file also!
+export SPOT_STREAMID=2017-09-13T00:43:24.435  #set elsewhere in this file also!
 export END=100
 export COUNT=10
 export JOBID=job8000 
@@ -49,12 +49,12 @@ aws dynamodb delete-table --table-name ${APITESTTABLE} --profile ${AWSPROFILE} -
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 #note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
 #just put the date/time component (after .../stream/) from LatestStreamArn below for later use
-export SPOT_STREAMID=2017-09-07T18:35:46.003
+export SPOT_STREAMID=2017-09-13T00:43:24.435  #set elsewhere in this file also!
 
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 #note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
 #just put the date/time component (after .../stream/) here for later use
-export GR_STREAMID=2017-09-09T20:03:35.795
+export GR_STREAMID=2017-09-13T00:39:21.716  #set elsewhere in this file also!
 
 #create tables needed for apis
 #primary key is 'id':'N' for all other tables its type is 'S'
@@ -166,6 +166,7 @@ aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTD}
 aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTS}
 aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTB}
 #webapp
+export FNI_TRIGGERBKT=cjk-fninvtrigger #without the suffix, just a name, don't create a bucket for it
 export FNI_TRIGGERBKTF=cjk-fninvtrigger-f
 export FNI_TRIGGERBKTC=cjk-fninvtrigger-c
 export FNI_TRIGGERBKTD=cjk-fninvtrigger-d
@@ -247,8 +248,9 @@ deactivate
 what it does:
 tools/timings/webapp.sh:SNSPy (topic_) -> 
 	triggers S3ModPy_ passes in via the SNS message:
-        bkt:${FNI_TRIGGERBKT} without the [CBDSTF] on the end, fname:xxx, prefix:xxx anywhere in message
-        S3Mod writes ${FNI_TRIGGERBKT_} for _=[CBDSTF] -> triggers FnInvokerPy_ which invokes DBModPy_ -> 
+        bkt:${FNI_TRIGGERBKT_}, fname:xxx, prefix:pref_ (_=[CBDSTF]) anywhere in message
+        S3Mod writes ${FNI_TRIGGERBKT_}
+        --> which triggers FnInvokerPy_ which invokes DBModPy_ -> 
         DBMod reads testTable and writes ${WEBAPP_DBMOD_TRIGGER_TABLE_PREFIX_}  for _=[CBDSTF]
         (see FnInvoker.py for invoke call with params), 
         the write to ${WEBAPP_DBMOD_TRIGGER_TABLE_PREFIX_}->triggers FnInvokerPy (does not invoke DBModPy)
@@ -311,8 +313,6 @@ We pass this into ImageProcPy apps as input, the image is processed with rekogni
 aws lambda invoke --invocation-type Event --function-name ImageProcPyF --region ${REG} --profile ${AWSPROFILE} --payload "{\"eventSource\":\"ext:invokeCLI\",\"name\":\"${SPOTBKTWEST}\",\"key\":\"imgProc/d1.jpg\",\"tableName\":\"${IMG_DBSYNC_TRIGGER_TABLE_PREFIX}F\"}" outputfile
 #You should see successful execution of: ImageProcPyF(in west)->DBSyncPyF(in west)->UpdateWebsiteF(in east)
 
-${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} ${IMG_DBSYNC_FUNCTION_NAME_PREFIX} ${EASTSYNC_TRIGGER_TABLE_PREFIX} ${EASTSYNC_FUNCTION_NAME_PREFIX}
-
 #################### setup to run the experiments **************************
 #only if you want to: blow away the timings directories from past runs, update END to the last directory ID
 #perhaps you want to move them first to backup what you have...
@@ -367,7 +367,7 @@ cd ${PREFIX}/tools/timings
 #webapp
 cd ${PREFIX}/tools/timings
 deactivate
-./webapp.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${ACCT} ${TRIGGERBKT}
+./webapp.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${ACCT} ${FNI_TRIGGERBKT} #FNI_TRIGGERBKT without suffix
 cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 source venv/bin/activate
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
@@ -383,7 +383,7 @@ deactivate
 #imageProc (and dbsync), capture streams for this one
 cd ${PREFIX}/tools/timings
 deactivate
-./imageProc.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${XREG} ${SPOTBKTWEST}
+./imageProc.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${XREG} ${SPOTBKTWEST} ${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} #IMG_DBSYNC_TRIGGER_TABLE_PREFIX without suffix
 cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 source venv/bin/activate
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
@@ -451,11 +451,11 @@ aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 #note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
 #just put the date/time component (after .../stream/) here for later use
-export SPOT_STREAMID=2017-09-06T21:22:39.210
+export SPOT_STREAMID=2017-09-13T00:43:24.435  #set elsewhere in this file also!
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 #note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
 #just put the date/time component (after .../stream/) here for later use
-export GR_STREAMID=2017-09-09T20:03:35.795
+export GR_STREAMID=2017-09-13T00:39:21.716  #set elsewhere in this file also!
 
 #delete all of the lambdas by name, in AWS (edit restConfigs[West,East].json to add others)
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}

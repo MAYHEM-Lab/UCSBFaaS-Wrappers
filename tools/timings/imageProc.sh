@@ -5,12 +5,14 @@ if [ -z ${3+x} ]; then echo 'Unset prefix as arg3 (full path to/including UCSBFa
 if [ -z ${4+x} ]; then echo 'Unset region where starting lambda (ImageProcPy*) is as arg4. Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${5+x} ]; then echo 'Unset region where cross-region lambda (UpdateWeb*) is as arg5. Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${6+x} ]; then echo 'Unset bucket where /imgProc/d1.jpg (any picture will work here) is as arg6. Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${7+x} ]; then echo 'Unset table prefix (IMG_DBSYNC_TRIGGER_TABLE_PREFIX). Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
 COUNT=$2
 PREFIX=$3
 REG=$4
 ACCT=$5
 BKT=$6
+TABLEPREF=$7
 BKTKEY=imgProc/d1.jpg
 GRDIR=${PREFIX}/gammaRay
 CWDIR=${PREFIX}/tools/cloudwatch
@@ -46,7 +48,7 @@ do
 
     for i in `seq 1 ${COUNT}`;
     do
-        aws lambda invoke --invocation-type Event --function-name ImageProcPy${suf} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"name\":\"${BKT}\",\"key\":\"${BKTKEY}\"}" outputfile
+        aws lambda invoke --invocation-type Event --function-name ImageProcPy${suf} --region ${REG} --profile ${PROF} --payload "{\"eventSource\":\"ext:invokeCLI\",\"name\":\"${BKT}\",\"key\":\"${BKTKEY}\",\"tableName\":\"${TABLEPREF}${suf}\"}" outputfile
 
         /bin/sleep 30 #seconds
         mkdir -p ${i}/APP/IMGPROC/${suf}
