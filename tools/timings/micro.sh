@@ -14,17 +14,17 @@ TS=1401861965497 #some early date
 REG=us-west-2
 
 S3TESTBKT=cjk-spotwraptest0831
-#FILELIST=( 
-    #emptyC dbreadC dbwriteC s3readC s3writeC pubsnsC \
-    #emptyS dbreadS dbwriteS s3readS s3writeS pubsnsS \
-    #emptyD dbreadD dbwriteD s3readD s3writeD pubsnsD \
-    #emptyF dbreadF dbwriteF s3readF s3writeF pubsnsF \
-    #emptyT dbreadT dbwriteT s3readT s3writeT pubsnsT  \
-    #emptyB dbreadB dbwriteB s3readB s3writeB pubsnsB  \
-#)
 FILELIST=( 
     emptyB dbreadB dbwriteB s3readB s3writeB pubsnsB  \
+    emptyC dbreadC dbwriteC s3readC s3writeC pubsnsC \
+    emptyF dbreadF dbwriteF s3readF s3writeF pubsnsF \
+    emptyS dbreadS dbwriteS s3readS s3writeS pubsnsS \
+    emptyT dbreadT dbwriteT s3readT s3writeT pubsnsT  \
+    emptyD dbreadD dbwriteD s3readD s3writeD pubsnsD \
 )
+#FILELIST=( 
+    #emptyD dbreadD dbwriteD s3readD s3writeD pubsnsD  \
+#)
 
 cd ${GRDIR}
 . ./venv/bin/activate

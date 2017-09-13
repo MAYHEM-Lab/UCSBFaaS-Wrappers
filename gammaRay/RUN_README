@@ -18,6 +18,8 @@ export BOTOCOREDIR=${PREFIX}/boto144
 export BOTOCORE=${BOTOCOREDIR}/venv/lib/python3.6/site-packages/botocore
 export LOCALLIBDIR=${PREFIX}/gammaRay
 export LOCALLIBS=${LOCALLIBDIR}/venv/lib/python3.6/site-packages
+export MRDIR=${PREFIX}/gammaRay/apps/map-reduce
+export CWDIR=${PREFIX}/tools/cloudwatch
 
 export BDBENCH=cjk-gammaray-bdbenchmark
 export SPOTTABLE=spotFns
@@ -25,13 +27,9 @@ export GAMMATABLE=gammaRays
 export SPOTBKTWEST=cjktestbkt
 export SPOTBKTEAST=cjktestbkteast
 
-#s3 buckets used by apps and apis
+#s3 bucket and dynamodb table used by apis
 export APITESTBKT=cjk-apitest-bucket
-
-#tables used by apps and apis
-export EASTSYNCTABLE=eastSyncTable
 export APITESTTABLE=noTriggerTestTable
-export WEBAPPTRIGGERTABLE=triggerTable
 
 #others explained below
 export GR_STREAMID=2017-09-09T20:03:35.795
@@ -39,27 +37,14 @@ export SPOT_STREAMID=2017-09-07T18:35:46.003
 export END=100
 export COUNT=10
 export JOBID=job8000 
-export MRDIR=${PREFIX}/gammaRay/apps/map-reduce
-export CWDIR=${PREFIX}/tools/cloudwatch
 
 #CLEAN_DB
 #to start fresh delete them first
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
-#also for the ones that the apps use
-#NOTE That if you delete/recreate these you will need to go in and manually add back in the triggers via Lambda Management console (see TRIGGERS below)
-aws dynamodb delete-table --table-name ${EASTSYNCTABLE} --profile ${AWSPROFILE} --region ${XREG}
 aws dynamodb delete-table --table-name ${APITESTTABLE} --profile ${AWSPROFILE} --region ${REG}
-aws dynamodb delete-table --table-name ${WEBAPPTRIGGERTABLE} --profile ${AWSPROFILE} --region ${REG}
-#verify they are gone in the dynamoDB management console (east and west): https://us-west-2.console.aws.amazon.com/dynamodb/home?region=us-west-2
 
-#create tables needed for apps
-#primary key is 'id':'N'
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${WEBAPPTRIGGERTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-#primary key is 'id':'S'
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${XREG} --table-name ${EASTSYNCTABLE} --attribute-definitions AttributeName=id,AttributeType=S --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-
+#now remake them
 # make tables needed for GammaRay (S=static=SPOTTABLE and D=dynamic=GAMMATABLE)
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 #note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
@@ -70,6 +55,10 @@ aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name $
 #note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
 #just put the date/time component (after .../stream/) here for later use
 export GR_STREAMID=2017-09-09T20:03:35.795
+
+#create tables needed for apis
+#primary key is 'id':'N' for all other tables its type is 'S'
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
 
 #if you haven't done so already, make the buckets and table
 aws --profile ${AWSPROFILE} s3 mb s3://${SPOTBKTWEST}
@@ -110,7 +99,7 @@ cd ${FLEECE}
 patch -b < ${PREFIX}/gammaRay/xray0130.patch
 deactivate
 
-#$BFLEECE is passed as second argument to makeConfigs.py
+#$BFLEECE is passed as --Bversion argument to makeConfigs.py
 mkdir -p ${BFLEECEDIR}
 cd ${BFLEECEDIR}
 virtualenv venv --python=python3
@@ -128,139 +117,84 @@ virtualenv venv --python=python3
 source venv/bin/activate
 pip install 'fleece==0.13.0' --force-reinstall #fleece installs boto3 the version will work fine for local testing
 
+#clean up all logs if any
 deactivate
 cd ${PREFIX}/tools/timings
-#clean up all logs if any
 ./cleanupAWS.sh ${AWSPROFILE} ${REG} ${XREG}
 #Next: clean out the SPOTTABLE and GAMMATABLE databases
 #see above (CLEAN_DB) to remove the databases and add them back (with a delay in between to ensure they get deleted)
 
-#Next: delete all of the lambdas by name, in AWS
-#modify restConfigsWest.json and restConfigsEast.json to add the names of the other lambdas you want to delete
-#note that this deletes everything!  any names that aren't found are just skipped (missing lambda names are not a problem)
+#Next (optional): delete all of the lambdas by name, in AWS
+#note that this deletes everything!  any names that aren't 
+#found are just skipped (missing lambda names are not a problem)
+deactivate
+cd ${PREFIX}/tools/timings
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
 #check the AWS Lambda management console 
-#edit restConfigs[West,East].json to add others
+#edit restConfigs[West,East].json and rerun to delete missed lambdas
 
-############# setup the apps #################
-#map-reduce
-setup: bucket that triggers reducerCoordinator (written to by mapper and reducer)
-- this is now done for you in setupApps.py for these buckets just set them in your environment variables 
-prior to running makeConfigs.py and setupApps.py on the configs generated.
-The prefix can stay job8000 (if you change this you need to change mr.sh and overheadMR.sh in tools/timings)
+#clean out the DB
+deactivate
+cd ${PREFIX}/tools/timings
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+
+
+#next remove all past triggers (add function names to the colon delimited string argument as you wish):
+#any functions not found are just skipped
+cd ${PREFIX}/gammaRay
+source venv/bin/activate
+cd ../tools
+python cleanupEventSources.py ${AWSPROFILE} ${XREG} "UpdateWebsiteF:UpdateWebsiteT:UpdateWebsiteS:UpdateWebsiteC:UpdateWebsiteB:UpdateWebsiteD:UpdateWebsite"
+python cleanupEventSources.py ${AWSPROFILE} ${REG} "DBSyncPyC:DBSyncPyD:DBSyncPyF:DBSyncPyT:DBSyncPyB:DBSyncPyS:FnInvokerPyC:FnInvokerPyD:FnInvokerPyF:FnInvokerPyT:FnInvokerPyB:FnInvokerPyS:DBSync:SpotTemplatePy:FnInvokerPyNS:FnInvokerPy"
+deactivate
+
+############ make the lambdas ############################
+1) first setup the triggers
+#Map-reduce setup: bucket that triggers reducerCoordinator (written to by mapper and reducer)
+#The prefix can stay job8000 (if you change this you need to change mr.sh and overheadMR.sh in tools/timings)
 export MR_TRIGGERBKTS=spot-mr-bkt
 export MR_TRIGGERBKTF=spot-mr-bkt-f
 export MR_TRIGGERBKTD=spot-mr-bkt-gr
 export MR_TRIGGERBKTC=spot-mr-bkt-ns
 export MR_TRIGGERBKTT=spot-mr-bkt-t
 export MR_TRIGGERBKTB=spot-mr-bkt-b
-#create the buckets if they aren't already created
+#create the buckets if they aren't already created, you can ignore BucketAlreadyOwnedByYou errors
 aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTC}
 aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTT}
 aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTF}
 aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTD}
 aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTS}
 aws --profile ${AWSPROFILE} s3 mb s3://${MR_TRIGGERBKTB}
-(after this run makeConfigs.py below followed by setupApps.py)
-
-#webapp:
-what it does:
-tools/timings/webapp.sh:SNSPy (topic_) -> 
-	triggers S3ModPy_ passes in bkt:${TRIGGERBKT}, fname:xxx, prefix:xxx in msg
-        S3Mod writes ${TRIGGERBKT} -> triggers FnInvoker, invokes DBMod -> 
-        DBMod reads testTable and writes triggerTable (see FnInvoker.py for invoke call with params), 
-        write to triggerTable -> triggers FnInvoker (does not invoke DBMod)
-setup:
-1) makeConfigs and setupApps sets this up (${TRIGGERBKT}->FnInvoker) for you.
-just set s3 names in your environment variables 
+#webapp
 export FNI_TRIGGERBKTF=cjk-fninvtrigger-f
 export FNI_TRIGGERBKTC=cjk-fninvtrigger-c
 export FNI_TRIGGERBKTD=cjk-fninvtrigger-d
 export FNI_TRIGGERBKTS=cjk-fninvtrigger-s
 export FNI_TRIGGERBKTT=cjk-fninvtrigger-t
 export FNI_TRIGGERBKTB=cjk-fninvtrigger-b
+#make them, you can ignore BucketAlreadyOwnedByYou errors
 aws --profile ${AWSPROFILE} s3 mb s3://${FNI_TRIGGERBKTF}
 aws --profile ${AWSPROFILE} s3 mb s3://${FNI_TRIGGERBKTC}
 aws --profile ${AWSPROFILE} s3 mb s3://${FNI_TRIGGERBKTD}
 aws --profile ${AWSPROFILE} s3 mb s3://${FNI_TRIGGERBKTS}
 aws --profile ${AWSPROFILE} s3 mb s3://${FNI_TRIGGERBKTT}
 aws --profile ${AWSPROFILE} s3 mb s3://${FNI_TRIGGERBKTB}
-(after this run makeConfigs.py below followed by setupApps.py)
-2)make the subscriptions for sns topics to trigger S3ModPy (for webapp) 
-cd ${PREFIX}/tools
-./make_subs.sh ${AWSPROFILE} ${ACCT} ${REG} 
-#to delete them (if ever you need to, go to the SNS Management Console, click Subscriptions and Topics, select and use Action->Delete
-#to delete --> also check Lambda Mgmnt Console for each lambda and the triggers tab (& delete if there)
-3) add dynamoDB trigger for ${WEBAPPTRIGGERTABLE} to all FnInvoker_ lambdas:
-- Lambda Management Console for DynamoDB 
-- Delete any tables that are there that have been previously deleted/recreated ("Problem..." 
-- will be in the Latest Result) for table ${WEBAPPTRIGGERTABLE}, use trim horizon
---> make it one table per function if you don't want to trigger them all every time. 
-- Its likely fine to just have one table for all functions, we can make this change later (for a final
-- version of a paper if accepted). TODO: turn this into a script like make_subs.sh
-4) test that there are 5 functions triggered (look at Xray and Cloudwatch logs): SNSPyF,S3ModF,FnInvokerPyF(log message about DBModPyF invoke),DBModPyF, FnInvokerPyF (msg=post to webpage)
-aws lambda invoke --invocation-type Event --function-name SNSPyF --region ${REG} --profile ${AWSPROFILE} --payload "{\"eventSource\":\"ext:invokeCLI\",\"topic\":\"arn:aws:sns:${REG}:${ACCT}:topicF\",\"subject\":\"sub1\",\"msg\":\"fname:testfile.txt:prefix:prefF:bkt:${TRIGGERBKT}:xxx\"}" outputfile
-
-#imageProc 
-tools/timings/imageProc.sh: ImgProc_ -> CLI Invoked calls http, rekognition, ${IMAGEPROC_DBSYNC} DB table write
-        ${IMAGEPROC_DBSYNC} write triggers DBSyncPy (all of them which is fine b/c we only download the _ log)
-        DBSyncPy writes ${EASTSYNCTABLE} in east region
-        UpdateWebsite (all of them) in east is triggered by ${EASTSYNCTABLE} write and 
-        invokes http
-1)Make the buckets if you haven't already, 1 per job type for imageProc app
-#these aren't used to trigger ImgProc in imageProc.sh timings as we just call the function directly for simplicity, thes can be used for later though and makeConfigs/setupApps does set these as triggers for the lambdas
+#imageProc
 export IMG_TRIGGERBKTF=image-proc-f
 export IMG_TRIGGERBKTC=image-proc-c
 export IMG_TRIGGERBKTD=image-proc-d
 export IMG_TRIGGERBKTS=image-proc-s
 export IMG_TRIGGERBKTT=image-proc-t
 export IMG_TRIGGERBKTB=image-proc-b
+#make them, you can ignore BucketAlreadyOwnedByYou errors
 aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTF}
 aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTC}
 aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTD}
 aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTS}
 aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTT}
 aws --profile ${AWSPROFILE} s3 mb s3://${IMG_TRIGGERBKTB}
-(after this run makeConfigs.py below followed by setupApps.py)
 
-2) Edit DBSync.py to change the hardcoded string "eastSyncTable-" 
-(which is EASTSYNC_TRIGGER_TABLE_PREFIX value below) if you would 
-like to change the table name to something else.  However you can leave it
-as is and everything should work.
-
-3) Next, add triggers to DBSyncPy[C,F,D,S,T,B] in the ${REG} region
-deactivate
-cd ${PREFIX}/tools
-export IMG_DBSYNC_TRIGGER_TABLE_PREFIX=image-proc-
-export IMG_DBSYNC_FUNCTION_NAME_PREFIX=DBSyncPy
-./make_imgproc_tables.sh ${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} ${IMG_DBSYNC_FUNCTION_NAME_PREFIX} ${AWSPROFILE} ${REG} ${PREFIX}
-
-4) Next, add triggers to UpdateWebsite[C,F,D,S,T,B] in the *** ${XREG} region ***
-deactivate
-cd ${PREFIX}/tools
-export EASTSYNC_TRIGGER_TABLE_PREFIX=eastSyncTable-
-export EASTSYNC_FUNCTION_NAME_PREFIX=UpdateWebsite
-./make_imgproc_tables.sh ${EASTSYNC_TRIGGER_TABLE_PREFIX} ${EASTSYNC_FUNCTION_NAME_PREFIX} ${AWSPROFILE} ${XREG} ${PREFIX}
-
-5) Next, upload a jpg image (any picture of something) to the $SPOTBKTWEST bucket in a folder 
-called imgProc with a file name d1.jpg.  (${SPOTBKTWEST}/imgProc/d1.jpg) (update timings/imageProc.sh if you change prefix and/or key)
-# we use this to simulate a user dropping an image into a webapp or bucket that triggers the lambdas,
-#however in imageProc.sh we just invoke the function directly passing in this file, for simplicity
-#it is setup and does work if an image is dropped into th image-proc-?/pref?/ buckets/folders above
-If you change the name or folder, then change this in tools/timings/imgProc.sh which runs the jobs.
-We pass this into ImageProcPy apps as input, the image is processed with rekognition in AWS to generate labels.
-
-6) test that there are 5 functions triggered (look at Xray and Cloudwatch logs): ImageProcPyF,DBSyncPyF,UpdateWebsiteF in ${XREG} region
-aws lambda invoke --invocation-type Event --function-name ImageProcPyF --region ${REG} --profile ${AWSPROFILE} --payload "{\"eventSource\":\"ext:invokeCLI\",\"name\":\"${SPOTBKTWEST}\",\"key\":\"imgProc/d1.jpg\"}" outputfile
-You should see successful execution of: ImageProcPyF(in west)->DBSyncPyF(in west)->UpdateWebsiteF(in east)
-
-If it works, then you will be able to run the experiments below (imageProc.sh) by passing in these
-environment variables
-${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} ${IMG_DBSYNC_FUNCTION_NAME_PREFIX} ${EASTSYNC_TRIGGER_TABLE_PREFIX} ${EASTSYNC_FUNCTION_NAME_PREFIX}
-
-cjk HERE - fix DBSync to use the prefix eastSyncTable-
-
-############ make the lambdas ############################
+2) make the configuration files (json)
 #generate the config files for the lambdas for all cases (CASES list is below)
 cd ${PREFIX}/gammaRay
 source venv/bin/activate
@@ -269,6 +203,8 @@ mkdir -p configs
 #edit makeConfigs to update triggerBuckets and triggerTables datastructures to have your bucket names
 #triggerBuckets for reducerCoordinator must match those in overhead??.sh files and runs below
 python makeConfigs.py configs ${BOTOCORE} ${FLEECE} ${LOCALLIBS} --swbkt ${SPOTBKTWEST} --swbkteast ${SPOTBKTEAST} --Bversion ${BFLEECE}
+
+3) make the lambdas
 #three each: make, West, East for
 ###nothing / clean (C)
 ###fleece only (tracing) (T)
@@ -303,8 +239,83 @@ python setupApps.py -f configs/configB.json -p ${AWSPROFILE} --no_spotwrap --spo
 python setupApps.py -f configs/configEastB.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay --turn_on_tracing
 deactivate
 
+############# setup the apps #################
+#############map-reduce
+#nothing to do here (setupApps has done it all)
 
+#############webapp:
+what it does:
+tools/timings/webapp.sh:SNSPy (topic_) -> 
+	triggers S3ModPy_ passes in via the SNS message:
+        bkt:${FNI_TRIGGERBKT} without the [CBDSTF] on the end, fname:xxx, prefix:xxx anywhere in message
+        S3Mod writes ${FNI_TRIGGERBKT_} for _=[CBDSTF] -> triggers FnInvokerPy_ which invokes DBModPy_ -> 
+        DBMod reads testTable and writes ${WEBAPP_DBMOD_TRIGGER_TABLE_PREFIX_}  for _=[CBDSTF]
+        (see FnInvoker.py for invoke call with params), 
+        the write to ${WEBAPP_DBMOD_TRIGGER_TABLE_PREFIX_}->triggers FnInvokerPy (does not invoke DBModPy)
+setup: (setupApps.py takes care of setting up FNInvokerPy_ triggers to FNI_TRIGGERBKT_)
+1)make the subscriptions for SNS topics to trigger S3ModPy (for webapp) 
+cd ${PREFIX}/tools
+./make_subs.sh ${AWSPROFILE} ${ACCT} ${REG} 
+#to delete them (if ever you need to, go to the SNS Management Console, click Subscriptions and Topics, select and use Action->Delete
+#to delete --> also check Lambda Mgmnt Console for each lambda and the triggers tab (& delete if there)
+
+2) add dynamoDB trigger for ${WEBAPP_DBMOD_TRIGGER_TABLE_PREFIX_} for _=[CDSFTB] to all FnInvokerPy_ lambdas (from DBModPy_ DB write)
+deactivate
+cd ${PREFIX}/tools
+export WEBAPP_DBMOD_TRIGGER_TABLE_PREFIX=triggerTable- #if you change this you must edit gammaRay/apps/FnInvoker.py (grep for DBMod) and change it there as well
+export WEBAPP_DBMOD_FUNCTION_NAME_PREFIX=FnInvokerPy
+./make_imgproc_tables.sh ${WEBAPP_DBMOD_TRIGGER_TABLE_PREFIX} ${WEBAPP_DBMOD_FUNCTION_NAME_PREFIX} ${AWSPROFILE} ${REG} ${PREFIX}
+
+3) test that there are 5 functions triggered (look at Xray and Cloudwatch logs): SNSPyF,S3ModF,FnInvokerPyF(log message about DBModPyF invoke),DBModPyF, FnInvokerPyF (msg=post to webpage)
+#change the suffix on SNSPy, topic, pref, and FNI_TRIGGERBKT to change to a config other than F
+aws lambda invoke --invocation-type Event --function-name SNSPyF --region ${REG} --profile ${AWSPROFILE} --payload "{\"eventSource\":\"ext:invokeCLI\",\"topic\":\"arn:aws:sns:${REG}:${ACCT}:topicF\",\"subject\":\"sub1\",\"msg\":\"fname:testfile.txt:prefix:prefF:bkt:${FNI_TRIGGERBKTF}:xxx\"}" outputfile
+
+###########imageProc 
+tools/timings/imageProc.sh: ImgProc_ -> CLI Invoked calls http, rekognition, ${IMAGEPROC_DBSYNC} DB table write
+        ${IMAGEPROC_DBSYNC} write triggers DBSyncPy (all of them which is fine b/c we only download the _ log)
+        DBSyncPy writes ${EASTSYNCTABLE} in east region
+        UpdateWebsite (all of them) in east is triggered by ${EASTSYNCTABLE} write and 
+        invokes http
+#imageProc setup (setupApps has setup the bucket triggers)
+1) [Optional] Edit DBSync.py to change the hardcoded string "eastSyncTable-" 
+(which is EASTSYNC_TRIGGER_TABLE_PREFIX value below) if you would 
+like to change the table name to something else.  However you can leave it
+as is and everything should work (since tablenames do not need to be unique across users like 
+s3 bucket names do).
+
+2) Add triggers to DBSyncPy[C,F,D,S,T,B] from associated IMG_DBSYNC_TRIGGER_TABLE 
+tables in the ${REG} region:
+deactivate
+cd ${PREFIX}/tools
+export IMG_DBSYNC_TRIGGER_TABLE_PREFIX=image-proc- #if you change this you must edit gammaRay/apps/DBSync.py and change it there as well
+export IMG_DBSYNC_FUNCTION_NAME_PREFIX=DBSyncPy
+./make_imgproc_tables.sh ${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} ${IMG_DBSYNC_FUNCTION_NAME_PREFIX} ${AWSPROFILE} ${REG} ${PREFIX}
+
+3) Next, add triggers to UpdateWebsite[C,F,D,S,T,B] in the *** ${XREG} region ***
+deactivate
+cd ${PREFIX}/tools
+export EASTSYNC_TRIGGER_TABLE_PREFIX=eastSyncTable-
+export EASTSYNC_FUNCTION_NAME_PREFIX=UpdateWebsite
+./make_imgproc_tables.sh ${EASTSYNC_TRIGGER_TABLE_PREFIX} ${EASTSYNC_FUNCTION_NAME_PREFIX} ${AWSPROFILE} ${XREG} ${PREFIX}
+
+4) Next, upload a jpg image (any picture of something) to the $SPOTBKTWEST bucket in a folder 
+called imgProc with a file name d1.jpg.  (${SPOTBKTWEST}/imgProc/d1.jpg) (update timings/imageProc.sh if you change prefix and/or key)
+# we use this to simulate a user dropping an image into a webapp or bucket that triggers the lambdas,
+#however in imageProc.sh we just invoke the function directly passing in this file, for simplicity
+#it is setup and does work if an image is dropped into th image-proc-?/pref?/ buckets/folders above
+If you change the name or folder, then change this in tools/timings/imgProc.sh which runs the jobs.
+We pass this into ImageProcPy apps as input, the image is processed with rekognition in AWS to generate labels.
+
+5) test that there are 5 functions triggered (look at Xray and Cloudwatch logs): ImageProcPyF,DBSyncPyF,UpdateWebsiteF in ${XREG} region
+#change the suffix on ImageProcPy and after ${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} to change the config from F
+aws lambda invoke --invocation-type Event --function-name ImageProcPyF --region ${REG} --profile ${AWSPROFILE} --payload "{\"eventSource\":\"ext:invokeCLI\",\"name\":\"${SPOTBKTWEST}\",\"key\":\"imgProc/d1.jpg\",\"tableName\":\"${IMG_DBSYNC_TRIGGER_TABLE_PREFIX}F\"}" outputfile
+#You should see successful execution of: ImageProcPyF(in west)->DBSyncPyF(in west)->UpdateWebsiteF(in east)
+
+${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} ${IMG_DBSYNC_FUNCTION_NAME_PREFIX} ${EASTSYNC_TRIGGER_TABLE_PREFIX} ${EASTSYNC_FUNCTION_NAME_PREFIX}
+
+#################### setup to run the experiments **************************
 #only if you want to: blow away the timings directories from past runs, update END to the last directory ID
+#perhaps you want to move them first to backup what you have...
 export END=100
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/gammaRay/apps/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/gammaRay/apps/map-reduce/${i}; done
@@ -314,10 +325,15 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/logs/*; done
 
 #download the streams, you will use these to diff out the old stuff when you get new stuff
 #update these commands with your stream name
+deactivate
+cd ${PREFIX}/tools/timings
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+cd ${PREFIX}/gammaRay
+source venv/bin/activate
 cd ${PREFIX}/tools
 python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.base
 python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
-
+deactivate
 ######################### run the timings!! ################################
 
 #run microbenchmarks (default is 100 times) in gammaRay/micro-benchmarks/ directory
@@ -440,11 +456,6 @@ aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name $
 #note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
 #just put the date/time component (after .../stream/) here for later use
 export GR_STREAMID=2017-09-09T20:03:35.795
-
-#delete the others if needed (steps to remake them are at the top)
-aws dynamodb delete-table --table-name ${EASTSYNCTABLE} --profile ${AWSPROFILE} --region ${XREG} 
-aws dynamodb delete-table --table-name ${APITESTTABLE} --profile ${AWSPROFILE} --region ${REG}
-aws dynamodb delete-table --table-name ${WEBAPPTRIGGERTABLE} --profile ${AWSPROFILE} --region ${REG}
 
 #delete all of the lambdas by name, in AWS (edit restConfigs[West,East].json to add others)
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}

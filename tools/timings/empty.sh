@@ -14,8 +14,8 @@ TS=1401861965497 #some early date
 REG=us-west-2
 
 #create emptySbig by commenting out sys.exit(1) in setupApps.py after "Found boto" statement and run this:
-#python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion ${REG}
-#using the config at the bottom of this file 
+#python setupApps.py -f configs/Sbig.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion ${REG}
+#using the config at the bottom of this file as configs/Sbig.json; then run with nolibload in the event datastructure as done below
 
 #FILELIST=( 
     #emptyS \

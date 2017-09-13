@@ -38,8 +38,8 @@ def handler(event, context):
             valname = event['valname']
         if 'mykey' in event:
             key = event['mykey']
-            if keyname == 'id':
-                key = int(key)
+            #if keyname == 'id':
+                #key = int(key)
         if 'myval' in event:
             val = event['myval']
         if 'functionName' in event:

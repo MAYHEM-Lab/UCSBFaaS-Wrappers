@@ -1,31 +1,15 @@
 import boto3, json, logging, argparse, time, os,requests, uuid
 
 '''Setup
-cd imageProc
-deactivate
-virtualenv fleece_venv --python=python3
-source fleece_env/bin/activate
-pip install fleece 
-cd ..
-python setupApps.py -f setupIProc.json --no_spotwrap --turn_on_tracing --profile aws_profile
+see gammaRay/RUN_README to make sure you have this app setup correctly
+grep for imageProc
 
-//go to DynamoDB Management Console and create table imageLables with key "id" of type string
-//create a table triggerTable with key "name" of type string
-
-//go to s3 Management Console and create bucket MYBKTNAME
-//create a folder called imgProc and place any image (filename.jpg) in this folder
-test locally via: python imageProc/imageProc.py MYBKTNAME imgProc filename.jpg
-
-//go to Lambda Management Console for
-//ImageProcPy, Triggers tab, add Trigger, S3, choose bucket MYBKTNAME, 
-//prefix: imgProc, enable trigger
-test as function via:
-aws lambda invoke --invocation-type Event --function-name ImageProcPy --region us-west-2 --profile aws_profile --payload '{"eventSource":"ext:invokeCLI","name":"MYBKTNAME","key":"imgProc/filname.jpg"}' outputfile
-
-test as triggered function by dropping another file into MYBKTNAME/imageProc/ folder.
-See entry in DynamoDB table imageLabels
-See entry in DynamoDB table triggerTable (make this table trigger a different function)
-View X-Ray service graph (there will be two "applications" with separate "clients" without GammaRay support)
+execute via:
+tools/timings/imageProc.sh: ImgProc_ -> CLI Invoked calls http, rekognition, ${IMAGEPROC_DBSYNC} DB table write
+        ${IMAGEPROC_DBSYNC} write triggers DBSyncPy (all of them which is fine b/c we only download the _ log)
+        DBSyncPy writes ${EASTSYNCTABLE} in east region
+        UpdateWebsite (all of them) in east is triggered by ${EASTSYNCTABLE} write and
+        invokes http
 
 '''
 

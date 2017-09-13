@@ -1,5 +1,5 @@
---- client.py	2017-09-03 14:41:24.000000000 -0700
-+++ client.py.new	2017-09-06 14:26:19.000000000 -0700
+--- client.py	2017-09-06 14:27:32.000000000 -0700
++++ client.py.new	2017-09-12 17:06:18.000000000 -0700
 @@ -12,6 +12,7 @@
  # language governing permissions and limitations under the License.
  import logging
@@ -28,7 +28,7 @@
  class ClientCreator(object):
      """Creates client objects for a service."""
      def __init__(self, loader, endpoint_resolver, user_agent, event_emitter,
-@@ -300,14 +312,73 @@
+@@ -300,14 +312,72 @@
      def _create_api_method(self, py_operation_name, operation_name,
                             service_model):
          def _api_call(self, *args, **kwargs):
@@ -48,7 +48,6 @@
 +            if 'gammaTable' in os.environ:
 +                tname = os.environ['gammaTable']
 +            # Skip it all if its a put to the GammaRay table name 
-+            tail = '12345'
 +            ts = 0.0
 +            if not(reqID == 'unknown' or (operation_name == 'PutItem' and kwargs['TableName'] == tname)):
 +                tail = '{}'.format(str(uuid.uuid4())[:8])
@@ -58,7 +57,7 @@
 +                    dynamodb = boto3.resource('dynamodb', region_name=reg)
 +                    DDBTABLE = dynamodb.Table(tname)
 +                #create the record
-+                payload = 'start:{}:{}:'.format(operation_name,self._endpoint)
++                payload = 'SDKstart:{}:{}:'.format(operation_name,self._endpoint)
 +                for k in kwargs:
 +                    if k == 'Body':
 +                        continue
@@ -74,7 +73,6 @@
 +                reqID = '{}:{}'.format(os.environ['spotReqID'],tail)
 +                ts = time.time() * 1000 #msecs
 +                tsint = int(round(ts))
-+                #print(payload) # turn this on to debug an exception (payload too big causes put_item failure/413)
 +                DDBTABLE.put_item( Item={
 +                    'reqID': reqID,
 +                    'ts': tsint,
@@ -87,6 +85,7 @@
 +
 +            #GammaRay
 +            if not(reqID == 'unknown' or (operation_name == 'PutItem' and kwargs['TableName'] == tname)):
++                tail = '{}'.format(str(uuid.uuid4())[:8])
 +                reqID = '{}:{}'.format(os.environ['spotReqID'],tail)
 +                tsend = time.time() * 1000 #msecs
 +                tsint = int(round(tsend))

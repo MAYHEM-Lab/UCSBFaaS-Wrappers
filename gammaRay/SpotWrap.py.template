@@ -77,6 +77,12 @@ def handleRequest(event, context):
                 payload += ':key:{}'.format(subobj['key'])
                 payload += ':op:{}'.format(parent_obj['eventName'])
     
+    os.environ['spotReqID'] = reqID
+    os.environ['myArn'] = arn
+    os.environ['gammaTable'] = 'QQQQ'
+    os.environ['gammaRegion'] = 'ZZZZ'
+    errorstr = 'SpotWrapPython'
+
     dynamodb = boto3.resource('dynamodb', region_name='ZZZZ')
     table = dynamodb.Table('QQQQ')
     unique_str = str(uuid.uuid4())[:8]
@@ -91,11 +97,6 @@ def handleRequest(event, context):
         }
     )
 
-    os.environ['spotReqID'] = reqID
-    os.environ['myArn'] = arn
-    os.environ['gammaTable'] = 'QQQQ'
-    os.environ['gammaRegion'] = 'ZZZZ'
-    errorstr = 'SpotWrapPython'
     respObj = {}
     if event:
         if 'nowrap' in event:

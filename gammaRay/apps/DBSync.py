@@ -3,6 +3,7 @@ import boto3, json, logging, argparse, time, os, shutil, importlib,uuid, request
 def handler(event, context):
     entry = time.time() * 1000
     logger = logging.getLogger()
+    suffix_list = [ 'S','C','F','T','B','D' ]
     if event:
         if 'Records' in event:  #for DBSync app
             #triggered 
@@ -15,7 +16,18 @@ def handler(event, context):
             logger.warn('DBSyncPy::handler: triggered by {} event: {}'.format(es,event))
             reg = 'us-west-2'
             dynamodb = boto3.resource('dynamodb', region_name=reg)
-            table = dynamodb.Table('imageLabels') 
+            if not context:
+                print('ERROR cannot continue without the context')
+                sys.exit(1)
+            arn = context.invoked_function_arn
+            suffix = arn[-1]
+            if suffix not in suffix_list:
+                print('ERROR cannot continue for a function name not ending in one of the gammaRay suffixes: {}'.format(arn))
+                sys.exit(1)
+            tname_prefix = 'image-proc-'
+            tname = '{}{}'.format(tname_prefix,suffix)
+            logger.warn('reading {}'.format(tname))
+            table = dynamodb.Table(tname) 
             try:
                 item = table.get_item( Key={'id': 'imgProc/d1.jpg'})
                 logger.warn('completed read')
@@ -24,7 +36,10 @@ def handler(event, context):
                 raise
             reg = 'us-east-1'
             dynamodb = boto3.resource('dynamodb', region_name=reg)
-            table = dynamodb.Table('eastSyncTable') 
+            tname_prefix = 'eastSyncTable-'
+            tname = '{}{}'.format(tname_prefix,suffix)
+            logger.warn('writing {}'.format(tname))
+            table = dynamodb.Table(tname)
             key = str(uuid.uuid4())[:4]
             val = 17
             try:

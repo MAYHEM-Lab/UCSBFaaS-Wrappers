@@ -69,11 +69,12 @@ def handler(event,context):
             arn = me[0:idx]
             if 'aws:s3' in es: #webapp
                 fn = '{}:DBModPy{}'.format(arn,tail)
+                tname = 'triggerTable-{}'.format(tail)
                 key = str(uuid.uuid4())[:4]
                 val = random.randint(1, 1000)
-                msg = {'writetablename':'triggerTable','tablename':'noTriggerTestTable','mykey':key,'myval':val,'keyname':'id','valname':'age','readkeyname':'id','readkey':100,'from':me}
+                msg = {'writetablename':tname,'tablename':'noTriggerTestTable','mykey':key,'myval':val,'keyname':'id','valname':'age','readkeyname':'id','readkey':100,'from':me}
                 payload=json.dumps(msg)
-                print('Invoking {}'.format(fn))
+                print('Invoking {} payload {}'.format(fn,payload))
                 invoke_response = lambda_client.invoke(FunctionName=fn,
                     InvocationType='Event', Payload=payload) #Event type says invoke asynchronously
                 return "invocation completed"
