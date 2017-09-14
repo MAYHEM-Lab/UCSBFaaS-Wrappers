@@ -32,8 +32,6 @@ export APITESTBKT=cjk-apitest-bucket
 export APITESTTABLE=noTriggerTestTable
 
 #others explained below
-export GR_STREAMID=2017-09-13T00:39:21.716  #set elsewhere in this file also!
-export SPOT_STREAMID=2017-09-13T00:43:24.435  #set elsewhere in this file also!
 export END=100
 export COUNT=10
 export JOBID=job8000 
@@ -47,16 +45,9 @@ aws dynamodb delete-table --table-name ${APITESTTABLE} --profile ${AWSPROFILE} -
 #now remake them
 # make tables needed for GammaRay (S=static=SPOTTABLE and D=dynamic=GAMMATABLE)
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
-#note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
-#just put the date/time component (after .../stream/) from LatestStreamArn below for later use
-export SPOT_STREAMID=2017-09-13T00:43:24.435  #set elsewhere in this file also!
-
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
-#note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
-#just put the date/time component (after .../stream/) here for later use
-export GR_STREAMID=2017-09-13T00:39:21.716  #set elsewhere in this file also!
 
-#create tables needed for apis
+#delete and create tables needed for apis
 #primary key is 'id':'N' for all other tables its type is 'S'
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
 
@@ -122,7 +113,7 @@ deactivate
 cd ${PREFIX}/tools/timings
 ./cleanupAWS.sh ${AWSPROFILE} ${REG} ${XREG}
 #Next: clean out the SPOTTABLE and GAMMATABLE databases
-#see above (CLEAN_DB) to remove the databases and add them back (with a delay in between to ensure they get deleted)
+#see above (CLEAN_DB) to remove the databases and add them back (with a delay in between to ensure they get deleted) -- its much faster and when the DB is big cleanupAWS will not work (too many individual writes)
 
 #Next (optional): delete all of the lambdas by name, in AWS
 #note that this deletes everything!  any names that aren't 
@@ -139,6 +130,7 @@ cd ${PREFIX}/tools/timings
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
 
 
+########### TRIGGER_CLEANUP ####################
 #next remove all past triggers (add function names to the colon delimited string argument as you wish):
 #any functions not found are just skipped
 cd ${PREFIX}/gammaRay
@@ -213,6 +205,16 @@ python makeConfigs.py configs ${BOTOCORE} ${FLEECE} ${LOCALLIBS} --swbkt ${SPOTB
 ###original spotwrap (static insertion of wrapper) (S)
 ###gammaray (dynamic insertion of wrapper:tracing_all+timing) (D)
 ###gammaray (dynamic insertion of wrapper: fleece+minimal_tracing) (B)
+
+#READ THIS!
+#To clean out the logs and remove the lambdas - do the following (setupApps.py with deleteAll option).  
+#NOTE though that this is optional and if you do so, 
+#you will have to rerun all of the above to reset the triggers
+#starting with TRIGGER_CLEANUP (followed by "make the lambdas") above.
+
+#If you need to change the tracing opion on a lambda, do it manually or use deleteAll
+#and then rerun the non-deleteAll option below.  The non-deleteAll options only updates
+#existing lambdas if they are in the system and is unable to change the tracing setting.
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configEastC.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configT.json -p ${AWSPROFILE} --deleteAll
@@ -226,6 +228,7 @@ python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configB.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configEastB.json -p ${AWSPROFILE} --deleteAll
 
+#Make the lambdas and/or update their code, its fine to rerun these repeatedly (no harm to it) 
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --no_spotwrap 
 python setupApps.py -f configs/configEastC.json -p ${AWSPROFILE} --no_spotwrap 
 python setupApps.py -f configs/configT.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing
@@ -323,17 +326,16 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/dynamodb/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/logs/*; done
 
-#download the streams, you will use these to diff out the old stuff when you get new stuff
-#update these commands with your stream name
+#setup the streams base files, you will use these to diff out the old stuff 
+#when you get new stuff
 deactivate
 cd ${PREFIX}/tools/timings
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
-cd ${PREFIX}/gammaRay
-source venv/bin/activate
 cd ${PREFIX}/tools
-python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.base
-python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
-deactivate
+rm -f streamS.base streamD.base
+touch streamS.base streamD.base
+
+
 ######################### run the timings!! ################################
 
 #run microbenchmarks (default is 100 times) in gammaRay/micro-benchmarks/ directory
@@ -344,58 +346,76 @@ deactivate
 export COUNT=50
 ./micro.sh ${AWSPROFILE} ${COUNT} ${PREFIX}
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}  #if this keeps saying there are entries, you will need to delete the table (see CLEAN_DB) above)
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+#if the above does not say "is empty" for both the second time, then delete and remake the table:
+aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
+aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
+#wait 5 mins then recreate them:
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 
+###################################################
 #map-reduce async
 export COUNT=25
 cd ${PREFIX}/tools/timings
 deactivate
 ./mr.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MR_TRIGGERBKTC} ${MR_TRIGGERBKTD} ${MR_TRIGGERBKTF} ${MR_TRIGGERBKTS} ${MR_TRIGGERBKTT} ${MR_TRIGGERBKTB} ${REG} 
-cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
-source venv/bin/activate
+
+#save off the streams for processing and cleanup the tables
+export APP1=mr
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
-python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
-diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > mrS.stream
-cat mrS.stream >> streamS.base
-python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.new
-diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > mrD.stream
-cat mrD.stream >> streamD.base
-deactivate
+./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
 cd ${PREFIX}/tools/timings
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+#if the above does not say "is empty" for both the second time, then delete and remake the table:
+aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
+aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
+#wait 5 mins then recreate them:
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 
+###################################################
 #webapp
 cd ${PREFIX}/tools/timings
 deactivate
 ./webapp.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${ACCT} ${FNI_TRIGGERBKT} #FNI_TRIGGERBKT without suffix
-cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
-source venv/bin/activate
-cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
-python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
-diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > webappS.stream
-cat webappS.stream >> streamS.base
-python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.new
-diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > webappD.stream
-cat webappD.stream >> streamD.base
-deactivate
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
 
+#save off the streams for processing and cleanup the tables
+export APP1=webapp
+cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
+./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
+cd ${PREFIX}/tools/timings
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+#if the above does not say "is empty" for both the second time, then delete and remake the table:
+aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
+aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
+#wait 5 mins then recreate them:
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+
+###################################################
 #imageProc (and dbsync), capture streams for this one
 cd ${PREFIX}/tools/timings
 deactivate
 ./imageProc.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${XREG} ${SPOTBKTWEST} ${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} #IMG_DBSYNC_TRIGGER_TABLE_PREFIX without suffix
-cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
-source venv/bin/activate
-cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
-python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.new
-diff -b -B streamS.base streamS.new| awk -F"> " '{print $2}' > imageProcS.stream
-cat imageProcS.stream >> streamS.base
-python get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.new
-diff -b -B streamD.base streamD.new| awk -F"> " '{print $2}' > imageProcD.stream
-cat imageProcD.stream >> streamD.base
-deactivate
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
 
+#save off the streams for processing and cleanup the tables
+export APP1=imageproc
+cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
+./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
+cd ${PREFIX}/tools/timings
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+#if the above does not say "is empty" for both the second time, then delete and remake the table:
+aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
+aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
+#wait 5 mins then recreate them:
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+
+###################################################
 cd ${PREFIX}/tools/timings
 deactivate
 #run synchronized map reduce job overhead measurement (second param is count, BDBENCH should be the name of your cloned big-data-benchmark folder)
@@ -406,6 +426,20 @@ nohup ./overheadMR.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MR_
 
 as an example:
 ./overheadMR.sh cjk1 5 cjk-gammaray-bdbenchmark /Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers job8000 spot-mr-bkt-ns spot-mr-bkt-gr spot-mr-bkt-f pot-mr-bkt spot-mr-bkt-t spot-mr-bkt-b
+
+#save off the streams for processing and cleanup the tables
+export APP1=mrsync
+cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
+./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
+cd ${PREFIX}/tools/timings
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+#if the above does not say "is empty" for both the second time, then delete and remake the table:
+aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
+aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
+#wait 5 mins then recreate them:
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 
 ############################## process data #############################
 #summarize in the excel spreadsheet called result.xlxs in the paper repo
@@ -464,13 +498,7 @@ aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
 #wait 5 mins then recreate them:
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
-#note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
-#just put the date/time component (after .../stream/) here for later use
-export SPOT_STREAMID=2017-09-13T00:43:24.435  #set elsewhere in this file also!
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
-#note the stream ID that comes back from this and use it to set this env var (if you miss it go to the dynamodb management console and get it under the Overview tab)
-#just put the date/time component (after .../stream/) here for later use
-export GR_STREAMID=2017-09-13T00:39:21.716  #set elsewhere in this file also!
 
 #delete all of the lambdas by name, in AWS (edit restConfigs[West,East].json to add others)
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
