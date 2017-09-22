@@ -36,7 +36,7 @@ cd ${TOOLSDIR}
 TMPFILE=tmp_file.out
 aws dynamodb describe-table --region ${REG} --table-name ${DTABLE} --profile ${PROF} > ${TMPFILE}
 DARN=`python getEleFromJson.py Table:LatestStreamArn ${TMPFILE}`
-aws dynamodb describe-table --region ${REG} --table-name ${DTABLE} --profile ${PROF} > ${TMPFILE}
+aws dynamodb describe-table --region ${REG} --table-name ${STABLE} --profile ${PROF} > ${TMPFILE}
 SARN=`python getEleFromJson.py Table:LatestStreamArn ${TMPFILE}`
 rm -f ${TMPFILE}
 
