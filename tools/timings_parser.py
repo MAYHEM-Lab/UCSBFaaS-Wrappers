@@ -4,6 +4,11 @@ from enum import Enum
 
 DEBUG = False
 STATUS_LIST = [200.0,202.0,400.0]
+BAD_LIST = ['c9fcf25c-998f-11e7-a275-41b194c286cd'] #extra reqs (assuming error logs)
+def asint(s):
+    try: return int(s), ''
+    except ValueError: return sys.maxint, s
+
 def check_dir(dir_key,event,job,jobcount):
     '''
     Check that the dirs and files exist (return True if so, else print error and return False)
@@ -48,7 +53,7 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
     for n in range(1,jobcount+1):
         if n > 1 or not skipFirst:
             fnames.append('{}/{}{}/'.format(dirname,n,ns_str)) #dirnames
-    FILE_LIST = ["dbread","dbwrite","empty","emptySbig","pubsns","s3read","s3write"]
+    FILE_LIST = ["dbread","dbwrite","dbsetup","empty","emptySbig","pubsns","s3read","s3write","s3setup"]
 
     #for each file, collect job timings for each for jobcount runs
     for postfix in FILE_LIST:
@@ -89,7 +94,8 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
                                 continue
                             fn = strs[0]
                             req = strs[1]
-                            if req in reqs:
+                            if req in reqs or req in BAD_LIST:
+                                #print('skipping req {}'.format(req))
                                 continue #skip it if we've already see it
                             #Fn:reqID:duration_billed:mem_used	//Record
                             reqs.append(req)
@@ -102,7 +108,8 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
                 os.remove(outfname)
                             
             if len(tlist) > jobcount:
-                print('longer list??? {} {}'.format(len(tlist),tlist))
+                #print('{} longer list??? {} {}'.format(outfname,len(tlist),tlist))
+                print('{} longer list??? {} {}'.format(outfname,len(tlist)))
             if len(tlist) > 1:
                 print('{}{}:{}:{}:{}:{}:{}'.format(
                     postfix,suffix,len(tlist),
@@ -114,17 +121,24 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
                     postfix,suffix,len(tlist),0.0,0.0,0.0,0.0
                 ))
 
-def processMRNew(dirname,jobcount,ofile,skipFirst=False):
+def processMRNew(dirname,jobcount,ofile,skipFirst=False,async=False):
     fnames = [] 
     if DEBUG:
         print('processMR overheadMR.sh output')
     suffixes = ['C','T','F','D','S','B']
+    postfixes = ['coord.log','map.log','red.log']
+    if async:
+        postfixes.append('dri.log')
+    
     #dirname/4/suffix/[coord,map,red].log
     #fnames.append('{}/{}/{}/red.log'.format(dirname,n,suffix)) #filenames
-    postfixes = ['coord.log','map.log','red.log']
-    for postfix in postfixes:
-        for suffix in suffixes:
+    for suffix in suffixes:
+        jobsum = {}
+        jobmemsum = {}
+        for postfix in postfixes:
             outfname = '{}_{}{}.out'.format(ofile,postfix,suffix)
+            if async:
+                outfname += '_async'
             writtenTo = False
             count = 0
             tlist = []
@@ -133,7 +147,10 @@ def processMRNew(dirname,jobcount,ofile,skipFirst=False):
             with open(outfname,'w') as outf:  #ex: out_coord.logS.out
                 for n in range(1,jobcount+1):
                     if n > 1 or not skipFirst:
-                        fname = '{}/{}/{}/{}'.format(dirname,n,suffix,postfix)
+                        if async:
+                            fname = '{}/{}/{}/MRASYNC/{}'.format(dirname,n,suffix,postfix)
+                        else: 
+                            fname = '{}/{}/{}/{}'.format(dirname,n,suffix,postfix)
                         if not os.path.isfile(fname):
                             if DEBUG:
                                 print('file not found {}'.format(fname))
@@ -157,8 +174,20 @@ def processMRNew(dirname,jobcount,ofile,skipFirst=False):
                                     continue #skip it if we've already see it
                                 #Fn:reqID:duration_billed:mem_used	//Record
                                 reqs.append(req)
-                                tlist.append(float(strs[2]))
-                                mlist.append(float(strs[3]))
+                                t = float(strs[2])
+                                m = float(strs[3])
+                                nstr = str(n)
+                                v = vm = 0
+                                if nstr in jobsum:
+                                    v = jobsum[nstr]
+                                if nstr in jobmemsum:
+                                    vm = jobmemsum[nstr]
+                                v += t
+                                vm += m
+                                jobsum[str(n)] = v
+                                jobmemsum[str(n)] = vm
+                                tlist.append(t)
+                                mlist.append(m)
                                 count += 1
                                 outf.write('{} {}\n'.format(float(strs[2]),float(strs[3])))
                                 writtenTo = True
@@ -175,6 +204,22 @@ def processMRNew(dirname,jobcount,ofile,skipFirst=False):
                     print('{}{}:{}:{}:{}:{}:{}'.format(
                         postfix,suffix,len(tlist),0.0,0.0,0.0,0.0
                     ))
+
+        outfname = 'MR_{}.out_sum'.format(suffix)
+        with open(outfname,'w') as outf:
+            for n in range(1,jobcount+1):
+                nstr = str(n)
+                v = vm = 0
+                if nstr in jobsum:
+                    v = jobsum[nstr]
+                if nstr in jobmemsum:
+                    vm = jobmemsum[nstr]
+                if v == 0 or vm == 0:
+                    if v != vm:
+                        print('v and vm do not match: {} {}'.format(v,vm))
+                else:
+                    outf.write('{} {}\n'.format(v,vm))
+        jobsum = jobmemsum = {}
             
 def processCW(dirname,jobcount,NSJob,ofile,skipFirst=False):
     '''      coord.log    driv.log     map.log      s3mod.log    spottemp.log
@@ -372,6 +417,7 @@ if __name__ == "__main__":
     parser.add_argument('cwdir',action='store',help='full path to directory containing dirs named 1-10 under cloudwatch')
     parser.add_argument('output_file_prefix',action='store',help='output file name prefix')
     parser.add_argument('--process_MRnew',action='store_true',default=False,help='Run only the MR overhead processing')
+    parser.add_argument('--process_MRnewasync',action='store_true',default=False,help='Run only the MR overhead processing')
     parser.add_argument('--process_MR_only',action='store_true',default=False,help='Run only the MR overhead processing')
     parser.add_argument('--process_NS_only',action='store_true',default=False,help='process the NS subdirectories (a non-SpotWrap job)')
     parser.add_argument('--process_spot_only',action='store_true',default=False,help='process the NS subdirectories (a non-SpotWrap job)')
@@ -396,7 +442,9 @@ if __name__ == "__main__":
         run = 'NS'
 
 
-    if args.process_MRnew:
+    if args.process_MRnewasync:
+        processMRNew(args.cwdir,args.count,args.output_file_prefix,False,True)
+    elif args.process_MRnew:
         processMRNew(args.cwdir,args.count,args.output_file_prefix)
     else:
         parseIt(args.output_file_prefix,event,run,args.skip_first,args.process_MR_only,args.micro_only)
