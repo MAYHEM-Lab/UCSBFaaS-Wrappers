@@ -18,8 +18,8 @@ export BOTOCOREDIR=${PREFIX}/boto144
 export BOTOCORE=${BOTOCOREDIR}/venv/lib/python3.6/site-packages/botocore
 export LOCALLIBDIR=${PREFIX}/gammaRay
 export LOCALLIBS=${LOCALLIBDIR}/venv/lib/python3.6/site-packages
-export MRDIR=${PREFIX}/gammaRay/apps/map-reduce
-export CWDIR=${PREFIX}/tools/cloudwatch
+export MRDIR=${PREFIX}/gammaRay/apps/map-reduce #directory containing [1-COUNT]/[CDSBTF]/MRASYNC/
+export CWDIR=${PREFIX}/tools/cloudwatch #directory containing [1-COUNT]/APIS/*.log
 
 export BDBENCH=cjk-gammaray-bdbenchmark
 export SPOTTABLE=spotFns
@@ -350,7 +350,7 @@ export COUNT=50
 #if the above does not say "is empty" for both the second time, then delete and remake the table:
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
-#wait 5 mins then recreate them:
+#wait 1 min then recreate them:
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 
@@ -371,7 +371,7 @@ cd ${PREFIX}/tools/timings
 #if the above does not say "is empty" for both the second time, then delete and remake the table:
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
-#wait 5 mins then recreate them:
+#wait 1 min then recreate them:
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 
@@ -391,7 +391,7 @@ cd ${PREFIX}/tools/timings
 #if the above does not say "is empty" for both the second time, then delete and remake the table:
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
-#wait 5 mins then recreate them:
+#wait 1 min then recreate them:
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 
@@ -411,7 +411,7 @@ cd ${PREFIX}/tools/timings
 #if the above does not say "is empty" for both the second time, then delete and remake the table:
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
-#wait 5 mins then recreate them:
+#wait 1 mins then recreate them:
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 
@@ -437,7 +437,7 @@ cd ${PREFIX}/tools/timings
 #if the above does not say "is empty" for both the second time, then delete and remake the table:
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
-#wait 5 mins then recreate them:
+#wait 1 min then recreate them:
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 
@@ -450,8 +450,8 @@ export COUNT=50 #if unset
 cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 source venv/bin/activate
 cd ${PREFIX}/tools
-export MRDIR=${PREFIX}/gammaRay/apps/map-reduce
-export CWDIR=${PREFIX}/tools/cloudwatch
+export MRDIR=${PREFIX}/gammaRay/apps/map-reduce #directory containing [1-COUNT]/[CDSBTF]/MRASYNC/
+export CWDIR=${PREFIX}/tools/cloudwatch #directory containing [1-COUNT]/APIS/*.log
 python timings_parser.py ${MRDIR} ${CWDIR} out --micro_only --count ${COUNT} >micro.summary
 #data is in out_lambdanameSuffix.out, e.g. out_s3writeS.out
 deactivate
@@ -496,7 +496,7 @@ cd ${PREFIX}/tools/timings
 #if there are too many entries, the above will stop working. In this case just delete and remake the table:
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
-#wait 5 mins then recreate them:
+#wait 1 min then recreate them:
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 
@@ -510,20 +510,36 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/dynamodb/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/logs/; done
 
-#download the streams, you will use these to diff out the old stuff when you get new stuff
-#update these commands with your stream name
-python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${SPOTTABLE}/stream/${SPOT_STREAMID} -p ${AWSPROFILE} >& streamS.base
-python ../get_stream_data.py arn:aws:dynamodb:${REG}:${ACCT}:table/${GAMMATABLE}/stream/${GR_STREAMID} -p ${AWSPROFILE} >&  streamD.base
 #now you can start fresh
 ======================
 other tools
 
-#to download cloudwatch logs
+1)to dump a copy of a dynamoDB table
+
+#setup:
+cd ${PREFIX}/tools/dynamodb
+virtualenv venv2.7 --python=python2.7
+source venv2.7/bin/activate
+pip install boto
+pip install boto3
+deactivate
+
+#run
+cd ${PREFIX}/tools/dynamodb
+deactivate
+source venv2.7/bin/activate
+python dynamodump.py -m backup -r aws_region -p aws_profile -s TableName
+#this puts json of the dump in dump/TableName/data/*.json files
+#the schema is in dump/TableName/schema
+
+
+
+2) to download cloudwatch logs
 deactivate
 cd ${LOCALLIBDIR}
 source venv/bin/activate
 cd ${CWDIR}
-#for log summaries since date time 1401861965497 
+#for log summaries since date time 1401861965497  (any early date will work)
 python downloadLogs.py /aws/lambda/FunctionName 1401861965497 -p ${AWSPROFILE} > log.out
 #for log dump since date time 1401861965497 -- modify filter (boolean) at top of find_events in valid_event to add other lines based on strings in them
 python downloadLogs.py /aws/lambda/FunctionName 1401861965497 -p ${AWSPROFILE} --noSummarize > log.out

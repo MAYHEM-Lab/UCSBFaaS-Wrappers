@@ -57,10 +57,12 @@ if __name__ == "__main__":
         'reducerCoordinator':'apps/map-reduce/reducerCoordinator.py',
         'UpdateWebsite':'apps/FnInvoker.py',
         'dbread':'micro-benchmarks/dbread.py',
+        'dbsetup':'micro-benchmarks/dbsetup.py',
         'dbwrite':'micro-benchmarks/dbwrite.py',
         'empty':'micro-benchmarks/empty.py',
         'pubsns':'micro-benchmarks/pubsns.py',
         's3read':'micro-benchmarks/s3read.py',
+        's3setup':'micro-benchmarks/s3setup.py',
         's3write':'micro-benchmarks/s3write.py',
     }
     #specify the bucket and prefix (folder) in bucket to use to trigger function lambda_name
