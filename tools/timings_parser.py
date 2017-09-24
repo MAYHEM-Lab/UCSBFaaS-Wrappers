@@ -121,11 +121,80 @@ def processMicro(dirname,jobcount,ofile,skipFirst=False):
                     postfix,suffix,len(tlist),0.0,0.0,0.0,0.0
                 ))
 
+def processMRNew2(dirname,jobcount,ofile):
+    fnames = [] 
+    if DEBUG:
+        print('processMR overheadMR.sh output')
+    suffixes = ['C','T','F','D','S','B']
+    #for each config, a list of 50 values, each being the sum of avg per function
+    #job1: avg(29maps) + avg(2 reducers) + 1coord + 1 dri 
+    #job2: avg(29maps) + avg(2 reducers) + 1coord + 1 dri 
+    avg = [[],[],[],[],[],[]]
+    postfixes = ['coord.log','map.log','red.log','dri.log']
+    
+    #dirname/4/suffix/[coord,map,red].log
+    #fnames.append('{}/{}/{}/red.log'.format(dirname,n,suffix)) #filenames
+    for suffix in suffixes:
+        print('processing suffix: {}'.format(suffix))
+        outfname = '{}_mr{}.out'.format(ofile,suffix)
+        outfname2 = '{}_map{}.out'.format(ofile,suffix)
+        with open(outfname,'w') as outf, open(outfname2,'w') as outf2:
+            for n in range(1,jobcount+1):
+                reqs = []
+                jobsum = 0
+                jobmemsum = 0
+                skip = False
+                for fname in postfixes:
+                    count = 0
+                    tlist = []
+                    mlist = []
+                    fn = '{}/{}/{}/MRASYNC/{}'.format(dirname,n,suffix,fname)
+                    print('processing {}'.format(fn))
+                    if not os.path.isfile(fn):
+                        print('file not found {}'.format(fn))
+                        continue
+                    with open(fn,'r') as f:
+                        for line in f:
+                            strs = line.split(':')
+                            if len(strs) != 4: #only process Record and GammaRay (S,D) values for now
+                                continue
+                            fn = strs[0]
+                            req = strs[1]
+                            if req in reqs:
+                                continue #skip it if we've already see it
+                            #Fn:reqID:duration_billed:mem_used	//Record
+                            reqs.append(req)
+                            t = float(strs[2])
+                            m = float(strs[3])
+                            print('\tappending {} {}'.format(t,m))
+                            tlist.append(t)
+                            mlist.append(m)
+                            count += 1
+                            if fname == 'map.log':
+                                outf2.write('{} {}\n'.format(t,m))
+          
+                    #print('adding {} {} {}'.format(suffix,statistics.mean(tlist),statistics.mean(mlist)))
+                    if count != 0:
+                        jobsum += statistics.mean(tlist)
+                        jobmemsum += statistics.mean(mlist)
+                    else:
+                        skip = True
+                   
+                if not skip:
+                    print('{} {} {}'.format(n,jobsum,jobmemsum))
+                    outf.write('{} {}\n'.format(jobsum,jobmemsum))
+                #else:
+                    #print('skipping {} {} {}'.format(n,jobsum,jobmemsum))
+                    
 def processMRNew(dirname,jobcount,ofile,skipFirst=False,async=False):
     fnames = [] 
     if DEBUG:
         print('processMR overheadMR.sh output')
     suffixes = ['C','T','F','D','S','B']
+    #for each config, a list of 50 values, each being the sum of avg per function
+    #job1: avg(29maps) + avg(2 reducers) + 1coord + 1 dri 
+    #job2: avg(29maps) + avg(2 reducers) + 1coord + 1 dri 
+    avg = [[],[],[],[],[],[]]
     postfixes = ['coord.log','map.log','red.log']
     if async:
         postfixes.append('dri.log')
@@ -442,10 +511,11 @@ if __name__ == "__main__":
         run = 'NS'
 
 
-    if args.process_MRnewasync:
-        processMRNew(args.cwdir,args.count,args.output_file_prefix,False,True)
-    elif args.process_MRnew:
-        processMRNew(args.cwdir,args.count,args.output_file_prefix)
-    else:
-        parseIt(args.output_file_prefix,event,run,args.skip_first,args.process_MR_only,args.micro_only)
+    processMRNew2(args.cwdir,args.count,args.output_file_prefix)
+    #if args.process_MRnewasync:
+        #processMRNew(args.cwdir,args.count,args.output_file_prefix,False,True)
+    #elif args.process_MRnew:
+        #processMRNew(args.cwdir,args.count,args.output_file_prefix)
+    #else:
+        #parseIt(args.output_file_prefix,event,run,args.skip_first,args.process_MR_only,args.micro_only)
 
