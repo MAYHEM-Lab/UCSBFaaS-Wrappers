@@ -80,7 +80,7 @@ do
             python downloadLogs.py ${RC} ${TS} -p ${PROF} --deleteOnly
 
             #run job
-            cd ${GRDIR}
+            cd ${MRDIR}
             rm -f overhead.out
             #use the driver
             /usr/bin/time python driver.py ${MRBKT} ${JOBID} ${MAP_NAME} ${RED_NAME} --wait4reducers --databkt ${DATABKT} > overhead.out
