@@ -28,7 +28,7 @@ BKTLIST=(
 )
 SUFFIXES=( C D F S T B )
 #for testing or re-running, put the suffixes in here that you want to run
-SUFFIXES=( C T F D S B )
+RUNTHESE=( C T F D S B )
 
 #update the below (must match lambda function names in configWestC.json
 FMAP="/aws/lambda/mapper"
