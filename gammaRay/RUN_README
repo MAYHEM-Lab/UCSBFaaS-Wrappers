@@ -107,6 +107,7 @@ virtualenv venv --python=python3
 #setup a venv for local testing
 source venv/bin/activate
 pip install 'fleece==0.13.0' --force-reinstall #fleece installs boto3 the version will work fine for local testing
+pip install 'boto3==1.4.7' --force-reinstall #used by driver.py
 
 #clean up all logs if any
 deactivate
@@ -421,11 +422,20 @@ deactivate
 #run synchronized map reduce job overhead measurement (second param is count, BDBENCH should be the name of your cloned big-data-benchmark folder)
 export COUNT=25
 export JOBID=job8000 #must match what is used in makeConfigs triggerBuckets datastructure for reducerCoordinator lambdas (currently job8000 which you can keep if you like)
+
+#make sure your region is set in ~/.aws/config for the profile you are using
+[default]
+output = text
+region = us-west-2
+[profile XXX]
+output = json
+region = us-west-2
+
 nohup ./overheadMR.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MR_TRIGGERBKTC} ${MR_TRIGGERBKTD} ${MR_TRIGGERBKTF} ${MR_TRIGGERBKTS} ${MR_TRIGGERBKTT} ${MR_TRIGGERBKTB}&
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
 
 as an example:
-./overheadMR.sh cjk1 5 cjk-gammaray-bdbenchmark /Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers job8000 spot-mr-bkt-ns spot-mr-bkt-gr spot-mr-bkt-f pot-mr-bkt spot-mr-bkt-t spot-mr-bkt-b
+./overheadMR.sh cjk1 1 cjk-gammaray-bdbenchmark /Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers job8000 spot-mr-bkt-ns spot-mr-bkt-gr spot-mr-bkt-f pot-mr-bkt spot-mr-bkt-t spot-mr-bkt-b
 
 #save off the streams for processing and cleanup the tables
 export APP1=mrsync
