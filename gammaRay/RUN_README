@@ -431,12 +431,10 @@ as an example:
 export APP1=mrsync
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
 ./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
-cd ${PREFIX}/tools/timings
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
-#if the above does not say "is empty" for both the second time, then delete and remake the table:
+#clean out the tables (do it this way as it the tables from MR jobs are big)
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
+
 #wait 1 min then recreate them:
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
