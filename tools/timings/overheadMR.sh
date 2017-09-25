@@ -82,19 +82,22 @@ do
             #run job
             cd ${MRDIR}
             rm -f overhead.out
+            echo "Job: driver, " ${i} ${MRBKT} ${JOBID} ${MAP_NAME} ${RED_NAME} ${DATABKT} ${COUNT}
             #use the driver
             /usr/bin/time python driver.py ${MRBKT} ${JOBID} ${MAP_NAME} ${RED_NAME} --wait4reducers --databkt ${DATABKT} > overhead.out
             mkdir -p ${i}/MRSYNC/${suf}
             rm -f ${i}/MRSYNC/${suf}/overhead.out
             mv overhead.out ${i}/MRSYNC/${suf}/
     
+            echo "sleeping 45secs..."
             /bin/sleep 45 #seconds to wait for RC logs to commit
         
+            echo "downloading logs"
             #download cloudwatch logs (and delete them)
             cd ${CWDIR}
-            mkdir -p ${i}/${suf}
-            rm -f ${i}/${suf}/*.log
-            echo ${MAP} ${TS} ${PROF} ${i}/${suf}
+            mkdir -p ${i}/MRSYNC/${suf}
+            rm -f ${i}/MRSYNC/${suf}/*.log
+            echo ${MAP} ${TS} ${PROF} ${i}/MRSYNC/${suf}
             python downloadLogs.py ${MAP} ${TS} -p ${PROF} > ${i}/MRSYNC/${suf}/map.log
             python downloadLogs.py ${RED} ${TS} -p ${PROF} > ${i}/MRSYNC/${suf}/red.log
             python downloadLogs.py ${RC} ${TS} -p ${PROF} > ${i}/MRSYNC/${suf}/coord.log
@@ -104,3 +107,4 @@ do
     fi
     ((ITER++))  #used to keep SUFFIXES and BKTLIST in sync
 done
+deactivate

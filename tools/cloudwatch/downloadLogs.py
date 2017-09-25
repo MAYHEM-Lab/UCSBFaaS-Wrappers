@@ -74,6 +74,8 @@ def process_msg(msg):
             else: 
                 duration = float(m[2])
             retn = '{}:{}'.format(reqid,duration)
+    elif 'exceeded' in msg: 
+        retn = 'TIME_OR_MEM_PBM::{}'.format(msg)
     else: #Cloudwatch Report entry
         assert 'REPORT' in msg
         m = msg.split(' ')
