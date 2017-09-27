@@ -336,7 +336,10 @@ python apps_timings_parser.py ${CWDIR} out --count ${COUNT} > webapp_image_proc.
 #data is in out_lambdaname_Suffix.out, e.g. out_ImageProcPy_S.out and out_SNSPy_S.out
 deactivate
 
-#timings_parser.py (processMicro function) needs to be extended to process mr results.
+#synchronized map-reduce: 
+#uses only CWDIR (set it to the cloudwatch dir with #/MRSYNC/[CTFSDB]/coord.log,map.log,red.log in it
+python timings_parser.py ${MRDIR} ${CWDIR} out --count=50 --process_MRnew
+#output files in MR_?.out_sum (sum per run) and out_[coord,map,red].log[CTFSDB].out (indiv. vals)
 
 
 #process streams to generate pdfs for S (D is the same)
@@ -355,9 +358,8 @@ deactivate
 
 
 #######  CLEANUP ############
-#delete everything in AWS, and I mean everything! 
+#delete all AWS logs
 cd ${PREFIX}/tools/timings
-#add any other lambdas you want to delete to restConfigsWest.json and restConfigsEast.json
 #depending on where your lambdas are
 ./cleanupAWS.sh ${AWSPROFILE} ${REG} ${XREG}
 
@@ -373,6 +375,7 @@ aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name $
 #delete all of the lambdas by name, in AWS (edit restConfigs[West,East].json to add others)
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
 #you now need to go and run makeConfigs.sh and all of the setupApps.py above
+#after that you need to cleanout and then reset all triggers (also above)
 export END=100
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/gammaRay/apps/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/gammaRay/apps/map-reduce/${i}; done
