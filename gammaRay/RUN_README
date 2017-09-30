@@ -1,3 +1,151 @@
+git pull
+export PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
+
+#update the following with your aws account details
+#role with admin rights
+export ACCT=443592014519
+export ROLE=adminlambda
+export AWSRole=arn:aws:iam::${ACCT}:role/${ROLE}
+export AWSROLE=arn:aws:iam::${ACCT}:role/${ROLE}
+export AWSPROFILE=cjk1
+export REG=us-west-2
+export XREG=us-east-1
+export FLEECEDIR=${PREFIX}/fleece0.13.0
+export FLEECE=${FLEECEDIR}/venv/lib/python3.6/site-packages/fleece
+export BFLEECEDIR=${PREFIX}/fleece0.13.0lite
+export BFLEECE=${BFLEECEDIR}/venv/lib/python3.6/site-packages/fleece
+export BOTOCOREDIR=${PREFIX}/boto144
+export BOTOCORE=${BOTOCOREDIR}/venv/lib/python3.6/site-packages/botocore
+export LOCALLIBDIR=${PREFIX}/gammaRay
+export LOCALLIBS=${LOCALLIBDIR}/venv/lib/python3.6/site-packages
+export MRDIR=${PREFIX}/gammaRay/apps/map-reduce #directory containing [1-COUNT]/[CDSBTF]/MRASYNC/
+export CWDIR=${PREFIX}/tools/cloudwatch #directory containing [1-COUNT]/APIS/*.log
+
+export BDBENCH=cjk-gammaray-bdbenchmark
+export SPOTTABLE=spotFns
+export GAMMATABLE=gammaRays
+export SPOTBKTWEST=cjktestbkt
+export SPOTBKTEAST=cjktestbkteast
+
+#s3 bucket and dynamodb table used by apis
+export APITESTBKT=cjk-apitest-bucket
+export APITESTTABLE=noTriggerTestTable
+
+#others explained below
+export END=100
+export COUNT=10
+export JOBID=job8000 
+
+#CLEAN_DB
+#to start fresh delete them first
+aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
+aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
+aws dynamodb delete-table --table-name ${APITESTTABLE} --profile ${AWSPROFILE} --region ${REG}
+
+#now remake them
+# make tables needed for GammaRay (S=static=SPOTTABLE and D=dynamic=GAMMATABLE)
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+
+#delete and create tables needed for apis
+#primary key is 'id':'N' for all other tables its type is 'S'
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${APITESTTABLE} --attribute-definitions AttributeName=id,AttributeType=N --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+
+#if you haven't done so already, make the buckets and table
+aws --profile ${AWSPROFILE} s3 mb s3://${SPOTBKTWEST}
+aws --profile ${AWSPROFILE} s3 mb s3://${SPOTBKTEAST}
+aws --profile ${AWSPROFILE} s3 mb s3://${APITESTBKT}
+
+############## do this set of things only once! ################
+#if you haven't done so already, clone the big-data-benchmark to the west; only do this ONCE!
+aws --profile ${AWSPROFILE} s3 mb s3://${BDBENCH}
+#this takes a super long time!
+aws --profile ${AWSPROFILE} s3 sync s3://big-data-benchmark s3://${BDBENCH)
+#setup the microbenchmarks
+cd ${PREFIX}/gammaRay/micro-benchmarks
+#do this ONLY once to fill the table with data (modify the file to set S3BKT=$APITESTBKT and DYNAMODB=$APITESTTABLE)
+./prepare.sh ${APITESTBKT} ${APITESTTABLE}
+###############################################################
+
+#$BOTOCORE is passed as first argument to makeConfigs.py
+deactivate
+mkdir -p ${BOTOCOREDIR}
+cd ${BOTOCOREDIR}
+virtualenv venv --python=python3
+source venv/bin/activate
+pip install --upgrade pip setuptools wheel
+pip install 'boto3==1.4.4' --force-reinstall
+cd ${BOTOCORE}
+patch -b < ${PREFIX}/gammaRay/client144.patch
+deactivate
+
+#$FLEECE is passed as second argument to makeConfigs.py
+mkdir -p ${FLEECEDIR}
+cd ${FLEECEDIR}
+virtualenv venv --python=python3
+source venv/bin/activate
+pip install --upgrade pip setuptools wheel
+pip install 'fleece==0.13.0' --force-reinstall
+cd ${FLEECE}
+patch -b < ${PREFIX}/gammaRay/xray0130.patch
+deactivate
+
+#$BFLEECE is passed as --Bversion argument to makeConfigs.py
+mkdir -p ${BFLEECEDIR}
+cd ${BFLEECEDIR}
+virtualenv venv --python=python3
+source venv/bin/activate
+pip install --upgrade pip setuptools wheel
+pip install 'fleece==0.13.0' --force-reinstall
+cd ${BFLEECE}
+patch -b < ${PREFIX}/gammaRay/xray0130lite.patch
+deactivate
+
+#$LOCALLIBS is passed as third argument to makeConfigs.py
+cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
+virtualenv venv --python=python3
+#setup a venv for local testing
+source venv/bin/activate
+pip install 'fleece==0.13.0' --force-reinstall #fleece installs boto3 the version will work fine for local testing
+pip install 'boto3==1.4.7' --force-reinstall #used by driver.py
+pip install graphviz
+
+#clean up all logs if any
+deactivate
+cd ${PREFIX}/tools/timings
+./cleanupAWS.sh ${AWSPROFILE} ${REG} ${XREG}
+#Next: clean out the SPOTTABLE and GAMMATABLE databases
+#see above (CLEAN_DB) to remove the databases and add them back (with a delay in between to ensure they get deleted) -- its much faster and when the DB is big cleanupAWS will not work (too many individual writes)
+
+#Next (optional): delete all of the lambdas by name, in AWS
+#note that this deletes everything!  any names that aren't 
+#found are just skipped (missing lambda names are not a problem)
+deactivate
+cd ${PREFIX}/tools/timings
+./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
+#check the AWS Lambda management console 
+#edit restConfigs[West,East].json and rerun to delete missed lambdas
+
+#clean out the DB
+deactivate
+cd ${PREFIX}/tools/timings
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+
+
+########### TRIGGER_CLEANUP ####################
+#next remove all past triggers (add function names to the colon delimited string argument as you wish):
+#any functions not found are just skipped
+cd ${PREFIX}/gammaRay
+source venv/bin/activate
+cd ../tools
+python cleanupEventSources.py ${AWSPROFILE} ${XREG} "UpdateWebsiteF:UpdateWebsiteT:UpdateWebsiteS:UpdateWebsiteC:UpdateWebsiteB:UpdateWebsiteD:UpdateWebsite"
+python cleanupEventSources.py ${AWSPROFILE} ${REG} "DBSyncPyC:DBSyncPyD:DBSyncPyF:DBSyncPyT:DBSyncPyB:DBSyncPyS:FnInvokerPyC:FnInvokerPyD:FnInvokerPyF:FnInvokerPyT:FnInvokerPyB:FnInvokerPyS:DBSync:SpotTemplatePy:FnInvokerPyNS:FnInvokerPy"
+deactivate
+
+############ make the lambdas ############################
+1) first setup the triggers
+#Map-reduce setup: bucket that triggers reducerCoordinator (written to by mapper and reducer)
+#The prefix can stay job8000 (if you change this you need to change mr.sh and 
 overheadMR.sh in tools/timings)
 export MR_TRIGGERBKTS=spot-mr-bkt
 export MR_TRIGGERBKTF=spot-mr-bkt-f
