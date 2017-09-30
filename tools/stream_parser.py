@@ -33,7 +33,7 @@ def getName(req):
             #dynamodb.us-west-2.amazonaws.com
             idx = pl.find('/dynamodb.')
             idx2 = pl.find('.amazonaws.com')
-            name += ' {}'.format(pl[idx+10:idx2])
+            name += ' {}'.format(pl[idx+10:idx2]) #add the region
             idx = pl.find('TableName:')
             idx2 = pl.find(':',idx+10)
             name += '\n{} key=id'.format(pl[idx+10:idx2])
@@ -82,17 +82,12 @@ def processDotChild(dot,req):
         dot.edge(name,child_name)
     return name
 
-##################### processRecord #######################
+##################### makeDotAggregate #######################
 def makeDotAggregate():
     global eleID
     dot = Digraph(comment='GRAggregate',format='pdf')
     agent_name = "Clients"
     dot.node(agent_name,agent_name)
-    s3_name = "s3 IPbkt722 filedir test"
-    s3label= "s3 IPbkt722/filedir/test\navg: ??ms"
-    dot.node(agent_name,agent_name)
-    dot.node(s3_name,s3label)
-    dot.edge(agent_name,s3_name)
 
     #req = {TYPE:'fn,sdk,sdkT',REQ:reqID,PAYLOAD:pl,TS:ts,DUR:dur,CHILDREN:[]}
     for key in REQS:
@@ -102,44 +97,43 @@ def makeDotAggregate():
         dur = req[DUR]
         nodename='{}\navg: {:0.1f}ms'.format(name,dur)
         dot.node(name,nodename)
-        dot.edge(s3_name,name)
-        url_name = "HTTP POST\nwww.cs.ucsb.edu/racelab"
-        url_label = "HTTP POST\nwww.cs.ucsb.edu/racelab\navg: 162ms"
-        dot.node(url_name,url_label)
-        dot.edge(name,url_name)
+        dot.edge(agent_name,name)
         eleID += 1
 
         for child in req[CHILDREN]:
             child_name = processDotChild(dot,child)
             dot.edge(name,child_name)
 
-    url_name = "HTTP POST\nhttpbin.org/post"
-    url_label = "HTTP POST\nhttpbin.org/post\navg: 314ms"
-    name = 'us-east-1 UpdateWebsiteS'
-    dot.node(url_name,url_label)
-    dot.edge(name,url_name)
     dot.render('gragggraph', view=True)
     return
 
 ##################### processEventSource #######################
 def processEventSource(pl):
     details = ''
-    idx = pl.find(':es:')
-    assert idx != -1
-    event_source = pl[idx:]
+    assert pl.find(':es:') != 1
+    event_source = pl
     if ':ddb:' in event_source:
-        #keys:id:op:INSERT
-        idx = event_source.find(':ddb:')
-        idx2 = event_source.find(':',idx+5)
-        tname = event_source[idx+5:idx2]
-        idx3 = event_source.find(':',idx2+1)
-        region = event_source[idx2+1:idx3]
+        #ddb:arn:aws:dynamodb:us-west-2:443592014519:table/image-proc-S/stream/2017-09-20T20:26:50.795:keys:id:op:INSERT
+	#get tablename
+        assert pl.find('esARN:') != -1
+        idx = event_source.find(':table/')
+        idx2 = event_source.find('/',idx+7)
+        tname = event_source[idx+7:idx2]
+        #get the region
+        idx = event_source.find('arn:aws:dynamodb:')
+        idx2 = event_source.find(':',idx+17)
+        region = event_source[idx+17:idx2]
 
         idx = event_source.find(':keys:')
         idx2 = event_source.find(':',idx+6)
-        keyname=event_source[idx+6:idx2].replace('/','_|_')
-        idx3 = event_source.find(':op:')
-        key=event_source[idx2+1:idx3].replace('/','_|_')
+        keyname = event_source[idx+6:idx2]
+
+        idx3 = event_source.find(':op',idx2+1)
+        key_str = event_source[idx2+1:idx3]
+        #key_str is {'S': 'imgProc/d1.jpgbc37'}
+        toks = key_str.split(' ')
+        key = toks[1].strip("}'")
+
         details = '{}:{}:{}:{}'.format(tname,region,keyname,key)
     return details
 
@@ -171,9 +165,11 @@ def processChild(child_dict):
         item = payload[idx+7:idx2]
 
         item = item.split(' ')
-        #rewrite name to strip off any excess characters and replace frontslash just in case it causes pbms
-        keyname = item[0].strip('\'\\ ,:').replace('/','_|_')
-        key = item[1].strip('\'\\ ,').replace('/','_|_')
+        #rewrite name to strip off any excess characters 
+        #keyname = item[0].strip('\'\\ ,:').replace('/','_|_')
+        #key = item[1].strip('\'\\ ,').replace('/','_|_')
+        keyname = item[0].strip('\'\\ ,:')
+        key = item[1].strip('\'\\ ,')
         details = '{}:{}:{}:{}'.format(tname,reg,keyname,key)
         
     elif 'PutObject:' in payload:
@@ -197,6 +193,7 @@ def processRecord(reqID,pl,ts):
 
         retn = processEventSource(pl)
         if retn != '': #this lambda was triggered by an event source
+            if retn not in TRIGGERS:
             assert retn in TRIGGERS
             parent = TRIGGERS[retn]
             parent[CHILDREN].append(ele)
@@ -252,8 +249,6 @@ def processRecord(reqID,pl,ts):
 def parseItS(fname):
     with open(fname,'r') as f:
         for line in f:
-            if DEBUG:
-                print('processing: {}:{}'.format(fname,line))
             line = line.strip()
             if line == '':
                 continue
@@ -270,18 +265,29 @@ def parseItS(fname):
                 pl_str = line[startidx:idx]
                 reqID_str = line[idx+19:tsidx]
                 ts_str = line[tsidx+12:]
-            else: 
+            elif "'payload': {'S': 'end'}" in line: 
+                #14274300000000014501584606 INSERT:c6665f0157efc534b3ef6dc125ee90e6:{'payload': {'S': 'end'}, 'reqID': {'S': 'b4c12454-a615-11e7-9718-ef4e8bed8d19:exit900fadaa'}, 'ts': {'N': '1506799790528'}}
                 toks = line.split(' ')
                 pl_str = toks[3]
                 reqID_str = toks[6]
                 ts_str = toks[9]
+            else:
+                #14274400000000014501587215 INSERT:13090a2cba01993346e06e6905b1e110:{'payload': {'S': "pl:arn:aws:lambda:us-west-2:443592014519:function:DBSyncPySesARN:arn:aws:dynamodb:us-west-2:443592014519:table/image-proc-S/stream/2017-09-20T20:26:50.795:es:ddb:keys:id:{'S': 'imgProc/d1.jpgbc37'}:op:INSERT"}, 'reqID': {'S': '6f7372f9-16a5-4251-930f-b13245edb3a0:entryce471e79'}, 'ts': {'N': '1506799794827'}}
+                idx = line.find("'payload': {'S': ")
+                idx2 = line.find(", 'reqID': {")
+                assert idx2 > idx
+                pl_str = line[idx+17:idx2]
+                rest = line[idx2+12:]
+                toks = rest.split(' ')
+                reqID_str = toks[1]
+                ts_str = toks[4]
             pl = pl_str.strip("'\",}{ ")
             ts = float(ts_str.strip("'\",}{ "))
             reqID = reqID_str.strip("'\",}{ ")
             idx = reqID.find(':')
             reqID = reqID[:idx]
             if DEBUG:
-                print('\n{}\n{}\n{}'.format(pl,reqID,ts))
+                print('\ncalling processRecord on\nPL={}\nREQID={}\nTS={}'.format(pl,reqID,ts))
             processRecord(reqID,pl,ts)
 
  

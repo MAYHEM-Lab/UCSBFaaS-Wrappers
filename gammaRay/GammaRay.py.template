@@ -30,13 +30,15 @@ def handleRequest(event, context):
         if 'Records' in event:
             recs = event['Records']
             parent_obj = recs[0]
+            if 'eventSourceARN' in parent_obj:
+                payload += ':esARN:{}'.format(parent_obj['eventSourceARN'])
             if 'dynamodb' in parent_obj: 
                 obj = parent_obj['dynamodb']
                 payload += ':es:ddb'
                 subobj = obj['Keys']
                 payload += ':keys'
                 for key in subobj:
-                    payload += ':{}'.format(key)
+                    payload += ':{}:{}'.format(key,subobj[key])
                 payload += ':op:{}'.format(parent_obj['eventName'])
             elif 'Sns' in parent_obj: 
                 obj = parent_obj['Sns']

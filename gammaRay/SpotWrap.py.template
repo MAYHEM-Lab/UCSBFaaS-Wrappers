@@ -55,13 +55,17 @@ def handleRequest(event, context):
         if 'Records' in event:
             recs = event['Records']
             parent_obj = recs[0]
+            #print('record: {}'.format(parent_obj))
+            if 'eventSourceARN' in parent_obj:
+                payload += ':esARN:{}'.format(parent_obj['eventSourceARN'])
             if 'dynamodb' in parent_obj: 
                 obj = parent_obj['dynamodb']
                 payload += ':es:ddb'
+                #'Keys': {'id': {'S': '50e7'}}, 'NewImage': {'val': {'N': '17'}, 'id': {'S': '50e7'}}, 
                 subobj = obj['Keys']
                 payload += ':keys'
                 for key in subobj:
-                    payload += ':{}'.format(key)
+                    payload += ':{}:{}'.format(key,subobj[key])
                 payload += ':op:{}'.format(parent_obj['eventName'])
             elif 'Sns' in parent_obj: 
                 obj = parent_obj['Sns']
@@ -89,9 +93,9 @@ def handleRequest(event, context):
     entstr = 'entry{}'.format(unique_str)
     exstr = 'exit{}'.format(unique_str)
     tsint = int(round(time.time() * 1000)) #msecs in UTC
-    reqID += ':{}'.format(entstr)
+    req = '{}:{}'.format(reqID,entstr)
     table.put_item( Item={
-        'reqID': reqID,
+        'reqID': req,
         'ts': tsint,
         'payload': payload
         }
@@ -137,10 +141,10 @@ def handleRequest(event, context):
         delta = exittime - wrappedentry
         duration = int(round(delta))
         tsint = int(round(exittime)) #msecs in UTC
-        reqID += ':{}'.format(exstr)
+        req = '{}:{}'.format(reqID,exstr)
         payload = 'end'
         table.put_item( Item={
-            'reqID': reqID,
+            'reqID': req,
             'ts': tsint,
             'payload': payload
             }
