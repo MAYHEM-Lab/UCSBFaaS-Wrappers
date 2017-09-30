@@ -193,7 +193,6 @@ def processRecord(reqID,pl,ts):
 
         retn = processEventSource(pl)
         if retn != '': #this lambda was triggered by an event source
-            if retn not in TRIGGERS:
             assert retn in TRIGGERS
             parent = TRIGGERS[retn]
             parent[CHILDREN].append(ele)
