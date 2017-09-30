@@ -11,11 +11,12 @@ TS='ts'
 DUR='dur'
 CHILDREN='children'
 
-DEBUG = False
+DEBUG = True
 REQS = {}
 SUBREQS = {} #for functions triggered (in/)directly by other functions
 TRIGGERS = {}
 SDKS = []
+REPEATS = []
 eleID = 1
 ##################### getName #######################
 def getName(req):
@@ -185,9 +186,11 @@ def processChild(child_dict):
     
 ##################### processRecord #######################
 def processRecord(reqID,pl,ts):
-    if pl.startswith('pl:arn:aws:lambda'):
+    #if pl.startswith('pl:arn:aws:lambda'):
+    if pl.startswith('pl:'):
         #entry
         SDKS.append((reqID,pl,ts))
+        print('pushing1: ({} {} {})'.format(reqID,pl,ts))
         assert reqID not in REQS
         ele = {TYPE:'fn',REQ:reqID,PAYLOAD:pl,TS:ts,DUR:0.0,CHILDREN:[]}
 
@@ -203,6 +206,8 @@ def processRecord(reqID,pl,ts):
     if pl == 'end':
         #exit
         laststart = SDKS.pop()
+        print('popping1: ({} {} {})'.format(laststart[0],laststart[1],laststart[2]))
+        print('\texit: ({} {} {})'.format(reqID,pl,ts))
         assert ':es:' in laststart[1] #that laststart is an etry
         assert reqID == laststart[0] #that laststart and this exit have same reqID
 
@@ -215,11 +220,40 @@ def processRecord(reqID,pl,ts):
         entryEle[DUR] = dur
         return
     if pl.startswith('SDKstart'):
+        if pl in REPEATS:
+            print('payload already in repeats')
+            return
         SDKS.append((reqID,pl,ts))
+        REPEATS.append(pl)
+        print('pushing: ({} {} {})'.format(reqID,pl,ts))
         return
     if pl.startswith('SDKend'):
+        if pl in REPEATS:
+            print('sdkend payload already in repeats')
+            return
+        REPEATS.append(pl)
         laststart = SDKS.pop()
+        print('popping: ({} {} {})'.format(laststart[0],laststart[1],laststart[2]))
+        print('\tsdkend: ({} {} {})'.format(reqID,pl,ts))
         assert laststart[0] == reqID  #true of we hit an end without a start
+        #tmpstr = pl[7:]
+        #if "\\\\" in tmpstr:
+            #tmpstr = tmpstr.replace("\\\\","\\")
+        #if "\\'" in tmpstr:
+            #tmpstr = tmpstr.replace("\\'",'\\"')
+
+        mystr = pl[7:]
+        pldict = json.loads(mystr)
+        t = pldict['type']
+        myid = pldict['id']
+        pid = pldict['parent_id']
+        mystr = laststart[1].strip("'")[9:]
+        pldict = json.loads(mystr)
+        t2 = pldict['type']
+        myid2 = pldict['id']
+        pid2 = pldict['parent_id']
+        assert pid == pid2 and t == t2 and myid == myid2
+        #print(pid,pid2,t,t2,myid,myid2)
 
         #update the SDKs duration
         start_pl = laststart[1]
@@ -244,7 +278,7 @@ def processRecord(reqID,pl,ts):
         return
     assert True #we shouldn't be here
 
-##################### parseIt #######################
+##################### parseItS #######################
 def parseItS(fname):
     with open(fname,'r') as f:
         for line in f:
@@ -285,8 +319,71 @@ def parseItS(fname):
             reqID = reqID_str.strip("'\",}{ ")
             idx = reqID.find(':')
             reqID = reqID[:idx]
-            if DEBUG:
-                print('\ncalling processRecord on\nPL={}\nREQID={}\nTS={}'.format(pl,reqID,ts))
+            #if DEBUG:
+                #print('\ncalling processRecord on\nPL={}\nREQID={}\nTS={}'.format(pl,reqID,ts))
+            processRecord(reqID,pl,ts)
+
+##################### parseItD #######################
+def parseItD(fname):
+    with open(fname,'r') as f:
+        for line in f:
+            line = line.strip()
+            if line == '':
+                continue
+            if line.find(' REMOVE:') != -1 and line.endswith(':None'):
+                continue
+            if line.find(' INSERT:') == -1:
+                print('Error: unexpected entry: {}'.format(line))
+                sys.exit(1)
+            pl = reqID = ts = None
+            #if DEBUG:
+                #print('processing {}'.format(line))
+
+            idx = line.find("'payload': {'S': '{")
+            if idx != -1:
+                idx3 = line.find('"in_progress": true}')
+                idx2 = line.find("}, 'reqID': {")
+                assert idx2 > idx
+                if idx3 != -1:
+                    #subsegment start or middle
+                    pl_str = 'SDKstart:{}'.format(line[idx+18:idx2])
+                else:
+                    pl_str = 'SDKend:{}'.format(line[idx+18:idx2])
+                    #subsegment end
+                rest = line[idx2+13:]
+                toks = rest.split(' ')
+                reqID_str = toks[1]
+                ts_str = toks[4]
+            else:
+                idx = line.find("'payload': {'S': 'pl:")
+                idx2 = line.find("'payload': {'S': \"pl:")
+                if idx != -1 or idx2 != -1:
+                    #entry
+                    idx3 = line.find(", 'reqID': {'S': ")
+                    idx4 = line.find(", 'ts': {'N': ")
+                    pl_str = line[idx+18:idx3]
+                    reqID_str = line[idx3+17:idx4]
+                    ts_str = line[idx4+13:]
+                else: 
+                    idx = line.find("'payload': {'S': 'end'")
+                    assert idx != -1
+                    #exit
+                    pl = 'end'
+                    toks = line.split(' ')
+                    reqID_str = toks[6]
+                    ts_str = toks[9]
+                
+            pl = pl_str.strip("'\", ")
+            if "\\\\" in pl:
+                pl = pl.replace("\\\\","\\")
+            if "\\'" in pl:
+                pl = pl.replace("\\'",'\\"')
+            ts = float(ts_str.strip("'\",}{ "))
+            reqID = reqID_str.strip("'\",}{ ")
+            idx = reqID.find(':')
+            reqID = reqID[:idx]
+            #if DEBUG:
+                #print('\ncalling processRecord on\nPL={}\nREQID={}\nTS={}'.format(pl,reqID,ts))
             processRecord(reqID,pl,ts)
 
  
@@ -304,12 +401,17 @@ if __name__ == "__main__":
         print('\nError: must choose one of the three file types')
         sys.exit(1)
 
-    if args.dbdump or args.dynamic:
+    if args.dbdump:
         parser.print_help()
         print('\nError: dbdump and dynamic not supported yet')
         sys.exit(1)
 
-    if args.static:
+    if args.dynamic:
+        parseItD(args.fname)
+        assert SDKS == []
+        makeDotAggregate()
+
+    elif args.static:
         parseItS(args.fname)
         assert SDKS == []
         makeDotAggregate()

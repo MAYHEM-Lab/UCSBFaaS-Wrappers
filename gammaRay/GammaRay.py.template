@@ -23,7 +23,7 @@ def handleRequest(event, context):
     if context:
         reqID = context.aws_request_id
         arn = context.invoked_function_arn
-    payload = 'pl:{}:{}'.format(reqID,arn)
+    payload = "pl:{}".format(arn)
     if event:
         if 'eventSource' in event:
             payload += ':es:{}'.format(event['eventSource'])
