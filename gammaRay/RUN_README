@@ -368,6 +368,7 @@ deactivate
 export APP1=mr
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
 ./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
+	#output files are in dynamodb/dump.${APP1}, cloudwatch/[1-$COUNT]/APP/MRASYNC/[CSTFD]/*.log
 cd ${PREFIX}/tools/timings
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
@@ -388,6 +389,7 @@ deactivate
 export APP1=webapp
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
 ./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
+	#output files are in dynamodb/dump.${APP1}, cloudwatch/[1-$COUNT]/APP/WEBAPP/[CSTFD]/*.log
 cd ${PREFIX}/tools/timings
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
@@ -408,6 +410,7 @@ deactivate
 export APP1=imageproc
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
 ./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
+	#output files are in dynamodb/dump.${APP1}, cloudwatch/[1-$COUNT]/APP/IMGPROC/[CSTFD]/*.log
 cd ${PREFIX}/tools/timings
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
 ./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
@@ -451,6 +454,7 @@ deactivate
 export APP1=mrsync
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
 ./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
+	#output files are in dynamodb/dump.${APP1}, cloudwatch/[1-$COUNT]/APP/MRSYNC/[CSTFD]/*.log
 #clean out the tables (do it this way as it the tables from MR jobs are big)
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
