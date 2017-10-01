@@ -8,20 +8,53 @@ TYPE='typ' #fn,sdk,sdkT (sdkTrigger)
 REQ='req'
 PAYLOAD='pl'
 TS='ts'
+SEQ='seqNo'
 DUR='dur'
 CHILDREN='children'
 
-DEBUG = True
+DEBUG = False
 REQS = {}
 SUBREQS = {} #for functions triggered (in/)directly by other functions
 TRIGGERS = {}
 SDKS = []
 REPEATS = []
 eleID = 1
+seqID = 1
+NODES = {}
 ##################### getName #######################
 def getName(req):
     pl = req[PAYLOAD]
     name = ''
+    if DEBUG:
+        print('payload: ',pl)
+
+    if type(pl) == dict:
+        #dynamic SDK entry 
+        name = pl['name']
+        rest = ""
+        if name == 'requests':
+            #HTTP operation
+            http = pl['http']
+            reqst = http['request']
+            url = reqst['url']
+            if url.startswith('http://'):
+                url = url[7:]
+            name = 'HTTP={} {}'.format(reqst['method'],url)
+            rest = '{}'.format(http['response']['status'])
+        else:
+            aws = pl['aws']
+            name += ' {}'.format(aws['operation'])
+            if aws['operation'] == 'PutItem':
+                tname,reg,keyname,key = getDetails(aws)
+                name = 'DDB=PutItem {}\n{} {}={}'.format(tname,reg,keyname,key)
+            elif aws['operation'] == 'GetItem':
+                tname,reg,keyname,key = getDetails(aws)
+                name = 'NONTRIGGER:DDB=GetItem {}\n{} {}={}'.format(tname,reg,keyname,key)
+            else:
+                name = 'NONTRIGGER:{}'.format(name)
+            
+        return rest,name
+
     if pl.startswith('SDKstart:'):
         idx = pl.find(':',9)
         idx2 = pl.find('(',idx+1)
@@ -58,24 +91,40 @@ def getName(req):
         name = pl[idx+10:idx2] #add reqID if instance
         idx = pl.find('aws:lambda:') #get region
         idx2 = pl.find(':',idx+11)
-        name = '{} {}'.format(pl[idx+11:idx2],name)
+        name = 'FN={} {}'.format(name,pl[idx+11:idx2])
         
     else:
         assert True #shouldn't be here
 
-    return name
+    return "",name
 
 ##################### processDotChild #######################
 def processDotChild(dot,req):
     global eleID
     dur = req[DUR]
-    name = getName(req)
+    rest,name = getName(req)
     if name.startswith('NONTRIGGER:'):
         name = name[11:]
-        nodename = '{}\navg: {:0.1f}ms'.format(name,dur)
+        totsum = dur
+        count = 1
+        if name in NODES:
+            (t,c) = NODES[name]
+            totsum+=t
+            count += c
+        NODES[name] = (totsum,count)
+        avg = totsum/count 
+        nodename = '{}\navg: {:0.1f}ms'.format(name,avg)
         dot.node(name,nodename,fillcolor='gray',style='filled')
     else:
-        nodename='{}\navg: {:0.1f}ms'.format(name,dur)
+        totsum = dur
+        count = 1
+        if name in NODES:
+            (t,c) = NODES[name]
+            totsum+=t
+            count += c
+        NODES[name] = (totsum,count)
+        avg = totsum/count 
+        nodename='{}\navg: {:0.1f}ms'.format(name,avg)
         dot.node(name,nodename)
     eleID += 1
     for child in req[CHILDREN]:
@@ -94,9 +143,17 @@ def makeDotAggregate():
     for key in REQS:
         req = REQS[key]
         pl = req[PAYLOAD]
-        name = getName(req)
+        rest,name = getName(req)
         dur = req[DUR]
-        nodename='{}\navg: {:0.1f}ms'.format(name,dur)
+        totsum = dur
+        count = 1
+        if name in NODES:
+            (t,c) = NODES[name]
+            totsum+=t
+            count += c
+        NODES[name] = (totsum,count)
+        avg = totsum/count 
+        nodename='{}\navg: {:0.1f}ms'.format(name,avg)
         dot.node(name,nodename)
         dot.edge(agent_name,name)
         eleID += 1
@@ -139,11 +196,37 @@ def processEventSource(pl):
     return details
 
 ##################### processChild #######################
+def getDetails(payload):
+    reg = payload['region']
+    gr_pl = payload['gr_payload'] #string
+    #'payload:TableName:image-proc-D:Item:{"id": "imgProc/d1.jpg639b", "labels": "[{"Name": "Animal", "Confidence": 96.52118682861328}, {"Name": "Gazelle", "Confidence": 96.52118682861328}, {"Name": "Impala", "Confidence": 96.52118682861328}, {"Name": "Mammal", "Confidence": 96.52118682861328}, {"Name": "Wildlife", "Confidence": 96.52118682861328}, {"Name": "Deer", "Confidence": 91.72703552246094}]"}'
+    idx = gr_pl.find(':TableName:')
+    idx2 = gr_pl.find(':Item:{')
+    if idx2 == -1 and idx != -1:
+        idx2 = gr_pl.find(':Key:{')
+        
+    assert idx != -1 and idx2 != -1
+    tname = gr_pl[idx+11:idx2]
+    idx3 = gr_pl.find(':',idx2+7) #should still work for Item or Key because of extra quote that will be stripped off below for Item
+    keyname = gr_pl[idx2+7:idx3].strip("\"'\\")
+    idx2 = gr_pl.find(',',idx3+2)
+    key = gr_pl[idx3+2:idx2].strip("\"'\\")
+    return tname,reg,keyname,key
+
+##################### processChild #######################
 def processChild(child_dict):
     details = ''
     #if child is a possible event source, it can also be a parent
     #{TYPE:'fn,sdk,sdkT',REQ:reqID,PAYLOAD:pl,TS:ts,DUR:dur,CHILDREN:[]}
     payload = child_dict[PAYLOAD]
+    if 'aws' in payload: #dynamic (B or D config)
+        payload = payload['aws']
+        if 'operation' in payload and payload['operation'] == 'PutItem':
+            tname,reg,keyname,key = getDetails(payload)
+            details = '{}:{}:{}:{}'.format(tname,reg,keyname,key)
+            return details
+        # potential trigger: sdkend: (a1fc649f-a626-11e7-a9db-bdd2537308bd SDKend:{"type": "subsegment", "id": "3ffa848423654d79", "trace_id": "1-59d00d0b-f18722cf531ce1db265e3814", "parent_id": "145c43af5f4c6069", "start_time": 1506807055.0124357, "end_time": 1506807055.2713935, "name": "requests", "namespace": "remote", "http": {"request": {"method": "POST", "url": "http://httpbin.org/post"}, "response": {"status": 200}}, "error": false} 1506807055272.0)
+
     if 'PutItem:' in payload:
         reg='unknown'
         if 'us-east-1.amazonaws.com' in payload:
@@ -185,14 +268,15 @@ def processChild(child_dict):
     return details
     
 ##################### processRecord #######################
-def processRecord(reqID,pl,ts):
+def processRecord(reqID,pl,ts,dynamic=False):
+    global seqID
     #if pl.startswith('pl:arn:aws:lambda'):
     if pl.startswith('pl:'):
         #entry
         SDKS.append((reqID,pl,ts))
-        print('pushing1: ({} {} {})'.format(reqID,pl,ts))
         assert reqID not in REQS
-        ele = {TYPE:'fn',REQ:reqID,PAYLOAD:pl,TS:ts,DUR:0.0,CHILDREN:[]}
+        ele = {TYPE:'fn',REQ:reqID,PAYLOAD:pl,TS:ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
+        seqID += 1
 
         retn = processEventSource(pl)
         if retn != '': #this lambda was triggered by an event source
@@ -203,11 +287,9 @@ def processRecord(reqID,pl,ts):
         else: 
             REQS[reqID] = ele
         return
-    if pl == 'end':
+    if pl == 'end': #will only occur for S and D
         #exit
         laststart = SDKS.pop()
-        print('popping1: ({} {} {})'.format(laststart[0],laststart[1],laststart[2]))
-        print('\texit: ({} {} {})'.format(reqID,pl,ts))
         assert ':es:' in laststart[1] #that laststart is an etry
         assert reqID == laststart[0] #that laststart and this exit have same reqID
 
@@ -221,20 +303,20 @@ def processRecord(reqID,pl,ts):
         return
     if pl.startswith('SDKstart'):
         if pl in REPEATS:
-            print('payload already in repeats')
+            if DEBUG:
+                print('payload already in repeats')
             return
         SDKS.append((reqID,pl,ts))
         REPEATS.append(pl)
-        print('pushing: ({} {} {})'.format(reqID,pl,ts))
         return
+
     if pl.startswith('SDKend'):
         if pl in REPEATS:
-            print('sdkend payload already in repeats')
+            if DEBUG:
+                print('sdkend payload already in repeats')
             return
         REPEATS.append(pl)
         laststart = SDKS.pop()
-        print('popping: ({} {} {})'.format(laststart[0],laststart[1],laststart[2]))
-        print('\tsdkend: ({} {} {})'.format(reqID,pl,ts))
         assert laststart[0] == reqID  #true of we hit an end without a start
         #tmpstr = pl[7:]
         #if "\\\\" in tmpstr:
@@ -242,8 +324,15 @@ def processRecord(reqID,pl,ts):
         #if "\\'" in tmpstr:
             #tmpstr = tmpstr.replace("\\'",'\\"')
 
+        #update the SDKs duration
+        start_pl = laststart[1]
+        start_ts = laststart[2]
+        dur = ts-start_ts
+
         mystr = pl[7:]
         pldict = json.loads(mystr)
+        if dynamic:
+            start_pl = pldict
         t = pldict['type']
         myid = pldict['id']
         pid = pldict['parent_id']
@@ -253,14 +342,10 @@ def processRecord(reqID,pl,ts):
         myid2 = pldict['id']
         pid2 = pldict['parent_id']
         assert pid == pid2 and t == t2 and myid == myid2
-        #print(pid,pid2,t,t2,myid,myid2)
 
-        #update the SDKs duration
-        start_pl = laststart[1]
-        start_ts = laststart[2]
-        dur = ts-start_ts
         #make a child object
-        child = {TYPE:'sdk',REQ:reqID,PAYLOAD:start_pl,TS:start_ts,DUR:dur,CHILDREN:[]}
+        child = {TYPE:'sdk',REQ:reqID,PAYLOAD:start_pl,TS:start_ts,DUR:dur,SEQ:seqID,CHILDREN:[]}
+        seqID += 1
         #if child is a possible event source, it can also be a parent
         retn = processChild(child)
         if retn != '':
@@ -319,8 +404,8 @@ def parseItS(fname):
             reqID = reqID_str.strip("'\",}{ ")
             idx = reqID.find(':')
             reqID = reqID[:idx]
-            #if DEBUG:
-                #print('\ncalling processRecord on\nPL={}\nREQID={}\nTS={}'.format(pl,reqID,ts))
+            if DEBUG:
+                print('\ncalling processRecord on\nPL={}\nREQID={}\nTS={}'.format(pl,reqID,ts))
             processRecord(reqID,pl,ts)
 
 ##################### parseItD #######################
@@ -336,8 +421,8 @@ def parseItD(fname):
                 print('Error: unexpected entry: {}'.format(line))
                 sys.exit(1)
             pl = reqID = ts = None
-            #if DEBUG:
-                #print('processing {}'.format(line))
+            if DEBUG:
+                print('\nprocessing {}'.format(line))
 
             idx = line.find("'payload': {'S': '{")
             if idx != -1:
@@ -358,17 +443,19 @@ def parseItD(fname):
                 idx = line.find("'payload': {'S': 'pl:")
                 idx2 = line.find("'payload': {'S': \"pl:")
                 if idx != -1 or idx2 != -1:
+                    if idx == -1:
+                        idx = idx2
                     #entry
                     idx3 = line.find(", 'reqID': {'S': ")
                     idx4 = line.find(", 'ts': {'N': ")
-                    pl_str = line[idx+18:idx3]
+                    pl_str = line[idx+18:idx3-2] #subtract off quote and curly brace
                     reqID_str = line[idx3+17:idx4]
                     ts_str = line[idx4+13:]
                 else: 
                     idx = line.find("'payload': {'S': 'end'")
                     assert idx != -1
                     #exit
-                    pl = 'end'
+                    pl_str = 'end'
                     toks = line.split(' ')
                     reqID_str = toks[6]
                     ts_str = toks[9]
@@ -382,9 +469,9 @@ def parseItD(fname):
             reqID = reqID_str.strip("'\",}{ ")
             idx = reqID.find(':')
             reqID = reqID[:idx]
-            #if DEBUG:
-                #print('\ncalling processRecord on\nPL={}\nREQID={}\nTS={}'.format(pl,reqID,ts))
-            processRecord(reqID,pl,ts)
+            if DEBUG:
+                print('calling processRecord on\nPL={}\nREQID={}\nTS={}'.format(pl,reqID,ts))
+            processRecord(reqID,pl,ts,True)
 
  
 ##################### main #######################
@@ -408,6 +495,9 @@ if __name__ == "__main__":
 
     if args.dynamic:
         parseItD(args.fname)
+        if DEBUG:
+            for ele in SDKS:
+                print('SDK: ',ele)
         assert SDKS == []
         makeDotAggregate()
 
@@ -417,16 +507,3 @@ if __name__ == "__main__":
         makeDotAggregate()
         
 
-###### streamD #############
-#2600000000030190189341 REMOVE:09b32782c5ba1c16486697264e2e3af6:None
-#2100000000030189636257 INSERT:43aa94cb211c9a9d7df7ae4aca726b7b:{'payload': {'S': 'pl:9d656195-9f26-11e7-a691-417687e452d3:arn:aws:lambda:us-west-2:443592014519:function:ImageProcPyB:es:ext:invokeCLI'}, 'reqID': {'S': '9d656195-9f26-11e7-a691-417687e452d3:entryb620498e'}, 'ts': {'N': '1506037385780'}}
-#2200000000030189638411 INSERT:89df83c823bf38b3f38cee963eb1b6fd:{'payload': {'S': '{"type": "subsegment", "id": "ae34be6cb75e4526", "trace_id": "1-59c44e89-9b998015677b4d7fbe3a313d", "parent_id": "564686485923084a", "start_time": 1506037387.3388684, "end_time": 1506037387.5118344, "name": "DynamoDB", "namespace": "aws", "aws": {"operation": "PutItem", "region": "us-west-2", "table_name": "image-proc-B", "gr_payload": "payload:arn:aws:lambda:us-west-2:443592014519:function:ImageProcPyB:TableName:image-proc-B:Item:{\'id\': \'imgProc/d1.jpg2e46\', \'labels\': \'[{\\"Name\\": \\"Animal\\", \\"Confidence\\": 96.52118682861328}, {\\"Name\\": \\"Gazelle\\", \\"Confidence\\": 96.52118682861328}, {\\"Name\\": \\"Impala\\", \\"Confidence\\": 96.52118682861328}, {\\"Name\\": \\"Mammal\\", \\"Confidence\\": 96.52118682861328}, {\\"Name\\": \\"Wildlife\\", \\"Confidence\\": 96.52118682861328}, {\\"Name\\": \\"Deer\\", \\"Confidence\\": 91.72703552246094}]\'}", "request_id": "5EILHOMITKB4EJ4QI3DNHSMLB7VV4KQNSO5AEMVJF66Q9ASUAAJG"}, "http": {"response": {"status": 200}}, "error": false}'}, 'reqID': {'S': '9d656195-9f26-11e7-a691-417687e452d3:a743431b'}, 'ts': {'N': '1506037387512'}}
-
-###### streamS #############
-#7699400000000028634767231 INSERT:4f1897c7952cc7d63434cec73ff25c66:{'payload': {'S': 'pl:arn:aws:lambda:us-west-2:443592014519:function:ImageProcPyS:es:ext:invokeCLI'}, 'reqID': {'S': 'beb132a4-a06e-11e7-8dc2-e36d371b8422:entryd33a0531'}, 'ts': {'N': '1506178326328'}}
-#7699500000000028634769201 INSERT:9056a6b087408f686de60fb21280329c:{'payload': {'S': "SDKstart:DetectLabels:rekognition(https://rekognition.us-west-2.amazonaws.com)::Image:{'S3Object': {'Bucket': 'cjktestbkt', 'Name': 'imgProc/d1.jpg'}}:MaxLabels:10:MinConfidence:90"}, 'reqID': {'S': 'beb132a4-a06e-11e7-8dc2-e36d371b8422:bebf27f1'}, 'ts': {'N': '1506178330288'}}
-#7699600000000028634769773 INSERT:48763c117834d8a082f16178963c0f21:{'payload': {'S': 'SDKend:1261.327392578125'}, 'reqID': {'S': 'beb132a4-a06e-11e7-8dc2-e36d371b8422:fe3f8ed2'}, 'ts': {'N': '1506178331549'}}
-#7700700000000028634784713 INSERT:fe571e980a5131181e1a469e485ae5c7:{'payload': {'S': 'end'}, 'reqID': {'S': 'eef61fb6-b1b0-48f7-b721-b5367c7aa7e0:entry8494cb13:exit8494cb13'}, 'ts': {'N': '1506178356246'}}
-#7700800000000028635010684 REMOVE:7f04785cbdc183ace7c1b74e0d58a948:None
-
-#cjk/streamS.base:7699500000000028634769201 INSERT:9056a6b087408f686de60fb21280329c:{'payload': {'S': "SDKstart:DetectLabels:rekognition(https://rekognition.us-west-2.amazonaws.com)::Image:{'S3Object': {'Bucket': 'cjktestbkt', 'Name': 'imgProc/d1.jpg'}}:MaxLabels:10:MinConfidence:90"}, 'reqID': {'S': 'beb132a4-a06e-11e7-8dc2-e36d371b8422:bebf27f1'}, 'ts': {'N': '1506178330288'}}
