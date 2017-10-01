@@ -369,10 +369,6 @@ export APP1=mr
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
 ./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
 	#output files are in dynamodb/dump.${APP1}, cloudwatch/[1-$COUNT]/APP/MRASYNC/[CSTFD]/*.log
-cd ${PREFIX}/tools/timings
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
-#if the above does not say "is empty" for both the second time, then delete and remake the table:
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
 #wait 1 min then recreate them:
@@ -390,10 +386,6 @@ export APP1=webapp
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
 ./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
 	#output files are in dynamodb/dump.${APP1}, cloudwatch/[1-$COUNT]/APP/WEBAPP/[CSTFD]/*.log
-cd ${PREFIX}/tools/timings
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
-#if the above does not say "is empty" for both the second time, then delete and remake the table:
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
 #wait 1 min then recreate them:
@@ -411,10 +403,6 @@ export APP1=imageproc
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
 ./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
 	#output files are in dynamodb/dump.${APP1}, cloudwatch/[1-$COUNT]/APP/IMGPROC/[CSTFD]/*.log
-cd ${PREFIX}/tools/timings
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
-#if the above does not say "is empty" for both the second time, then delete and remake the table:
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
 #wait 1 mins then recreate them:
@@ -458,7 +446,6 @@ cd ${PREFIX}/tools  #download the stream data and append it to stream base (save
 #clean out the tables (do it this way as it the tables from MR jobs are big)
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
-
 #wait 1 min then recreate them:
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${SPOTTABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
@@ -497,11 +484,15 @@ python timings_parser.py ${MRDIR} ${CWDIR} out --count=50 --process_MRnew
 #process streams to generate pdfs for S (D is the same)
 #this hasn't been tested for awhile and needs to be rewritten to get new format of data
 #do not use until fixed
-cd ${PREFIX}/tools
 cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 source venv/bin/activate
-python ddb_parser.py dbsyncS.stream
-python ddb_parser.py imageProcS.stream
+cd ${PREFIX}/tools
+#stream?.new and ${APP1}B_28009.xray comes from get_table_and_stream.sh above
+#for ${APP1}B_28009.xray pass in the most recently dated one (all are kept currently and _###.
+#are just random numbers to keep them separate and around for later use
+python stream_parser.py streamD.new --dynamic #for D
+python stream_parser.py streamD.new --hybrid ${APP1}B_28009.xray #for B 
+python stream_parser.py streamS.new --static #for S
 deactivate
 
 #######  TROUBLESHOOTING ############

@@ -48,3 +48,9 @@ cat ${APP1}S.stream >> streamS.base
 diff -b -B streamD.base streamD.new | awk -F"> " '{print $2}' > ${APP1}D.stream
 cat ${APP1}D.stream >> streamD.base
 
+DSTART=`date "+%Y-%m-%dT%H:%M:%S"` #not utc so 7 hours earlier
+DEND=`date -u "+%Y-%m-%dT%H:%M:%S"` #utc
+aws --profile ${PROF} xray get-trace-summaries --start-time ${DSTART} --end-time ${DEND}  > ${TMPFILE}
+TIDS=`python getEleFromJson.py TraceSummaries:Id ${TMPFILE} --multiple`
+echo ${TIDS}
+aws --profile cjk1 xray batch-get-traces --trace-ids ${TIDS} > ${APP1}B_${RANDOM}.xray

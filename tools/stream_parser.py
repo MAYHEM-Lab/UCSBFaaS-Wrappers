@@ -1,4 +1,4 @@
-import json,time,os,sys,argparse,statistics
+import json,time,os,sys,argparse,statistics,ast
 from pprint import pprint
 from graphviz import Digraph
 from enum import Enum
@@ -12,7 +12,7 @@ SEQ='seqNo'
 DUR='dur'
 CHILDREN='children'
 
-DEBUG = False
+DEBUG = True
 REQS = {}
 SUBREQS = {} #for functions triggered (in/)directly by other functions
 TRIGGERS = {}
@@ -138,6 +138,7 @@ def makeDotAggregate():
     dot = Digraph(comment='GRAggregate',format='pdf')
     agent_name = "Clients"
     dot.node(agent_name,agent_name)
+    agent_edges = []
 
     #req = {TYPE:'fn,sdk,sdkT',REQ:reqID,PAYLOAD:pl,TS:ts,DUR:dur,CHILDREN:[]}
     for key in REQS:
@@ -155,7 +156,9 @@ def makeDotAggregate():
         avg = totsum/count 
         nodename='{}\navg: {:0.1f}ms'.format(name,avg)
         dot.node(name,nodename)
-        dot.edge(agent_name,name)
+        if name not in agent_edges: 
+            dot.edge(agent_name,name)
+            agent_edges.append(name)
         eleID += 1
 
         for child in req[CHILDREN]:
@@ -268,12 +271,14 @@ def processChild(child_dict):
     return details
     
 ##################### processRecord #######################
-def processRecord(reqID,pl,ts,dynamic=False):
+def processRecord(reqID,pl,ts,dynamic=False,fxray=None):
     global seqID
     #if pl.startswith('pl:arn:aws:lambda'):
     if pl.startswith('pl:'):
         #entry
-        SDKS.append((reqID,pl,ts))
+        if not fxray:  #configuration B has no exits
+            SDKS.append((reqID,pl,ts))
+            print('pushedent {}'.format((reqID,pl,ts)))
         assert reqID not in REQS
         ele = {TYPE:'fn',REQ:reqID,PAYLOAD:pl,TS:ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
         seqID += 1
@@ -288,6 +293,7 @@ def processRecord(reqID,pl,ts,dynamic=False):
             REQS[reqID] = ele
         return
     if pl == 'end': #will only occur for S and D
+        assert not fxray  #configuration B has no SDKstarts
         #exit
         laststart = SDKS.pop()
         assert ':es:' in laststart[1] #that laststart is an etry
@@ -302,11 +308,13 @@ def processRecord(reqID,pl,ts,dynamic=False):
         entryEle[DUR] = dur
         return
     if pl.startswith('SDKstart'):
+        assert not fxray  #configuration B has no SDKstarts
         if pl in REPEATS:
             if DEBUG:
                 print('payload already in repeats')
             return
         SDKS.append((reqID,pl,ts))
+        print('pushed {}'.format((reqID,pl,ts)))
         REPEATS.append(pl)
         return
 
@@ -316,33 +324,42 @@ def processRecord(reqID,pl,ts,dynamic=False):
                 print('sdkend payload already in repeats')
             return
         REPEATS.append(pl)
-        laststart = SDKS.pop()
-        assert laststart[0] == reqID  #true of we hit an end without a start
-        #tmpstr = pl[7:]
-        #if "\\\\" in tmpstr:
-            #tmpstr = tmpstr.replace("\\\\","\\")
-        #if "\\'" in tmpstr:
-            #tmpstr = tmpstr.replace("\\'",'\\"')
-
-        #update the SDKs duration
-        start_pl = laststart[1]
-        start_ts = laststart[2]
-        dur = ts-start_ts
-
-        mystr = pl[7:]
+        mystr = pl[7:].strip()
         pldict = json.loads(mystr)
         if dynamic:
             start_pl = pldict
         t = pldict['type']
         myid = pldict['id']
         pid = pldict['parent_id']
-        mystr = laststart[1].strip("'")[9:]
-        pldict = json.loads(mystr)
-        t2 = pldict['type']
-        myid2 = pldict['id']
-        pid2 = pldict['parent_id']
-        assert pid == pid2 and t == t2 and myid == myid2
-
+        trid = pldict['trace_id']
+        if fxray:  #configuration B has no SDKstarts
+            #update the SDKs duration
+            start_ts = float(pldict['start_time'])*1000
+            ts = float(pldict['end_time'])*1000
+            dur = ts-start_ts
+        else:
+            laststart = SDKS.pop()
+            print('popped {}'.format(laststart))
+            assert not laststart[1].startswith('pl:') #make sure that its an SDKstart
+            assert laststart[0] == reqID  #true of we hit an end without a start
+            #tmpstr = pl[7:]
+            #if "\\\\" in tmpstr:
+                #tmpstr = tmpstr.replace("\\\\","\\")
+            #if "\\'" in tmpstr:
+                #tmpstr = tmpstr.replace("\\'",'\\"')
+    
+            #update the SDKs duration
+            start_pl = laststart[1]
+            start_ts = laststart[2]
+            dur = ts-start_ts
+    
+            mystr = laststart[1].strip("'")[9:]
+            pldict = json.loads(mystr)
+            t2 = pldict['type']
+            myid2 = pldict['id']
+            pid2 = pldict['parent_id']
+            assert pid == pid2 and t == t2 and myid == myid2
+    
         #make a child object
         child = {TYPE:'sdk',REQ:reqID,PAYLOAD:start_pl,TS:start_ts,DUR:dur,SEQ:seqID,CHILDREN:[]}
         seqID += 1
@@ -362,6 +379,89 @@ def processRecord(reqID,pl,ts,dynamic=False):
         parent[CHILDREN].append(child)
         return
     assert True #we shouldn't be here
+
+##################### processHybrid  #######################
+def processHybrid (fname):
+    with open(fname,'r') as f:
+        json_dict = json.load(f)
+    traces = json_dict['Traces']
+    for trace in traces:
+        segs = trace['Segments']
+        for seg in segs:
+            doc_dict = json.loads(seg['Document'])
+            name = doc_dict['name']
+            myid = seg['Id']
+            if 'trace_id' in doc_dict:
+                trid = doc_dict['trace_id']
+            print()
+            #print(myid,doc_dict)
+            start = doc_dict['start_time']
+            end = doc_dict['end_time']
+            if 'aws' in doc_dict:
+                aws = doc_dict['aws']
+                tname = op = reg = pl = 'unknown'
+                if 'operation' in aws:
+                    op = aws['operation']
+                origin = doc_dict['origin']
+                #if origin == 'AWS::DynamoDB::Table':  #just a repeat of what we get in the subsegments
+                    #if 'table_name' in aws:
+                        #tname = aws['table_name']
+                    #if 'region' in aws:
+                        #reg = aws['region']
+                    #key=keyname='unknown'
+                    #if 'gr_payload' in aws:
+                        #pl = aws['gr_payload']
+                        #idx = pl.find(':Item:{')
+                        #if idx != -1:
+                            #idx2 = pl.find(':',idx+7)
+                            #keyname = pl[idx+7:idx2].strip('"\' ')
+                            #idx = pl.find(',',idx2+1)
+                            #key = pl[idx2+1:idx].strip('"\' ')
+                    #print('{} DDB:{}:{}:{}:{}:{}:{}:{}'.format(myid,tname,reg,op,keyname,key,start,end))
+                if origin == 'AWS::Lambda':
+                    print('{} LAMBDA:{}:{}:{}:{}'.format(myid,doc_dict['resource_arn'],aws['request_id'],start,end))
+                else:
+                    if 'function_arn' in aws:
+                        print('{} FN:{}:{}:{}'.format(myid,aws['function_arn'],start,end))
+                    #else:
+                        #print('{} other_{}:{}:{}:{}'.format(myid,name,origin,start,end))
+                print('\ttrid: {}'.format(trid))
+                if 'subsegments' in doc_dict:
+                    for subs in doc_dict['subsegments']:
+                        subid = subs['id']
+                        if 'aws' in subs:
+                            #print('\t{}:{}:{}:{}:{}'.format(subs['name'],subs['aws']['operation'],subs['aws']['region'],subs['start_time'],subs['end_time']))
+                            aws = subs['aws']
+                            trid=myid=tname=op=reg='unknown'
+                            if 'trace_id' in aws:
+                                trid = aws['trace_id']
+                            if 'operation' in aws:
+                                op = aws['operation']
+                            if 'table_name' in aws:
+                                tname = aws['table_name']
+                            if 'region' in aws:
+                                reg = aws['region']
+                            key=keyname='unknown'
+                            if 'gr_payload' in aws:
+                                pl = aws['gr_payload']
+                                idx = pl.find(':Item:{')
+                                if idx != -1:
+                                    idx2 = pl.find(':',idx+7)
+                                    keyname = pl[idx+7:idx2].strip('"\' ')
+                                    idx = pl.find(',',idx2+1)
+                                    key = pl[idx2+1:idx].strip('"\' ')
+                            print('\t{} DDB:{}:{}:{}:{}:{}:{}:{}'.format(subid,tname,reg,op,keyname,key,subs['start_time'],subs['end_time']))
+                            if trid != 'unknown':
+                                print('\ttrid: {}'.format(trid))
+
+                        else:
+                            print('\t{} UNKNOWN:{}:{}:{}'.format(subid,subs['name'],subs['start_time'],subs['end_time']))
+            else:
+                print('other: {}:{}:{}'.format(name,doc_dict['start_time'],doc_dict['end_time']))
+                
+    print('DONE')
+            
+   
 
 ##################### parseItS #######################
 def parseItS(fname):
@@ -409,7 +509,7 @@ def parseItS(fname):
             processRecord(reqID,pl,ts)
 
 ##################### parseItD #######################
-def parseItD(fname):
+def parseItD(fname,fxray=None):
     with open(fname,'r') as f:
         for line in f:
             line = line.strip()
@@ -471,7 +571,7 @@ def parseItD(fname):
             reqID = reqID[:idx]
             if DEBUG:
                 print('calling processRecord on\nPL={}\nREQID={}\nTS={}'.format(pl,reqID,ts))
-            processRecord(reqID,pl,ts,True)
+            processRecord(reqID,pl,ts,True,fxray)
 
  
 ##################### main #######################
@@ -481,11 +581,12 @@ if __name__ == "__main__":
     parser.add_argument('--dbdump',action='store_true',default=False,help='file is in json dynamodump format')
     parser.add_argument('--dynamic',action='store_true',default=False,help='file is in json streamD format')
     parser.add_argument('--static',action='store_true',default=False,help='file is in json streamS format')
+    parser.add_argument('--hybrid',action='store',default=None,help='file output from xray get_batch_traces')
     args = parser.parse_args()
 
-    if not args.dbdump and not args.dynamic and not args.static:
+    if not args.dbdump and not args.dynamic and not args.static and not args.hybrid:
         parser.print_help()
-        print('\nError: must choose one of the three file types')
+        print('\nError: must choose one of the four file types')
         sys.exit(1)
 
     if args.dbdump:
@@ -493,7 +594,16 @@ if __name__ == "__main__":
         print('\nError: dbdump and dynamic not supported yet')
         sys.exit(1)
 
-    if args.dynamic:
+    if args.hybrid:
+        processHybrid(args.hybrid)
+        parseItD(args.fname, args.hybrid)
+        if DEBUG:
+            for ele in SDKS:
+                print('SDK: ',ele)
+        assert SDKS == []
+        makeDotAggregate()
+
+    elif args.dynamic:
         parseItD(args.fname)
         if DEBUG:
             for ele in SDKS:
