@@ -53,4 +53,11 @@ DEND=`date -u "+%Y-%m-%dT%H:%M:%S"` #utc
 aws --profile ${PROF} xray get-trace-summaries --start-time ${DSTART} --end-time ${DEND}  > ${TMPFILE}
 TIDS=`python getEleFromJson.py TraceSummaries:Id ${TMPFILE} --multiple`
 echo ${TIDS}
-aws --profile cjk1 xray batch-get-traces --trace-ids ${TIDS} > ${APP1}B_${RANDOM}.xray
+
+for TID in ${TIDS}  #one per trace ID, only request it if we dont yet have it
+do
+    FNAME=${APP1}B_${TID}.xray
+    if [ ! -f ${FNAME} ]; then
+        aws --profile ${PROF} xray batch-get-traces --trace-ids ${TID} > ${FNAME}
+    fi
+done
