@@ -382,83 +382,97 @@ def processRecord(reqID,pl,ts,dynamic=False,fxray=None):
 
 ##################### processHybrid  #######################
 def processHybrid (fname):
-    with open(fname,'r') as f:
-        json_dict = json.load(f)
-    traces = json_dict['Traces']
-    for trace in traces:
-        segs = trace['Segments']
-        for seg in segs:
-            doc_dict = json.loads(seg['Document'])
-            name = doc_dict['name']
-            myid = seg['Id']
-            if 'trace_id' in doc_dict:
-                trid = doc_dict['trace_id']
-            print()
-            #print(myid,doc_dict)
-            start = doc_dict['start_time']
-            end = doc_dict['end_time']
-            if 'aws' in doc_dict:
-                aws = doc_dict['aws']
-                tname = op = reg = pl = 'unknown'
-                if 'operation' in aws:
-                    op = aws['operation']
-                origin = doc_dict['origin']
-                #if origin == 'AWS::DynamoDB::Table':  #just a repeat of what we get in the subsegments
-                    #if 'table_name' in aws:
-                        #tname = aws['table_name']
-                    #if 'region' in aws:
-                        #reg = aws['region']
-                    #key=keyname='unknown'
-                    #if 'gr_payload' in aws:
-                        #pl = aws['gr_payload']
-                        #idx = pl.find(':Item:{')
-                        #if idx != -1:
-                            #idx2 = pl.find(':',idx+7)
-                            #keyname = pl[idx+7:idx2].strip('"\' ')
-                            #idx = pl.find(',',idx2+1)
-                            #key = pl[idx2+1:idx].strip('"\' ')
-                    #print('{} DDB:{}:{}:{}:{}:{}:{}:{}'.format(myid,tname,reg,op,keyname,key,start,end))
-                if origin == 'AWS::Lambda':
-                    print('{} LAMBDA:{}:{}:{}:{}'.format(myid,doc_dict['resource_arn'],aws['request_id'],start,end))
-                else:
-                    if 'function_arn' in aws:
-                        print('{} FN:{}:{}:{}'.format(myid,aws['function_arn'],start,end))
-                    #else:
-                        #print('{} other_{}:{}:{}:{}'.format(myid,name,origin,start,end))
-                print('\ttrid: {}'.format(trid))
-                if 'subsegments' in doc_dict:
-                    for subs in doc_dict['subsegments']:
-                        subid = subs['id']
-                        if 'aws' in subs:
-                            #print('\t{}:{}:{}:{}:{}'.format(subs['name'],subs['aws']['operation'],subs['aws']['region'],subs['start_time'],subs['end_time']))
-                            aws = subs['aws']
-                            trid=myid=tname=op=reg='unknown'
-                            if 'trace_id' in aws:
-                                trid = aws['trace_id']
-                            if 'operation' in aws:
-                                op = aws['operation']
-                            if 'table_name' in aws:
-                                tname = aws['table_name']
-                            if 'region' in aws:
-                                reg = aws['region']
-                            key=keyname='unknown'
-                            if 'gr_payload' in aws:
-                                pl = aws['gr_payload']
-                                idx = pl.find(':Item:{')
-                                if idx != -1:
-                                    idx2 = pl.find(':',idx+7)
-                                    keyname = pl[idx+7:idx2].strip('"\' ')
-                                    idx = pl.find(',',idx2+1)
-                                    key = pl[idx2+1:idx].strip('"\' ')
-                            print('\t{} DDB:{}:{}:{}:{}:{}:{}:{}'.format(subid,tname,reg,op,keyname,key,subs['start_time'],subs['end_time']))
-                            if trid != 'unknown':
-                                print('\ttrid: {}'.format(trid))
+    flist = []
+    #get the json from the files
+    if os.path.isfile(fname):
+        flist.append(fname)
+    else:
+        for file in os.listdir(fname):
+            fn = os.path.join(path, file)
+            if os.path.isfile(fn) and fn.endswith('.xray'):
+                flist.append(fn)
 
+    for fname in flist:
+        print('processing xray file {}'.format(fname))
+        with open(fname,'r') as f:
+            json_dict = json.load(f)
+
+        traces = json_dict['Traces']
+        for trace in traces:
+            segs = trace['Segments']
+            for seg in segs:
+                doc_dict = json.loads(seg['Document'])
+                name = doc_dict['name']
+                myid = seg['Id']
+                if 'trace_id' in doc_dict:
+                    trid = doc_dict['trace_id']
+                print()
+                #print(myid,doc_dict)
+                start = doc_dict['start_time']
+                end = doc_dict['end_time']
+                if 'aws' in doc_dict:
+                    aws = doc_dict['aws']
+                    tname = op = reg = pl = 'unknown'
+                    if 'operation' in aws:
+                        op = aws['operation']
+                    origin = doc_dict['origin']
+                    #if origin == 'AWS::DynamoDB::Table':  #just a repeat of what we get in the subsegments
+                    if origin == 'AWS::Lambda':
+                        print('{} LAMBDA:{}:{}:{}:{}'.format(myid,doc_dict['resource_arn'],aws['request_id'],start,end))
+                        print('\ttrid: {}'.format(trid))
+                    else:
+                        if 'function_arn' in aws:
+                            print('{} FN:{}:{}:{}'.format(myid,aws['function_arn'],start,end))
+                            print('\ttrid: {}'.format(trid))
                         else:
-                            print('\t{} UNKNOWN:{}:{}:{}'.format(subid,subs['name'],subs['start_time'],subs['end_time']))
-            else:
-                print('other: {}:{}:{}'.format(name,doc_dict['start_time'],doc_dict['end_time']))
-                
+                            pass #can skip this as data is repeated
+                            #if name != 'DynamoDB': #data is repeated here
+                                #print('{} other_{}:{}:{}:{}'.format(myid,name,origin,start,end))
+                                #print(doc_dict)
+    
+                    if 'subsegments' in doc_dict:
+                        for subs in doc_dict['subsegments']:
+                            subid = subs['id']
+                            name = subs['name']
+                            if 'aws' in subs:
+                                #print('\t{}:{}:{}:{}:{}'.format(subs['name'],subs['aws']['operation'],subs['aws']['region'],subs['start_time'],subs['end_time']))
+                                aws = subs['aws']
+                                trid=myid=tname=op=reg='unknown'
+                                if 'trace_id' in aws:
+                                    trid = aws['trace_id']
+                                if 'operation' in aws:
+                                    op = aws['operation']
+                                if 'table_name' in aws:
+                                    tname = aws['table_name']
+                                if 'region' in aws:
+                                    reg = aws['region']
+                                key=keyname='unknown'
+                                if 'gr_payload' in aws:
+                                    pl = aws['gr_payload']
+                                    idx = pl.find(':Item:{')
+                                    if idx != -1:
+                                        idx2 = pl.find(':',idx+7)
+                                        keyname = pl[idx+7:idx2].strip('"\' ')
+                                        idx = pl.find(',',idx2+1)
+                                        key = pl[idx2+1:idx].strip('"\' ')
+                                print('\t{} {}:{}:{}:{}:{}:{}:{}:{}'.format(subid,name,op,reg,tname,keyname,key,subs['start_time'],subs['end_time']))
+                                if trid != 'unknown':
+                                    print('\ttrid: {}'.format(trid))
+    
+                            else:
+                                if name == 'requests':
+                                    assert 'http' in subs
+                                    http = subs['http']
+                                    url = http['request']['url'][7:] #trim off the http:// chars
+                                    op = http['request']['method']
+                                    status = http['response']['status']
+                                    print('\t{} {}:{}:{}:{}:{}:{}'.format(subid,name,op,url,status,subs['start_time'],subs['end_time']))
+                                else:
+                                    print('\t{} UNKNOWN:{}:{}:{}'.format(subid,name,subs['start_time'],subs['end_time']))
+                else:
+                    pass #can skip this as they are repeats
+                    #print('{} other: {}:{}:{}'.format(myid,name,doc_dict['start_time'],doc_dict['end_time']))
+                    
     print('DONE')
             
    
@@ -581,7 +595,7 @@ if __name__ == "__main__":
     parser.add_argument('--dbdump',action='store_true',default=False,help='file is in json dynamodump format')
     parser.add_argument('--dynamic',action='store_true',default=False,help='file is in json streamD format')
     parser.add_argument('--static',action='store_true',default=False,help='file is in json streamS format')
-    parser.add_argument('--hybrid',action='store',default=None,help='file output from xray get_batch_traces')
+    parser.add_argument('--hybrid',action='store',default=None,help='directory or file containing output from xray get_batch_traces -- file names must end in .xray')
     args = parser.parse_args()
 
     if not args.dbdump and not args.dynamic and not args.static and not args.hybrid:
@@ -595,6 +609,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if args.hybrid:
+        if not os.path.isfile(args.hybrid) and not os.path.isdir(args.hybrid): 
+            parser.print_help()
+            print('\nError: hybrid argument must be a file or a directory containing files ending in .xray')
+            sys.exit(1)
+
         processHybrid(args.hybrid)
         parseItD(args.fname, args.hybrid)
         if DEBUG:
@@ -617,3 +636,7 @@ if __name__ == "__main__":
         makeDotAggregate()
         
 
+#hybrid
+#origin AWS:Lambda (LAMBDA) has same trace_id as AWS:Lambda:function (function_arn) in invocation
+#AWS:Lambda entry holds the requestID to which db entries are linked
+#all others are linked via subsegments
