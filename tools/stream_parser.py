@@ -381,7 +381,7 @@ def processRecord(reqID,pl,ts,dynamic=False,fxray=None):
     assert True #we shouldn't be here
 
 ##################### processHybrid  #######################
-def processHybrid (fname):
+def processHybrid(fname):
     flist = []
     #get the json from the files
     if os.path.isfile(fname):
@@ -418,6 +418,7 @@ def processHybrid (fname):
                     origin = doc_dict['origin']
                     #if origin == 'AWS::DynamoDB::Table':  #just a repeat of what we get in the subsegments
                     if origin == 'AWS::Lambda':
+                        print(doc_dict)
                         print('{} LAMBDA:{}:{}:{}:{}'.format(myid,doc_dict['resource_arn'],aws['request_id'],start,end))
                         print('\ttrid: {}'.format(trid))
                     else:
@@ -450,11 +451,24 @@ def processHybrid (fname):
                                 if 'gr_payload' in aws:
                                     pl = aws['gr_payload']
                                     idx = pl.find(':Item:{')
+                                    idx3 = pl.find(':FunctionName:')
                                     if idx != -1:
                                         idx2 = pl.find(':',idx+7)
                                         keyname = pl[idx+7:idx2].strip('"\' ')
                                         idx = pl.find(',',idx2+1)
                                         key = pl[idx2+1:idx].strip('"\' ')
+                                    elif idx3 != -1:
+                                        #payload:arn:aws:lambda:us-west-2:443592014519:function:FnInvokerPyB:FunctionName:arn:aws:lambda:us-west-2:443592014519:function:DBModPyB:InvocationType:Event:Payload
+                                        idx = pl.find(':',idx3+29)
+                                        reg = pl[idx3+29:idx]
+                                        idx = pl.find(':function:')
+                                        idx2 = pl.find(':',idx+10)
+                                        tname = pl[idx+10:idx2]
+                                        idx = pl.find(':InvocationType:')
+                                        idx2 = pl.find(':',idx+16)
+                                        keyname= pl[idx+15:idx2] #Event (Async) or RequestResponse (Sync)
+                                    
+                                print(doc_dict)
                                 print('\t{} {}:{}:{}:{}:{}:{}:{}:{}'.format(subid,name,op,reg,tname,keyname,key,subs['start_time'],subs['end_time']))
                                 if trid != 'unknown':
                                     print('\ttrid: {}'.format(trid))
