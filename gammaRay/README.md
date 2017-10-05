@@ -85,14 +85,16 @@ export COUNT=1
 #process the stream data (happens offline in the background by a cloud platform service) but you can run it directly after running the app
 export APP1=imageproc
 cd ${PREFIX}/tools 
-./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
+rm -f demo; mkdir demo
+./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE} ./demo
+mkdir backup
+cp imageProcDemoB_*.xray demo/
+cp imageprocD.stream demo/
 
 cd ${LOCALLIBDIR}  
 source venv/bin/activate
 cd ${PREFIX}/tools
-mkdir backup
-cp *.xray backup
-python stream_parser.py streamD.new --hybrid backup
+python stream_parser.py backup/imageprocD.stream --hybrid backup
 deactivate
 ```
 
