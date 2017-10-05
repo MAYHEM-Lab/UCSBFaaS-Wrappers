@@ -33,25 +33,26 @@ pip install 'fleece==0.13.0' --force-reinstall
 pip install 'boto3==1.4.7' --force-reinstall #used by apps/map-reduce/driver.py
 pip install graphviz
 deactivate
-
-#clean out/refresh the database table that GammaRay uses
-aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
-#wait 1 minute then recreate it:
-aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 ```
 
 * Setup your environment each time
 ```
 cd UCSBFaaS-Wrappers
 source GammaRay.env  
+
+#[Optional] clean out/refresh the database table that GammaRay uses
+aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
+#wait 30 seconds then recreate it:
+aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
 ```
 
 * Create (or update) the lambdas
 ```
 cd ${LOCALLIBDIR}  #this should be gammaRays directory for most 
 source venv/bin/activate
+#deploy the lambdas (2 of them) in the first region
 python setupApps.py -f ./imageProc.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName ${GAMMATABLE} --spotFnsTableRegion ${REG} --gammaRay --turn_on_tracing
-
+#and the 3rd lambda in the second region
 python setupApps.py -f ./imageProcEast.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName ${GAMMATABLE} --spotFnsTableRegion ${REG} --gammaRay --turn_on_tracing
 deactivate
 ```
@@ -71,12 +72,14 @@ export EASTSYNC_FUNCTION_NAME_PREFIX=UpdateWebsite
 ./make_imgproc_tables.sh ${EASTSYNC_TRIGGER_TABLE_PREFIX} ${EASTSYNC_FUNCTION_NAME_PREFIX} ${AWSPROFILE} ${XREG} ${PREFIX}
 
 #Next, upload a jpg image (any picture of something) to the $SPOTBKTWEST bucket in AWS S3 in a folder called imgProc with a file name d1.jpg
+aws --profile ${AWSPROFILE} s3 cp d1.jpg s3://${SPOTBKTWEST}/imgProc/
 ```
 
 * Run the app and gather the data
 ```
 cd ${PREFIX}/tools/timings
 deactivate
+export COUNT=1
 ./imageProc.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${XREG} ${SPOTBKTWEST} ${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} #IMG_DBSYNC_TRIGGER_TABLE_PREFIX without suffix
 
 #process the stream data (happens offline in the background by a cloud platform service) but you can run it directly after running the app

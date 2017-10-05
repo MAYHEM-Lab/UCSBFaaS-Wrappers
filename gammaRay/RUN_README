@@ -1,40 +1,6 @@
-git pull
-export PREFIX=/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers
-
-#update the following with your aws account details
-#role with admin rights
-export ACCT=443592014519
-export ROLE=adminlambda
-export AWSRole=arn:aws:iam::${ACCT}:role/${ROLE}
-export AWSROLE=arn:aws:iam::${ACCT}:role/${ROLE}
-export AWSPROFILE=cjk1
-export REG=us-west-2
-export XREG=us-east-1
-export FLEECEDIR=${PREFIX}/fleece0.13.0
-export FLEECE=${FLEECEDIR}/venv/lib/python3.6/site-packages/fleece
-export BFLEECEDIR=${PREFIX}/fleece0.13.0lite
-export BFLEECE=${BFLEECEDIR}/venv/lib/python3.6/site-packages/fleece
-export BOTOCOREDIR=${PREFIX}/boto144
-export BOTOCORE=${BOTOCOREDIR}/venv/lib/python3.6/site-packages/botocore
-export LOCALLIBDIR=${PREFIX}/gammaRay
-export LOCALLIBS=${LOCALLIBDIR}/venv/lib/python3.6/site-packages
-export MRDIR=${PREFIX}/gammaRay/apps/map-reduce #directory containing [1-COUNT]/[CDSBTF]/MRASYNC/
-export CWDIR=${PREFIX}/tools/cloudwatch #directory containing [1-COUNT]/APIS/*.log
-
-export BDBENCH=cjk-gammaray-bdbenchmark
-export SPOTTABLE=spotFns
-export GAMMATABLE=gammaRays
-export SPOTBKTWEST=cjktestbkt
-export SPOTBKTEAST=cjktestbkteast
-
-#s3 bucket and dynamodb table used by apis
-export APITESTBKT=cjk-apitest-bucket
-export APITESTTABLE=noTriggerTestTable
-
-#others explained below
-export END=100
-export COUNT=10
-export JOBID=job8000 
+First: setup your environment
+#fix up ../GammaRay.env (from ../GammaRay.env.template) with your env var names
+source ../GammaRay.env
 
 #CLEAN_DB
 #to start fresh delete them first
@@ -240,12 +206,12 @@ python setupApps.py -f configs/configT.json -p ${AWSPROFILE} --no_spotwrap --tur
 python setupApps.py -f configs/configEastT.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing
 python setupApps.py -f configs/configF.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing --with_fleece
 python setupApps.py -f configs/configEastF.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing --with_fleece
-python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion ${REG}
-python setupApps.py -f configs/configEastS.json -p ${AWSPROFILE} --spotFnsTableName spotFns --spotFnsTableRegion ${REG}
-python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay
-python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay
-python setupApps.py -f configs/configB.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay --turn_on_tracing
-python setupApps.py -f configs/configEastB.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName gammaRays --spotFnsTableRegion ${REG} --gammaRay --turn_on_tracing
+python setupApps.py -f configs/configS.json -p ${AWSPROFILE} --spotFnsTableName ${SPOTTABLE} --spotFnsTableRegion ${REG}
+python setupApps.py -f configs/configEastS.json -p ${AWSPROFILE} --spotFnsTableName ${SPOTTABLE} --spotFnsTableRegion ${REG}
+python setupApps.py -f configs/configD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName ${GAMMATABLE} --spotFnsTableRegion ${REG} --gammaRay
+python setupApps.py -f configs/configEastD.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName ${GAMMATABLE} --spotFnsTableRegion ${REG} --gammaRay
+python setupApps.py -f configs/configB.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName ${GAMMATABLE} --spotFnsTableRegion ${REG} --gammaRay --turn_on_tracing
+python setupApps.py -f configs/configEastB.json -p ${AWSPROFILE} --no_spotwrap --spotFnsTableName ${GAMMATABLE} --spotFnsTableRegion ${REG} --gammaRay --turn_on_tracing
 deactivate
 
 ############# setup the apps #################
@@ -316,7 +282,7 @@ called imgProc with a file name d1.jpg.  (${SPOTBKTWEST}/imgProc/d1.jpg) (update
 If you change the name or folder, then change this in tools/timings/imgProc.sh which runs the jobs.
 We pass this into ImageProcPy apps as input, the image is processed with rekognition in AWS to generate labels.
 
-5) test that there are 5 functions triggered (look at Xray and Cloudwatch logs): ImageProcPyF,DBSyncPyF,UpdateWebsiteF in ${XREG} region
+5) test that there are 3 functions triggered (look at Xray and Cloudwatch logs): ImageProcPyF and DBSyncPyF in region ${REG} and UpdateWebsiteF in ${XREG} region
 #change the suffix on ImageProcPy and after ${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} to change the config from F
 aws lambda invoke --invocation-type Event --function-name ImageProcPyF --region ${REG} --profile ${AWSPROFILE} --payload "{\"eventSource\":\"ext:invokeCLI\",\"name\":\"${SPOTBKTWEST}\",\"key\":\"imgProc/d1.jpg\",\"tableName\":\"${IMG_DBSYNC_TRIGGER_TABLE_PREFIX}F\"}" outputfile
 #You should see successful execution of: ImageProcPyF(in west)->DBSyncPyF(in west)->UpdateWebsiteF(in east)
@@ -370,7 +336,7 @@ deactivate
 export APP1=mr
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
 ./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
-	#output files are in dynamodb/dump.${APP1}, cloudwatch/[1-$COUNT]/APP/MRASYNC/[CSTFD]/*.log
+	#output files are in dynamodb/dump.${APP1} (if uncommented in script), cloudwatch/[1-$COUNT]/APP/MRASYNC/[CSTFD]/*.log
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
 #wait 1 min then recreate them:
@@ -387,7 +353,7 @@ deactivate
 export APP1=webapp
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
 ./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
-	#output files are in dynamodb/dump.${APP1}, cloudwatch/[1-$COUNT]/APP/WEBAPP/[CSTFD]/*.log
+	#output files are in dynamodb/dump.${APP1} (if uncommented in script), cloudwatch/[1-$COUNT]/APP/WEBAPP/[CSTFD]/*.log
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
 #wait 1 min then recreate them:
@@ -404,7 +370,7 @@ deactivate
 export APP1=imageproc
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
 ./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
-	#output files are in dynamodb/dump.${APP1}, cloudwatch/[1-$COUNT]/APP/IMGPROC/[CSTFD]/*.log
+	#output files are in dynamodb/dump.${APP1} (if uncommented in script), cloudwatch/[1-$COUNT]/APP/IMGPROC/[CSTFD]/*.log
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
 #wait 1 mins then recreate them:
@@ -444,7 +410,8 @@ deactivate
 export APP1=mrsync
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
 ./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
-	#output files are in dynamodb/dump.${APP1}, cloudwatch/[1-$COUNT]/APP/MRSYNC/[CSTFD]/*.log
+	#output files are in dynamodb/dump.${APP1} (if uncommented in script), cloudwatch/[1-$COUNT]/APP/MRSYNC/[CSTFD]/*.log
+	#and in the local directory (${PREFIX}/tools/*.xray)
 #clean out the tables (do it this way as it the tables from MR jobs are big)
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
