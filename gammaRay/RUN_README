@@ -493,7 +493,8 @@ cd ${PREFIX}/tools
 #for ${APP1}B_28009.xray pass in the most recently dated one (all are kept currently and _###.
 #are just random numbers to keep them separate and around for later use
 python stream_parser.py streamD.new --dynamic #for D
-python stream_parser.py streamD.new --hybrid xray_dir #for B 
+python stream_parser.py streamD.new --hybrid ${APP1}B_28009.xray #for B 
+python stream_parser.py streamD.new --hybrid dir_containing_multiple_xray_files/ #for B 
 python stream_parser.py streamS.new --static #for S
 deactivate
 
