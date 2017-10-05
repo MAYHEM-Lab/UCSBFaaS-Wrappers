@@ -52,7 +52,7 @@ DSTART=`date "+%Y-%m-%dT%H:%M:%S"` #not utc so 7 hours earlier
 DEND=`date -u "+%Y-%m-%dT%H:%M:%S"` #utc
 aws --profile ${PROF} xray get-trace-summaries --start-time ${DSTART} --end-time ${DEND}  > ${TMPFILE}
 TIDS=`python getEleFromJson.py TraceSummaries:Id ${TMPFILE} --multiple`
-echo ${TIDS}
+#echo ${TIDS}
 
 for TID in ${TIDS}  #one per trace ID, only request it if we dont yet have it
 do
@@ -61,3 +61,4 @@ do
         aws --profile ${PROF} xray batch-get-traces --trace-ids ${TID} > ${FNAME}
     fi
 done
+rm -f ${TMPFILE}

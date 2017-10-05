@@ -1,5 +1,5 @@
 --- client.py	2017-09-06 14:27:32.000000000 -0700
-+++ client.py.new	2017-09-12 17:06:18.000000000 -0700
++++ client.py.new	2017-10-05 13:22:01.000000000 -0700
 @@ -12,6 +12,7 @@
  # language governing permissions and limitations under the License.
  import logging
@@ -28,7 +28,7 @@
  class ClientCreator(object):
      """Creates client objects for a service."""
      def __init__(self, loader, endpoint_resolver, user_agent, event_emitter,
-@@ -300,14 +312,72 @@
+@@ -300,14 +312,73 @@
      def _create_api_method(self, py_operation_name, operation_name,
                             service_model):
          def _api_call(self, *args, **kwargs):
@@ -79,15 +79,16 @@
 +                    'payload': payload,
 +                    }
 +                )
++                ts = time.time() * 1000 #msecs - reset for duration timing below
              # The "self" in this scope is referring to the BaseClient.
 -            return self._make_api_call(operation_name, kwargs)
 +            retn = self._make_api_call(operation_name, kwargs)
 +
 +            #GammaRay
 +            if not(reqID == 'unknown' or (operation_name == 'PutItem' and kwargs['TableName'] == tname)):
++                tsend = time.time() * 1000 #msecs
 +                tail = '{}'.format(str(uuid.uuid4())[:8])
 +                reqID = '{}:{}'.format(os.environ['spotReqID'],tail)
-+                tsend = time.time() * 1000 #msecs
 +                tsint = int(round(tsend))
 +                diff = tsend-ts
 +                DDBTABLE.put_item( Item={

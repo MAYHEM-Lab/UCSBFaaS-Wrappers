@@ -12,7 +12,7 @@ SEQ='seqNo'
 DUR='dur'
 CHILDREN='children'
 
-DEBUG = True
+DEBUG = False
 REQS = {}
 SUBREQS = {} #for functions triggered (in/)directly by other functions
 TRIGGERS = {}
@@ -387,13 +387,15 @@ def processHybrid(fname):
     if os.path.isfile(fname):
         flist.append(fname)
     else:
+        path = os.path.abspath(fname)
         for file in os.listdir(fname):
             fn = os.path.join(path, file)
             if os.path.isfile(fn) and fn.endswith('.xray'):
                 flist.append(fn)
 
     for fname in flist:
-        print('processing xray file {}'.format(fname))
+        if DEBUG:
+            print('processing xray file {}'.format(fname))
         with open(fname,'r') as f:
             json_dict = json.load(f)
 
@@ -406,7 +408,6 @@ def processHybrid(fname):
                 myid = seg['Id']
                 if 'trace_id' in doc_dict:
                     trid = doc_dict['trace_id']
-                print()
                 #print(myid,doc_dict)
                 start = doc_dict['start_time']
                 end = doc_dict['end_time']
@@ -417,8 +418,7 @@ def processHybrid(fname):
                         op = aws['operation']
                     origin = doc_dict['origin']
                     #if origin == 'AWS::DynamoDB::Table':  #just a repeat of what we get in the subsegments
-                    if origin == 'AWS::Lambda':
-                        print(doc_dict)
+                    if origin == 'AWS::Lambda' and 'resource_arn' in doc_dict:
                         print('{} LAMBDA:{}:{}:{}:{}'.format(myid,doc_dict['resource_arn'],aws['request_id'],start,end))
                         print('\ttrid: {}'.format(trid))
                     else:
@@ -439,6 +439,8 @@ def processHybrid(fname):
                                 #print('\t{}:{}:{}:{}:{}'.format(subs['name'],subs['aws']['operation'],subs['aws']['region'],subs['start_time'],subs['end_time']))
                                 aws = subs['aws']
                                 trid=myid=tname=op=reg='unknown'
+                                if 'function_arn' in aws:
+                                    fn = aws['function_arn']
                                 if 'trace_id' in aws:
                                     trid = aws['trace_id']
                                 if 'operation' in aws:
@@ -454,24 +456,43 @@ def processHybrid(fname):
                                     idx3 = pl.find(':FunctionName:')
                                     if idx != -1:
                                         idx2 = pl.find(':',idx+7)
-                                        keyname = pl[idx+7:idx2].strip('"\' ')
+                                        keyname = pl[idx+7:idx2].strip('"\' ') #DDB keyname
                                         idx = pl.find(',',idx2+1)
-                                        key = pl[idx2+1:idx].strip('"\' ')
+                                        key = pl[idx2+1:idx].strip('"\' ') #DDB key
                                     elif idx3 != -1:
                                         #payload:arn:aws:lambda:us-west-2:443592014519:function:FnInvokerPyB:FunctionName:arn:aws:lambda:us-west-2:443592014519:function:DBModPyB:InvocationType:Event:Payload
                                         idx = pl.find(':',idx3+29)
                                         reg = pl[idx3+29:idx]
-                                        idx = pl.find(':function:')
+                                        idx = pl.find(':function:',idx3+29)
                                         idx2 = pl.find(':',idx+10)
-                                        tname = pl[idx+10:idx2]
+                                        tname = pl[idx+10:idx2] #function name
                                         idx = pl.find(':InvocationType:')
                                         idx2 = pl.find(':',idx+16)
-                                        keyname= pl[idx+15:idx2] #Event (Async) or RequestResponse (Sync)
-                                    
-                                print(doc_dict)
+                                        keyname= pl[idx+16:idx2] #Event (Async) or RequestResponse (Sync)
+                                        key = aws['request_id'] #request ID of invoke call
+                                    elif ':TopicArn:arn:aws:sns:' in pl:
+                                        idx = pl.find(':TopicArn:arn:aws:sns:')
+                                        pl_str = pl[idx+22:].split(':')
+                                        reg = pl_str[0]
+                                        tname = pl_str[2]#topicARN
+                                        keyname = pl_str[4] #Subject
+                                        idx = pl.find(':Message:') 
+                                        key = pl[idx+9:idx+39] #first 30 chars after Message:
+                                    elif ':Bucket:' in pl:
+                                        idx = pl.find(':Bucket:')
+                                        pl_str = pl[idx+8:].split(':')
+                                        tname = pl_str[0] #bucket name
+                                        keyname = pl_str[2] #keyname
+                                    else:
+                                        print('Unhandled GammaRay payload: {}'.format(doc_dict))
+                                        assert True
+                                if name == 'Initialization':
+                                    assert tname == 'unknown' and 'function_arn' in aws
+                                    idx = fn.find(':',15)
+                                    reg = fn[15:idx] #function's region
+                                    idx = fn.find(':function:')
+                                    tname = fn[idx+10:] #function name
                                 print('\t{} {}:{}:{}:{}:{}:{}:{}:{}'.format(subid,name,op,reg,tname,keyname,key,subs['start_time'],subs['end_time']))
-                                if trid != 'unknown':
-                                    print('\ttrid: {}'.format(trid))
     
                             else:
                                 if name == 'requests':
@@ -485,7 +506,7 @@ def processHybrid(fname):
                                     print('\t{} UNKNOWN:{}:{}:{}'.format(subid,name,subs['start_time'],subs['end_time']))
                 else:
                     pass #can skip this as they are repeats
-                    #print('{} other: {}:{}:{}'.format(myid,name,doc_dict['start_time'],doc_dict['end_time']))
+                    #print(doc_dict)
                     
     print('DONE')
             

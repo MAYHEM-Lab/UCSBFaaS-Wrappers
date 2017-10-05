@@ -232,6 +232,8 @@ python setupApps.py -f configs/configB.json -p ${AWSPROFILE} --deleteAll
 python setupApps.py -f configs/configEastB.json -p ${AWSPROFILE} --deleteAll
 
 #Make the lambdas and/or update their code, its fine to rerun these repeatedly (no harm to it) 
+#if you need to change the tracing setting on an existing lambda, do it via the console or
+#first delete (above) and then run this (rerun trigger setup below also if you delete)
 python setupApps.py -f configs/configC.json -p ${AWSPROFILE} --no_spotwrap 
 python setupApps.py -f configs/configEastC.json -p ${AWSPROFILE} --no_spotwrap 
 python setupApps.py -f configs/configT.json -p ${AWSPROFILE} --no_spotwrap --turn_on_tracing
@@ -491,7 +493,7 @@ cd ${PREFIX}/tools
 #for ${APP1}B_28009.xray pass in the most recently dated one (all are kept currently and _###.
 #are just random numbers to keep them separate and around for later use
 python stream_parser.py streamD.new --dynamic #for D
-python stream_parser.py streamD.new --hybrid ${APP1}B_28009.xray #for B 
+python stream_parser.py streamD.new --hybrid xray_dir #for B 
 python stream_parser.py streamS.new --static #for S
 deactivate
 
@@ -562,6 +564,10 @@ python downloadLogs.py /aws/lambda/FunctionName 1401861965497 -p ${AWSPROFILE} -
 #to delete all logs
 python downloadLogs.py /aws/lambda/FunctionName 1401861965497 -p ${AWSPROFILE} --deleteOnly 
 deactivate
+
+
+3) Run a test that has a function that invokes another and posts via http:
+aws lambda invoke --invocation-type Event --region ${REG} --profile ${AWSPROFILE} --payload '{"eventSource":"ext:invokeCLI","functionName":"arn:aws:lambda:${REG}:${ACCT}:function:emptyB"}' --function-name FnInvokerPyB outputfile
 ======================
 CASES:
 C - nothing/clean

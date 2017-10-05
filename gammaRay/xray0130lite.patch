@@ -1,6 +1,6 @@
 --- xray.py	2017-09-08 08:33:44.000000000 -0700
-+++ xray.py.new	2017-09-10 11:37:16.000000000 -0700
-@@ -25,6 +25,12 @@
++++ xray.py.new	2017-10-05 13:17:03.000000000 -0700
+@@ -25,6 +25,13 @@
  
  from fleece import log
  
@@ -8,12 +8,13 @@
 +import boto3
 +TESTING = False
 +DDBTABLE = None
++SUBSEGS = []
 +GAMMATABLE = [ 'PutItem', 'UpdateItem', 'DeleteItem', 'BatchWriteItem', 'PutObject', 'DeleteObject', 'PostObject', 'Publish', 'Invoke' ]
 +
  LOGGER = log.get_logger('fleece.xray')
  
  XRAY_DAEMON_HEADER = {'format': 'json', 'version': 1}
-@@ -120,27 +126,68 @@
+@@ -120,20 +127,55 @@
  
  
  def send_segment_document_to_xray_daemon(segment_document):
@@ -24,17 +25,46 @@
          xray_daemon = get_xray_daemon()
      except XRayDaemonNotFoundError:
 -        LOGGER.error('X-Ray Daemon not running, skipping send')
--        return
--
 +        #LOGGER.error('X-Ray Daemon not running, skipping send')
 +        #return
 +        NoDaemon = True
 +
++    #GammaRay TODO: capture HTTP subsegments
++    if 'spotReqID' in os.environ and 'gr_payload' in segment_document:
++        if not DDBTABLE:
++            tname = 'gammaRays'
++            if 'gammaTable' in os.environ:
++                tname = os.environ['gammaTable']
++            if 'gammaRegion' in os.environ:
++                reg = os.environ['gammaRegion']
++            dynamodb = boto3.resource('dynamodb', region_name=reg)
++            DDBTABLE = dynamodb.Table(tname)
++        tail = '{}'.format(str(uuid.uuid4())[:8])
++        reqID = '{}:{}'.format(os.environ['spotReqID'],tail)
++        ts = time.time() * 1000 #msecs
++        seg = segment_document
++        seg.pop('in_progress',None)
++        tsint = int(round(ts))
++        DDBTABLE.put_item( Item={
++            'reqID': reqID,
++            'ts': tsint,
++            'payload': json.dumps(seg,ensure_ascii=False,cls=StringJSONEncoder)
++            }
++        )
++        seg = None
++        segment_document.pop('gr_payload', None)
++    #else: #useful for debugging if needed
++        #print('gr_payload or env not set: {}'.format(segment_document))
++
++    if NoDaemon:
+         return
+ 
 +    doc=json.dumps(
 +       segment_document,
 +       ensure_ascii=False,
 +       cls=StringJSONEncoder,
 +    )
++
      message = u'{header}\n{document}'.format(
          header=json.dumps(XRAY_DAEMON_HEADER),
 -        document=json.dumps(
@@ -45,65 +75,24 @@
 +        document=doc
      )
  
--    send_data_on_udp(
--        ip_address=xray_daemon.ip_address,
--        port=xray_daemon.port,
--        data=message,
--    )
-+    #GammaRay
-+    if 'spotReqID' in os.environ and 'in_progress' not in segment_document:
-+        if ('aws' in segment_document and 'gr_payload' in segment_document['aws']) or 'http' in segment_document:
-+            if not ('aws' in segment_document and 'gr_payload' in segment_document['aws']):
-+                #dump the http entry to a string for recording 
-+                #(it is non-API request invocation and gr_payload 
-+                #in segment_document['aws'] only captures api calls)
-+                doc = json.dumps(
-+                    segment_document['http'],
-+                    ensure_ascii=False,
-+                    cls=StringJSONEncoder,
-+                 )
-+            else:
-+                if DDBTABLE is None:
-+                    tname = 'gammaRays'
-+                    if 'gammaTable' in os.environ:
-+                        tname = os.environ['gammaTable']
-+                    if 'gammaRegion' in os.environ:
-+                        reg = os.environ['gammaRegion']
-+                    dynamodb = boto3.resource('dynamodb', region_name=reg)
-+                    DDBTABLE = dynamodb.Table(tname)
-+                tail = '{}'.format(str(uuid.uuid4())[:8])
-+                reqID = '{}:{}'.format(os.environ['spotReqID'],tail)
-+                ts = time.time() * 1000 #msecs
-+                tsint = int(round(ts))
-+                DDBTABLE.put_item( Item={
-+                    'reqID': reqID,
-+                    'ts': tsint,
-+                    'payload': doc,
-+                    }
-+                )
-+
-+    if NoDaemon:
-+        return
-+
-+    if not ('PutItem' in message and 'gammaRays' in message):
-+        #print('UDP: {}'.format(doc))
-+        send_data_on_udp(
-+            ip_address=xray_daemon.ip_address,
-+            port=xray_daemon.port,
-+            data=message,
-+        )
- 
- 
- def send_subsegment_to_xray_daemon(subsegment_id, parent_id,
-@@ -236,7 +283,30 @@
+     send_data_on_udp(
+@@ -169,6 +211,7 @@
+     }
+     if end_time is None:
+         segment_document['in_progress'] = True
++        segment_document.update(extra_data) #added for GammaRay
+     else:
+         segment_document.update({
+             'end_time': end_time,
+@@ -236,7 +279,29 @@
          # Request not sampled by X-Ray, let's get to the call
          # immediately.
          LOGGER.debug('Request not sampled by X-Ray, skipping trace')
 -        return wrapped(*args, **kwargs)
-+        if TESTING or 'spotReqID' in os.environ:
-+            #SpotWrap version/run, skip gammaRays table write
++
++        if TESTING or 'spotReqID' in os.environ: #log all if GammaRay (even if not sampled)
 +            if args and len(args) > 1:
-+                if args[0] == 'PutItem': 
++                if args[0] == 'PutItem':  #skip GammaRay write to dynamodb for logging
 +                    obj = args[1]
 +                    tname = "unknown"
 +                    if 'gammaTable' in os.environ:
@@ -115,8 +104,7 @@
 +            return wrapped(*args, **kwargs)
 +    else: #sampled
 +        if TESTING or 'spotReqID' in os.environ:
-+            #SpotWrap version/run, skip gammaRays table write
-+            if args and len(args) > 1:
++            if args and len(args) > 1: #skip GammaRay write to dynamodb for logging
 +                if args[0] == 'PutItem': 
 +                    obj = args[1]
 +                    tname = "unknown"
@@ -127,17 +115,77 @@
  
      start_time = time.time()
      error = False
-@@ -363,6 +433,17 @@
+@@ -254,10 +319,50 @@
+     # Send partial subsegment to X-Ray, so that it'll know about the relations
+     # upfront (otherwise we'll lose data, since downstream subsegments will
+     # have invalid parent IDs).
++
++    #GammaRay -- populate extra_data and pass it to the function
++    extra_data = {}
++    if 'spotReqID' in os.environ and subsegment_id not in SUBSEGS:
++        SUBSEGS.append(subsegment_id) #store so we process this id only once (they do repeat), these are deleted later
++        gr_kw = kwargs
++        if len(kwargs) == 0 and len(args) == 2:  #fixup from extract_aws_metadata
++            gr_kw = args[1]
++        #Only create gr_payload if operation_name is in the list GAMMATABLE
++        operation_name = args[0]
++        if 'operation_name' in gr_kw:
++            operation_name = gr_kw['operation_name']
++
++        #handle lambda event source operations 
++        if operation_name in GAMMATABLE:
++            reqID = os.environ['spotReqID']
++            myArn = 'x:x:x:x:x:x:unknown' #6 tokens (colon delimited) to ensure Invokes work below
++            if 'myArn' in os.environ:
++                myArn = os.environ['myArn']
++            payload = 'pl:{}:{}:{}'.format(parent_id,subsegment_id,operation_name)
++            for k in gr_kw:
++                if k == 'Body' or k == 'msg' or k == 'Payload':
++                    continue
++                payload += ':{}:{}'.format(k,gr_kw[k])
++            extra_data['gr_payload']= payload
++
++            #insert this caller's reqID to the callee's payload for tracing
++            if operation_name == 'Invoke' and len(args) == 2 and 'Payload' in args[1]: #invoke call
++                js = json.loads(args[1]['Payload'])
++                sarn = myArn.split(":")
++                arn = sarn[6]
++                js['eventSource'] = 'lib:invokeCLI:{}:{}'.format(arn,reqID)
++                args[1]['Payload'] = json.dumps(js)
++
++        #handle HTTP requests also
++        elif hasattr(operation_name, 'method'):
++            payload = 'pl:{}:{}:HTTP:{}:{}'.format(parent_id,subsegment_id,operation_name.method,operation_name.url)
++            extra_data['gr_payload']= payload
++
+     send_subsegment_to_xray_daemon(
+         subsegment_id=subsegment_id,
+         parent_id=parent_id,
+         start_time=start_time,
++        extra_data=extra_data, #added for GammaRay
+     )
+     try:
+         return_value = wrapped(*args, **kwargs)
+@@ -298,6 +403,12 @@
+         # passed in as the `name` argument.
+         if callable(name):
+             name = name(wrapped, instance, args, kwargs)
++
++        #GammaRay
++        if 'spotReqID' in os.environ and subsegment_id in SUBSEGS:
++            #remove the subsegment (it is now done) to save memory
++            SUBSEGS.remove(subsegment_id)
++
+         send_subsegment_to_xray_daemon(
+             subsegment_id=subsegment_id,
+             parent_id=parent_id,
+@@ -363,6 +474,13 @@
          return instance._service_model.metadata['endpointPrefix']
      return instance._service_model.metadata['serviceAbbreviation']
  
 +#GammaRay
-+def fixup_kwargs(kwargs,arn,reqID,noPayload=False):
-+    if noPayload:
-+        js = {}
-+    else:
-+        js = json.loads(kwargs['Payload'])
-+
++def fixup_kwargs(kwargs,arn,reqID):
++    js = json.loads(kwargs['Payload'])
 +    sarn = arn.split(":")
 +    arn = sarn[6]
 +    js['eventSource'] = 'lib:invokeCLI:{}:{}'.format(arn,reqID)
@@ -145,7 +193,7 @@
  
  def extract_aws_metadata(wrapped, instance, args, kwargs, return_value):
      """Provide AWS metadata for improved visualization.
-@@ -377,6 +458,7 @@
+@@ -377,6 +495,7 @@
          kwargs=kwargs,
          response=response,
      )
@@ -153,7 +201,7 @@
      if 'operation_name' in kwargs:
          operation_name = kwargs['operation_name']
      else:
-@@ -388,7 +470,6 @@
+@@ -388,7 +507,6 @@
          kwargs = args[1]
  
      region_name = instance._client_config.region_name
@@ -161,32 +209,12 @@
      response_metadata = response.get('ResponseMetadata')
  
      metadata = {
-@@ -402,7 +483,27 @@
-         metadata['aws']['table_name'] = kwargs['TableName']
-     if 'QueueUrl' in kwargs:
-         metadata['aws']['queue_url'] = kwargs['QueueUrl']
+@@ -410,7 +528,7 @@
+             },
+         }
+         metadata['aws']['request_id'] = response_metadata['RequestId']
 -
-+    #GammaRay
-+    if 'spotReqID' in os.environ: #this will be set to 'unknown' if outside of lambda
-+        #Only create gr_payload if operation_name is in the list GAMMATABLE
-+        if operation_name in GAMMATABLE:
-+            reqID = os.environ['spotReqID']
-+            myArn = 'unknown'
-+            if 'myArn' in os.environ:
-+                myArn = os.environ['myArn']
-+            payload = 'payload:{}'.format(myArn)
-+            for k in kwargs:
-+                if k == 'Body':
-+                    continue
-+                payload += ':{}:{}'.format(k,kwargs[k])
-+            metadata['aws']['gr_payload']= payload
-+            #insert this caller's reqID to the callee's payload for tracing
-+            if 'Payload' in kwargs:
-+                if 'eventSource' in kwargs['Payload']:
-+                    fixup_kwargs(kwargs,myArn,reqID,True)
-+                else:
-+                    fixup_kwargs(kwargs,myArn,reqID,False)
 +    
-     if response_metadata is not None:
-         metadata['http'] = {
-             'response': {
+     return metadata
+ 
+ 
