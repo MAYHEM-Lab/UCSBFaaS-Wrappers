@@ -86,15 +86,12 @@ export COUNT=1
 export APP1=imageproc
 cd ${PREFIX}/tools 
 rm -f demo; mkdir demo
-./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE} ./demo
-mkdir backup
-cp imageProcDemoB_*.xray demo/
-cp imageprocD.stream demo/
+./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE} demo
 
 cd ${LOCALLIBDIR}  
 source venv/bin/activate
 cd ${PREFIX}/tools
-python stream_parser.py backup/imageprocD.stream --hybrid backup
+python stream_parser.py demo/imageprocD.stream --hybrid demo
 deactivate
 ```
 
