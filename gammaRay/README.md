@@ -91,7 +91,7 @@ rm -f demo; mkdir demo
 cd ${LOCALLIBDIR}  
 source venv/bin/activate
 cd ${PREFIX}/tools
-python stream_parser.py demo/imageprocD.stream --hybrid demo
+python stream_parser.py demo/imageprocD.new --hybrid demo
 deactivate
 ```
 
