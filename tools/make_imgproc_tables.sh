@@ -22,12 +22,16 @@ TOOLSDIR=${PREFIX}/tools
 SUFFIXES=( 
     C T F D S B \
 )
+#uncomment the following 3 lines to implement the demo
+#comment them out to run all of the options
+#SUFFIXES=( 
+    #B 
+#)
 cd ${GRDIR}
 . ./venv/bin/activate
 cd ${TOOLSDIR}
 
 TMPFILE=tmp_imp.out
-COUNT=10
 for suf in "${SUFFIXES[@]}"
 do
     TABLE=${TBL_PREF}${suf}
@@ -62,3 +66,4 @@ do
 
 done
 deactivate
+rm -f ${TMPFILE}
