@@ -85,7 +85,7 @@ export COUNT=1
 #process the stream data (happens offline in the background by a cloud platform service) but you can run it directly after running the app
 export APP1=imageproc
 cd ${PREFIX}/tools 
-rm -f demo; mkdir demo
+rm -rf demo; mkdir demo
 ./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE} demo
 
 cd ${LOCALLIBDIR}  
