@@ -1,9 +1,9 @@
 #! /bin/bash
-NUM_ARGS=6
+NUM_ARGS=7
 display_usage() { 
     echo "./get_table_and_stream.sh APPNAME PREFIX awsprofile region accountNo DTABLE STABLE"
     echo "If your GammaRay environment is set you can export APP1 as APPNAME and use"
-    echo "./get_table_and_stream.sh \${APP1} \${PREFIX} \${AWSPROFILE} \${REG} \${GAMMATABLE} \${SPOTTABLE}"
+    echo "./get_table_and_stream.sh \${APP1} \${PREFIX} \${AWSPROFILE} \${REG} \${GAMMATABLE} \${SPOTTABLE} output_dir"
 } 
 if [  $# -ne ${NUM_ARGS} ] 
 then 
@@ -16,6 +16,7 @@ PROF=$3
 REG=$4
 DTABLE=$5
 STABLE=$6
+OUT=$7
 GRDIR=${PREFIX}/gammaRay
 TOOLSDIR=${PREFIX}/tools
 
@@ -40,12 +41,15 @@ aws dynamodb describe-table --region ${REG} --table-name ${STABLE} --profile ${P
 SARN=`python getEleFromJson.py Table:LatestStreamArn ${TMPFILE}`
 rm -f ${TMPFILE}
 
+mkdir -p ${OUT}
 touch streamS.base streamD.base
 python get_stream_data.py ${SARN} -p ${PROF} > streamS.new
 python get_stream_data.py ${DARN} -p ${PROF} >  streamD.new
 diff -b -B streamS.base streamS.new | awk -F"> " '{print $2}' > ${APP1}S.stream
+cp ${APP1}S.stream ${OUT}
 cat ${APP1}S.stream >> streamS.base
 diff -b -B streamD.base streamD.new | awk -F"> " '{print $2}' > ${APP1}D.stream
+cp ${APP1}D.stream ${OUT}
 cat ${APP1}D.stream >> streamD.base
 
 DSTART=`date "+%Y-%m-%dT%H:%M:%S"` #not utc so 7 hours earlier
@@ -59,6 +63,7 @@ do
     FNAME=${APP1}B_${TID}.xray
     if [ ! -f ${FNAME} ]; then
         aws --profile ${PROF} xray batch-get-traces --trace-ids ${TID} > ${FNAME}
+        cp ${FNAME} ${OUT}
     fi
 done
 rm -f ${TMPFILE}
