@@ -20,13 +20,15 @@ OUT=$7
 GRDIR=${PREFIX}/gammaRay
 TOOLSDIR=${PREFIX}/tools
 
-cd ${TOOLSDIR}/dynamodb
-source venv2.7/bin/activate
-rm -rf dump dump.${APP1}
-python dynamodump.py -m backup -r ${REG} -p ${PROF} -s ${STABLE}
-python dynamodump.py -m backup -r ${REG} -p ${PROF} -s ${DTABLE}
-mv dump dump.${APP1}
-deactivate
+#uncomment all that follow to dump the full database
+#cd ${TOOLSDIR}/dynamodb
+#source venv2.7/bin/activate
+#rm -rf dump dump.${APP1}
+#python dynamodump.py -m backup -r ${REG} -p ${PROF} -s ${STABLE}
+#python dynamodump.py -m backup -r ${REG} -p ${PROF} -s ${DTABLE}
+#mv dump dump.${APP1}
+#deactivate
+
 cd ../timings
 ./cleanupDB.sh ${PROF} ${PREFIX}
 
