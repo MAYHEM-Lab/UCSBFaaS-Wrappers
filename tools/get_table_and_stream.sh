@@ -29,7 +29,7 @@ TOOLSDIR=${PREFIX}/tools
 #mv dump dump.${APP1}
 #deactivate
 
-cd ../timings
+cd ${TOOLSDIR}/timings
 ./cleanupDB.sh ${PROF} ${PREFIX}
 
 cd ${GRDIR}
@@ -48,10 +48,10 @@ touch streamS.base streamD.base
 python get_stream_data.py ${SARN} -p ${PROF} > streamS.new
 python get_stream_data.py ${DARN} -p ${PROF} >  streamD.new
 diff -b -B streamS.base streamS.new | awk -F"> " '{print $2}' > ${APP1}S.stream
-cp ${APP1}S.stream ${OUT}
+cp streamS.new ${OUT}/${APP1}S.new
 cat ${APP1}S.stream >> streamS.base
 diff -b -B streamD.base streamD.new | awk -F"> " '{print $2}' > ${APP1}D.stream
-cp ${APP1}D.stream ${OUT}
+cp streamD.new ${OUT}/${APP1}D.new
 cat ${APP1}D.stream >> streamD.base
 
 DSTART=`date "+%Y-%m-%dT%H:%M:%S"` #not utc so 7 hours earlier
