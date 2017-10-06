@@ -1,5 +1,5 @@
 --- xray.py	2017-09-08 08:33:44.000000000 -0700
-+++ xray.py.new	2017-10-05 13:17:03.000000000 -0700
++++ xray.py.new	2017-10-05 21:53:17.000000000 -0700
 @@ -25,6 +25,13 @@
  
  from fleece import log
@@ -29,7 +29,7 @@
 +        #return
 +        NoDaemon = True
 +
-+    #GammaRay TODO: capture HTTP subsegments
++    #GammaRay 
 +    if 'spotReqID' in os.environ and 'gr_payload' in segment_document:
 +        if not DDBTABLE:
 +            tname = 'gammaRays'
@@ -115,7 +115,7 @@
  
      start_time = time.time()
      error = False
-@@ -254,10 +319,50 @@
+@@ -254,10 +319,53 @@
      # Send partial subsegment to X-Ray, so that it'll know about the relations
      # upfront (otherwise we'll lose data, since downstream subsegments will
      # have invalid parent IDs).
@@ -131,6 +131,9 @@
 +        operation_name = args[0]
 +        if 'operation_name' in gr_kw:
 +            operation_name = gr_kw['operation_name']
++        region_name = os.environ['gammaRegion'] #will be there if spotReqID is
++        if hasattr(instance, '_client_config'):
++            region_name = instance._client_config.region_name
 +
 +        #handle lambda event source operations 
 +        if operation_name in GAMMATABLE:
@@ -138,7 +141,7 @@
 +            myArn = 'x:x:x:x:x:x:unknown' #6 tokens (colon delimited) to ensure Invokes work below
 +            if 'myArn' in os.environ:
 +                myArn = os.environ['myArn']
-+            payload = 'pl:{}:{}:{}'.format(parent_id,subsegment_id,operation_name)
++            payload = 'pl:{}:{}'.format(operation_name,region_name)
 +            for k in gr_kw:
 +                if k == 'Body' or k == 'msg' or k == 'Payload':
 +                    continue
@@ -155,7 +158,7 @@
 +
 +        #handle HTTP requests also
 +        elif hasattr(operation_name, 'method'):
-+            payload = 'pl:{}:{}:HTTP:{}:{}'.format(parent_id,subsegment_id,operation_name.method,operation_name.url)
++            payload = 'pl:HTTP:{}:{}:{}'.format(region_name,operation_name.method,operation_name.url)
 +            extra_data['gr_payload']= payload
 +
      send_subsegment_to_xray_daemon(
@@ -166,7 +169,7 @@
      )
      try:
          return_value = wrapped(*args, **kwargs)
-@@ -298,6 +403,12 @@
+@@ -298,6 +406,12 @@
          # passed in as the `name` argument.
          if callable(name):
              name = name(wrapped, instance, args, kwargs)
@@ -179,7 +182,7 @@
          send_subsegment_to_xray_daemon(
              subsegment_id=subsegment_id,
              parent_id=parent_id,
-@@ -363,6 +474,13 @@
+@@ -363,6 +477,13 @@
          return instance._service_model.metadata['endpointPrefix']
      return instance._service_model.metadata['serviceAbbreviation']
  
@@ -193,7 +196,7 @@
  
  def extract_aws_metadata(wrapped, instance, args, kwargs, return_value):
      """Provide AWS metadata for improved visualization.
-@@ -377,6 +495,7 @@
+@@ -377,6 +498,7 @@
          kwargs=kwargs,
          response=response,
      )
@@ -201,7 +204,7 @@
      if 'operation_name' in kwargs:
          operation_name = kwargs['operation_name']
      else:
-@@ -388,7 +507,6 @@
+@@ -388,7 +510,6 @@
          kwargs = args[1]
  
      region_name = instance._client_config.region_name
@@ -209,7 +212,7 @@
      response_metadata = response.get('ResponseMetadata')
  
      metadata = {
-@@ -410,7 +528,7 @@
+@@ -410,7 +531,7 @@
              },
          }
          metadata['aws']['request_id'] = response_metadata['RequestId']
