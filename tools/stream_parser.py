@@ -23,9 +23,10 @@ seqID = 1
 NODES = {}
 ##################### getName #######################
 def getName(req):
+    #to match: details = '{}:{}:{}:{}'.format(tname,region,keyname,key)
     pl = req[PAYLOAD]
-    name = '{} {} {} {}'.format(pl['op'],pl['tname'],pl['keyname'],pl['key'])
-    rest = '{}'.format(pl['rest'])
+    name = '{}:{}:{}:{}'.format(pl['tname'],pl['reg'],pl['keyname'],pl['key'])
+    rest = '{} {}'.format(pl['op'],pl['rest'])
     return rest,name
     '''
     if DEBUG:
@@ -196,7 +197,8 @@ def processEventSource(pl):
         key_str = event_source[idx2+1:idx3]
         #key_str is {'S': 'imgProc/d1.jpgbc37'}
         toks = key_str.split(' ')
-        key = toks[1].strip("}'")
+        tmp = toks[1].strip("}'")
+        key = tmp.strip('"')
 
         details = '{}:{}:{}:{}'.format(tname,region,keyname,key)
     return details
@@ -539,8 +541,11 @@ def parseIt(fname,fxray=None):
                 #all children are possible event sources at this point
                 child[TYPE] = 'sdkT'
                 rest,retn = getName(child)
+                if retn in TRIGGERS:  #multiple of the same triggers
+                    print('\n{}'.format(TRIGGERS))
                 assert retn not in TRIGGERS
                 TRIGGERS[retn] = child
+                print('\tadding to TRIGGERS {} {}'.format(retn,child))
                 #add the SDK as a child to its entry in REQS
                 print('\tlooking up {}'.format(reqID))
                 if reqID in REQS:
@@ -565,7 +570,6 @@ def parseIt(fname,fxray=None):
                 ts = float(pldict['ts']['N'])
 
                 #rest = '{{{}'.format(pl_str[idx+4:])
-                pl = processEntryString(pl)
                 assert reqID not in REQS
                 ele = {TYPE:'fn',REQ:reqID,PAYLOAD:pl,TS:ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
                 seqID += 1
