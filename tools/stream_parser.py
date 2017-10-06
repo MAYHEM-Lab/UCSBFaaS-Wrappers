@@ -2,6 +2,7 @@ import json,time,os,sys,argparse,statistics,ast
 from pprint import pprint
 from graphviz import Digraph
 from enum import Enum
+from collections import defaultdict
 
 #tuple object enumeration (positions)
 TYPE='typ' #fn,sdk,sdkT (sdkTrigger)
@@ -15,7 +16,7 @@ CHILDREN='children'
 DEBUG = True
 REQS = {}
 SUBREQS = {} #for functions triggered (in/)directly by other functions
-TRIGGERS = {}
+TRIGGERS = defaultdict(list)
 SDKS = []
 REPEATS = []
 eleID = 1
@@ -25,83 +26,9 @@ NODES = {}
 def getName(req):
     #to match: details = '{}:{}:{}:{}'.format(tname,region,keyname,key)
     pl = req[PAYLOAD]
-    name = '{}:{}:{}:{}'.format(pl['tname'],pl['reg'],pl['keyname'],pl['key'])
+    name = '{}:{}:{}:{}'.format(pl['tname'],pl['reg'],pl['kn'],pl['key'])
     rest = '{} {}'.format(pl['op'],pl['rest'])
     return rest,name
-    '''
-    if DEBUG:
-        print('payload: ',pl)
-
-    if type(pl) == dict:
-        #dynamic SDK entry 
-        name = pl['name']
-        rest = ""
-        if name == 'requests':
-            #HTTP operation
-            http = pl['http']
-            reqst = http['request']
-            url = reqst['url']
-            if url.startswith('http://'):
-                url = url[7:]
-            name = 'HTTP={} {}'.format(reqst['method'],url)
-            rest = '{}'.format(http['response']['status'])
-        else:
-            aws = pl['aws']
-            name += ' {}'.format(aws['operation'])
-            if aws['operation'] == 'PutItem':
-                tname,reg,keyname,key = getDetails(aws)
-                name = 'DDB=PutItem {}\n{} {}={}'.format(tname,reg,keyname,key)
-            elif aws['operation'] == 'GetItem':
-                op,tname,reg,keyname,key = getDetails(aws)
-                name = 'NONTRIGGER:DDB=GetItem {}\n{} {}={}'.format(tname,reg,keyname,key)
-            else:
-                name = 'NONTRIGGER:{}'.format(name)
-            
-        return rest,name
-
-    if pl.startswith('SDKstart:'):
-        idx = pl.find(':',9)
-        idx2 = pl.find('(',idx+1)
-        op = pl[9:idx] 
-        svc = pl[idx+1:idx2]
-        name = '{} {}'.format(svc,op)
-        if 'PutObject' in pl: 
-            pass
-        elif 'PutItem' in pl: 
-            #dynamodb.us-west-2.amazonaws.com
-            idx = pl.find('/dynamodb.')
-            idx2 = pl.find('.amazonaws.com')
-            name += ' {}'.format(pl[idx+10:idx2]) #add the region
-            idx = pl.find('TableName:')
-            idx2 = pl.find(':',idx+10)
-            name += '\n{} key=id'.format(pl[idx+10:idx2])
-        elif  'Publish' in pl: 
-            pass
-        elif 'Invoke' in pl:
-            pass
-        else:
-            name = 'NONTRIGGER:{}'.format(name)
-            idx = pl.find('/dynamodb.')
-            if (idx != -1):
-                idx2 = pl.find('.amazonaws.com')
-                name += '\n{}'.format(pl[idx+10:idx2])
-                idx = pl.find('TableName:')
-                if idx != -1:
-                    idx2 = pl.find(':',idx+10)
-                    name += ' {} key=id'.format(pl[idx+10:idx2])
-    elif ':function:' in pl:
-        idx = pl.find(':function:')
-        idx2 = pl.find(':',idx+10)
-        name = pl[idx+10:idx2] #add reqID if instance
-        idx = pl.find('aws:lambda:') #get region
-        idx2 = pl.find(':',idx+11)
-        name = 'FN={} {}'.format(name,pl[idx+11:idx2])
-        
-    else:
-        assert True #shouldn't be here
-
-    return "",name
-    '''
 
 ##################### processDotChild #######################
 def processDotChild(dot,req):
@@ -175,89 +102,43 @@ def makeDotAggregate():
 
 ##################### processEventSource #######################
 def processEventSource(pl):
-    details = ''
+    ''' returns True/False, payload '''
+    retn = {}
     event_source = pl
-    if ':ddb:' in event_source:
-        #ddb:arn:aws:dynamodb:us-west-2:443592014519:table/image-proc-S/stream/2017-09-20T20:26:50.795:keys:id:op:INSERT
+    triggered = False
+    if ':es:lib:invokeCLI:' in event_source: #Invoke trigger
+        triggered = True
+        #pl:arn:aws:lambda:us-west-2:443592014519:function:emptyB:es:lib:invokeCLI:FnInvokerPyB:ed086648-aa47-11e7-a1cd-4dab0b1999f4
+        toks = pl.split(':')
+        retn['reg'] = toks[4] #region of both caller and callee
+        retn['name'] = toks[7] #this fn's (callee) name
+        retn['tname'] = toks[11] #caller's name
+        retn['kn'] = toks[12] #caller reqID
+        retn['op'] = 'Invoke' #triggering operation
+        #key 'key' not used
+
+    elif ':ddb:' in event_source: #DDB update trigger
+        triggered = True
+        #pl:arn:aws:lambda:us-east-1:443592014519:function:UpdateWebsiteB:esARN:arn:aws:dynamodb:us-west-2:443592014519:table/image-proc-S/stream/2017-09-20T20:26:50.795:keys:id:op:INSERT
+        #us-west-2:443592014519:function:DBSyncPyB:esARN:arn:aws:dynamodb:us-west-2:443592014519:table/image-proc-B/stream/2017-10-05T21:42:44.663:es:ddb:keys:id:{"S": "imgProc/d1.jpg1428"}:op:INSERT
+        toks = pl.split(':')
+        retn['reg'] = toks[4] #region of both caller and callee
+        retn['name'] = toks[7] #region of both caller and callee
 	#get tablename
         assert pl.find('esARN:') != -1
-        idx = event_source.find(':table/')
-        idx2 = event_source.find('/',idx+7)
-        tname = event_source[idx+7:idx2]
-        #get the region
-        idx = event_source.find('arn:aws:dynamodb:')
-        idx2 = event_source.find(':',idx+17)
-        region = event_source[idx+17:idx2]
-
-        idx = event_source.find(':keys:')
-        idx2 = event_source.find(':',idx+6)
-        keyname = event_source[idx+6:idx2]
-
-        idx3 = event_source.find(':op',idx2+1)
-        key_str = event_source[idx2+1:idx3]
-        #key_str is {'S': 'imgProc/d1.jpgbc37'}
-        toks = key_str.split(' ')
-        tmp = toks[1].strip("}'")
-        key = tmp.strip('"')
-
-        details = '{}:{}:{}:{}'.format(tname,region,keyname,key)
-    return details
-
-##################### getDetails #######################
-def getDetails(payload):
-    reg = payload['region']
-    gr_pl = payload['gr_payload'] #string
-    #'payload:TableName:image-proc-D:Item:{"id": "imgProc/d1.jpg639b", "labels": "[{"Name": "Animal", "Confidence": 96.52118682861328}, {"Name": "Gazelle", "Confidence": 96.52118682861328}, {"Name": "Impala", "Confidence": 96.52118682861328}, {"Name": "Mammal", "Confidence": 96.52118682861328}, {"Name": "Wildlife", "Confidence": 96.52118682861328}, {"Name": "Deer", "Confidence": 91.72703552246094}]"}'
-    #"pl:us-west-2:TableName:image-proc-B:Item:{\"id\": \"imgProc/d1.jpg15b8\", \"labels\": \"[{\"Name\": \"Animal\", \"Confidence\": 96.52118682861328}, {\"Name\": \"Gazelle\", \"Confidence\": 96.52118682861328}, {\"Name\": \"Impala\", \"Confidence\": 96.52118682861328}, {\"Name\": \"Mammal\", \"Confidence\": 96.52118682861328}, {\"Name\": \"Wildlife\", \"Confidence\": 96.52118682861328}, {\"Name\": \"Deer\", \"Confidence\": 91.72703552246094}]\"}"}
-    toks = gr_pl.split(':')
-    if 'region' in payload:
-        reg = payload['region']
+        tmp_tname = toks[14].split('/')
+        print(tmp_tname,pl)
+        retn['tname'] = tmp_tname[1]
+        retn['kn'] = toks[16]
+        retn['op'] = toks[18]
+        retn['rest'] = '{} {}'.format(toks[12],toks[14]) #table region, stream ID
     else:
-        reg = toks[1]
-    tname = keyname = key = 'unknown'
-    if ':TableName:' in gr_pl:
-        tname = toks[3]
-    if ':Item:{' in gr_pl:
-        keyname = toks[5].strip("{\"'\\")
-        tmpstr = toks[6]
-        idx2 = tmpstr.find(',')
-        key = tmpstr[:idx2].strip("\"'\\")
-    return tname,reg,keyname,key
+        print(pl)
+        assert True
+    return triggered,retn
 
 ##################### processPayload #######################
-def processEntryString(plrest):
-    #us-west-2:443592014519:function:ImageProcPyB:es:ext:invokeCLI
-    #us-west-2:443592014519:function:DBSyncPyB:esARN:arn:aws:dynamodb:us-west-2:443592014519:table/image-proc-B/stream/2017-10-05T21:42:44.663:es:ddb:keys:id:{"S": "imgProc/d1.jpg1428"}:op:INSERT    
-    retn = {}
-    print(plrest)
-    assert ':es:' in plrest
-    toks = plrest.split(':')
-    retn['reg'] = toks[0]
-    retn['fname'] = toks[3]
-    if toks[4] == 'es':
-        retn['es'] = 'Agents'
-        return retn
-
-    assert toks[4] == 'esARN' 
-    esidx = plrest.find('es:ddb')
-    if esidx != -1:
-        #DDB
-        idx = plrest.find(':table/')
-        retn['tname'] = plrest[idx+7:esidx]
-
-        idx = plrest.find(':keys:')
-        idx2 = plrest.find(':',idx+6) 
-        retn['keyname'] = plrest[idx+6:idx2]
-        idx3 = plrest.find(':',idx2+1) #}:op:
-        rest = plrest[idx2+1:idx3]
-        eles = json.loads(rest)
-        retn['key'] = eles['S'].strip('"')
-        
-    print('retn: {}'.format(retn))
-    return retn
-
-##################### processPayload #######################
-def processPayload(pl):
+def processPayload(pl,reqID):
     #pl:PutItem:us-west-2:TableName:image-proc-B:Item:{"id": "imgProc/d1.jpg0b92", "labels": "[{"Name": "Animal", "Confidence": 96.52117156982422}, {"Name": "Gazelle", "Confidence": 96.52117156982422}, {"Name": "Impala", "Confidence": 96.52117156982422}, {"Name": "Mammal", "Confidence": 96.52117156982422}, {"Name": "Wildlife", "Confidence": 96.52117156982422}, {"Name": "Deer", "Confidence": 91.72703552246094}]"}
     #GAMMATABLE = [ 'PutItem', 'UpdateItem', 'DeleteItem', 'BatchWriteItem', 'PutObject', 'DeleteObject', 'PostObject', 'Publish', 'Invoke' ]
     #pl_str = pl_str.replace(' "[{"',' [{"')
@@ -280,7 +161,7 @@ def processPayload(pl):
         retn['tname'] = rest[idx2+11:idx]
         data = rest[idx+7:] #7 to get past the {
         toks = data.split(': ')
-        retn['keyname'] = toks[0].strip('"')
+        retn['kn'] = toks[0].strip('"')
         toks = toks[1].split(' ')
         retn['key'] = toks[0].strip('",')
     elif pl.startswith('UpdateItem:'):
@@ -326,11 +207,22 @@ def processPayload(pl):
         print(rest)
         sys.exit(1)
     elif pl.startswith('Invoke:'):
+        #Invoke:us-west-2:FunctionName:arn:aws:lambda:us-west-2:443592014519:function:emptyB:InvocationType:Event
         retn['op'] = 'Invoke'
-        rest = pl[7:]
-        retn['reg'] = rest[:idx]
-        print(rest)
-        sys.exit(1)
+        toks = pl.split(':')
+        retn['reg'] = toks[1] #region of both
+        if reqID in REQS:
+            me = REQS[reqID]
+        else: 
+            me = SUBREQS[reqID]
+        print(me)
+        retn['name'] = toks[9] #callee name
+        retn['tname'] = me['pl']['name']  #caller name
+        retn['kn'] = reqID  #caller reqID
+        retn['rest'] = '{} {}'.format(toks[10],toks[11]) #invocationType, event/requestresponse
+        assert toks[1] == toks[6] #make sure they are in the same region
+        #key 'key' not used
+
     elif pl.startswith('HTTP:'):
         #pl:HTTP:us-west-2:POST:http://httpbin.org/post
         retn['op'] = 'HTTP'
@@ -340,7 +232,7 @@ def processPayload(pl):
         retn['reg'] = rest[:idx]
         idx2 = rest.find(':',idx+1)
         assert idx2 != -1
-        retn['keyname'] = rest[idx+1:idx2] #method
+        retn['kn'] = rest[idx+1:idx2] #method
         idx = rest.find('http://',idx2+1)
         retn['tname'] = rest[idx+7:]
     else:
@@ -530,7 +422,7 @@ def parseIt(fname,fxray=None):
                 reqID = pldict['reqID']['S'][:reqidx]
                 ts = float(pldict['ts']['N'])
                 
-                rest_dict = processPayload(pltmp)
+                rest_dict = processPayload(pltmp,reqID)
                 print('SDK dict: {}'.format(rest_dict))
                 assert pl_str not in REPEATS
                 REPEATS.append(pl)
@@ -541,13 +433,8 @@ def parseIt(fname,fxray=None):
                 #all children are possible event sources at this point
                 child[TYPE] = 'sdkT'
                 rest,retn = getName(child)
-                if retn in TRIGGERS:  #multiple of the same triggers
-                    print('\n{}'.format(TRIGGERS))
-                assert retn not in TRIGGERS
-                TRIGGERS[retn] = child
-                print('\tadding to TRIGGERS {} {}'.format(retn,child))
+                TRIGGERS[retn].append(child)
                 #add the SDK as a child to its entry in REQS
-                print('\tlooking up {}'.format(reqID))
                 if reqID in REQS:
                     parent = REQS[reqID]
                 else: 
@@ -562,7 +449,7 @@ def parseIt(fname,fxray=None):
                 if idx == -1:
                     idx = pl_str.find('"}, "reqID":')
                     incr = 3
-                pl = pl_str[37:idx]
+                pl = pl_str[19:idx]
                 plrest = '{{{}'.format(pl_str[idx+incr:])
                 pldict = json.loads(plrest)
                 reqidx = pldict['reqID']['S'].rfind(':')
@@ -571,14 +458,18 @@ def parseIt(fname,fxray=None):
 
                 #rest = '{{{}'.format(pl_str[idx+4:])
                 assert reqID not in REQS
-                ele = {TYPE:'fn',REQ:reqID,PAYLOAD:pl,TS:ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
+                trigger,payload = processEventSource(pl)
+                ele = {TYPE:'fn',REQ:reqID,PAYLOAD:payload,TS:ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
                 seqID += 1
-                retn = processEventSource(pl)
 #HERE CJK what should come back here and what should we store in triggers
-                print('(entry) retn: {}'.format(retn))
-                if retn != '': #this lambda was triggered by an event source
+                print('(entry) retn: {}'.format(payload))
+                if trigger: #this lambda was triggered by an event source
                     assert retn in TRIGGERS
-                    parent = TRIGGERS[retn]
+                    plist = TRIGGERS[retn]
+                    if len(plist) == 1:
+                        parent = plist[0]
+                    else:
+                        assert True #multiple same events not handled yet
                     parent[CHILDREN].append(ele)
                     SUBREQS[reqID] = ele
                     print('\tadding {} to SUBREQS'.format(reqID))
