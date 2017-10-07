@@ -48,42 +48,44 @@ def getName(reqObj,INST=False):
     '''
     
     pl = reqObj[PAYLOAD]
-    print(pl)
     match = '{}:{}:{}'.format(pl['tname'],pl['kn'],pl['key']) #key is none if unused
 
     typ = reqObj[TYPE]
-    #if typ == 'fn':
-        #name='{}'.format(pl['name'])
-        #match = '{}:{}'.format(pl['tname'],name)
-    #else: 
     opreg = pl['reg']
     ntoks = pl['op'].split(':')
     op = ntoks[0]
     reg = ntoks[1]
     path = 'ERR'
-    if op == 'none': #fn invocation with no trigger
-        pass
-    elif op == 'Invoke':
-        path = '{}'.format(pl['tname'])
-        if typ == 'fn':
+    if typ == 'fn': 
+        name='FN={} {}'.format(pl['name'],pl['reg'])
+        if op == 'none':
             match = '{}:{}'.format(pl['tname'],pl['name']) #triggered by a function caller:callee
-        else: #SDK invocation
-            match = '{}:{}'.format(pl['name'],pl['tname']) #caller:callee
-    elif op.startswith('S3='):
-        path = '{}/{}/{}'.format(pl['tname'],pl['kn'],pl['key'])
-    elif op.startswith('DDB='):
-        path = '{} {}={}'.format(pl['tname'],pl['kn'],pl['key'])
-    elif op.startswith('SNS='):
-        path = '{} {}'.format(pl['tname'],pl['kn'])
-    elif op.startswith('HTTP='):
-        path = '{} {}'.format(pl['tname'],pl['kn'])
-    else:
-        print(pl)
-        assert False #we shouldn't be here
-    name='{} {} {}'.format(op,opreg,path)
+        elif op == 'Invoke':
+            match = '{}:{}'.format(pl['name'],pl['tname']) #triggered by a function caller:callee
+        #else use the default match above
+    else: #sdk
+        if op == 'Invoke':
+            path = '{}'.format(pl['tname'])
+            match = '{}:{}'.format(pl['tname'],pl['name']) #triggered by a function caller:callee
+            name='{} {} {} {}'.format(op,opreg,path,typ)
+        elif op.startswith('S3='):
+            path = '{}/{}/{}'.format(pl['tname'],pl['kn'],pl['key'])
+            name='{} {} {} {}'.format(op,opreg,path,typ)
+        elif op.startswith('DDB='):
+            path = '{} {}={}'.format(pl['tname'],pl['kn'],pl['key'])
+            name='{} {} {} {}'.format(op,opreg,path,typ)
+        elif op.startswith('SNS='):
+            path = '{} {}'.format(pl['tname'],pl['kn'])
+            name='{} {} {} {}'.format(op,opreg,path,typ)
+        elif op.startswith('HTTP='):
+            path = '{} {}'.format(pl['tname'],pl['kn'])
+            name='{} {} {} {}'.format(op,opreg,path,typ)
+        else:
+            print(pl)
+            assert False #we shouldn't be here
 
     if INST:
-        name+='_{}'.format(str(uuid.uuid4())[:8])
+        name+='_{}'.format(str(uuid.uuid4())[:8]) #should this be requestID?
     return name,match
 
 ##################### processDotChild #######################
@@ -552,7 +554,7 @@ def parseIt(fname,fxray=None):
                         assert False #multiple same events not handled yet
                     parent[CHILDREN].append(ele)
                     SUBREQS[reqID] = ele
-                    print('\tadding {} to SUBREQS'.format(reqID))
+                    print('\tadding {} to SUBREQS \n\tparent: {}'.format(ele,parent))
                 else: 
                     print('\tadding {} to REQS'.format(reqID))
                     REQS[reqID] = ele
