@@ -12,29 +12,85 @@ TS='ts'
 SEQ='seqNo'
 DUR='dur'
 CHILDREN='children'
+SSID='ssegId'
+SSPID='ssegPid'
+TRID='traceId'
 
 DEBUG = True
 REQS = {}
 SUBREQS = {} #for functions triggered (in/)directly by other functions
 TRIGGERS = defaultdict(list)
 SDKS = []
-REPEATS = []
+SUBSEGS = {} #subsegment_id: object
 eleID = 1
 seqID = 1
 NODES = {}
 ##################### getName #######################
-def getName(req):
-    #to match: details = '{}:{}:{}:{}'.format(tname,region,keyname,key)
-    pl = req[PAYLOAD]
-    name = '{}:{}:{}:{}'.format(pl['tname'],pl['reg'],pl['kn'],pl['key'])
-    rest = '{} {}'.format(pl['op'],pl['rest'])
-    return rest,name
+def getName(reqObj,INST=False):
+    '''Given an object (reqObj), return a unique name for the node
+       if INST is True, then add an 8 digit uuid to end of name so that 
+       its different from all others (non-aggregated)
+
+       name cannot contain colons as graphviz doesn't handle them in a node name, 
+       name can have newlines however
+       reqObj = {TYPE:'sdkT',REQ:reqID,SSID:myid,SSPID:pid,TRID:trid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
+       pl = reqObj[PAYLOAD]
+       pl['reg'] #region of this function
+       pl['name'] #this fn's (callee) name
+       pl['tname'] #caller's name, table name, s3 bucket name, snstopic, url
+       pl['kn']  #caller reqID, keyname, s3 prefix, sns subject, http_method
+       pl['op']' #triggering_operation:source_region
+       pl['key'] #unused for fn, key for ddb, filename for s3, unused for sns, unused for http
+       pl['rest'] #other info only for event sources
+
+       match is the subportion of name that lets us match SDK calls to triggers
+
+    '''
+    
+    pl = reqObj[PAYLOAD]
+    print(pl)
+    match = '{}:{}:{}'.format(pl['tname'],pl['kn'],pl['key']) #key is none if unused
+
+    typ = reqObj[TYPE]
+    #if typ == 'fn':
+        #name='{}'.format(pl['name'])
+        #match = '{}:{}'.format(pl['tname'],name)
+    #else: 
+    opreg = pl['reg']
+    ntoks = pl['op'].split(':')
+    op = ntoks[0]
+    reg = ntoks[1]
+    path = 'ERR'
+    if op == 'none': #fn invocation with no trigger
+        pass
+    elif op == 'Invoke':
+        path = '{}'.format(pl['tname'])
+        if typ == 'fn':
+            match = '{}:{}'.format(pl['tname'],pl['name']) #triggered by a function caller:callee
+        else: #SDK invocation
+            match = '{}:{}'.format(pl['name'],pl['tname']) #caller:callee
+    elif op.startswith('S3='):
+        path = '{}/{}/{}'.format(pl['tname'],pl['kn'],pl['key'])
+    elif op.startswith('DDB='):
+        path = '{} {}={}'.format(pl['tname'],pl['kn'],pl['key'])
+    elif op.startswith('SNS='):
+        path = '{} {}'.format(pl['tname'],pl['kn'])
+    elif op.startswith('HTTP='):
+        path = '{} {}'.format(pl['tname'],pl['kn'])
+    else:
+        print(pl)
+        assert False #we shouldn't be here
+    name='{} {} {}'.format(op,opreg,path)
+
+    if INST:
+        name+='_{}'.format(str(uuid.uuid4())[:8])
+    return name,match
 
 ##################### processDotChild #######################
 def processDotChild(dot,req):
     global eleID
     dur = req[DUR]
-    rest,name = getName(req)
+    name,_ = getName(req)
     if name.startswith('NONTRIGGER:'):
         name = name[11:]
         totsum = dur
@@ -76,7 +132,7 @@ def makeDotAggregate():
     for key in REQS:
         req = REQS[key]
         pl = req[PAYLOAD]
-        rest,name = getName(req)
+        name,_ = getName(req)
         dur = req[DUR]
         totsum = dur
         count = 1
@@ -102,141 +158,160 @@ def makeDotAggregate():
 
 ##################### processEventSource #######################
 def processEventSource(pl):
-    ''' returns True/False, payload '''
-    retn = {}
-    event_source = pl
+    ''' returns True/False, payload as dict:
+        	    # for different operations, order is: Fn, DDB, S3, SNS, HTTP with .amazonaws.com in url
+        retn['reg'] #region of this function
+        retn['name'] #this fn's (callee) name
+        retn['tname'] #caller's name, table name, s3 bucket name, snstopic, url
+        retn['kn']  #caller reqID, keyname, s3 prefix, sns subject, http_method
+        retn['op']' #triggering_operation:source_region
+        retn['key'] #unused for fn, key for ddb, filename for s3, unused for sns, unused for http
+        retn['rest'] #other info only for event sources
+    '''
+    toks = pl.split(':')
+    retn = {'name': toks[7], 'reg': toks[4], 'rest':'none', 'key':'none', 'kn':'none'} #potentially unused keys
     triggered = False
-    if ':es:lib:invokeCLI:' in event_source: #Invoke trigger
+    if pl.startswith('pl:arn:aws:lambda:') and (len(toks) == 8 or pl.endswith(':es:ext:invokeCLI')): #normal Invoke with unknown trigger
+        retn['tname'] = 'none'
+        retn['op'] = 'none:{}'.format(toks[4])
+        pass
+    elif ':es:lib:invokeCLI:' in pl: #Invoke trigger
         triggered = True
         #pl:arn:aws:lambda:us-west-2:443592014519:function:emptyB:es:lib:invokeCLI:FnInvokerPyB:ed086648-aa47-11e7-a1cd-4dab0b1999f4
-        toks = pl.split(':')
-        retn['reg'] = toks[4] #region of both caller and callee
-        retn['name'] = toks[7] #this fn's (callee) name
+        retn['op'] = 'Invoke:{}'.format(toks[4]) #triggering_operation:source_region
         retn['tname'] = toks[11] #caller's name
         retn['kn'] = toks[12] #caller reqID
-        retn['op'] = 'Invoke' #triggering operation
-        #key 'key' not used
+        #key 'key', 'rest' not used
 
-    elif ':ddb:' in event_source: #DDB update trigger
+    elif ':ddb:' in pl: #DDB update trigger
         triggered = True
-        #pl:arn:aws:lambda:us-east-1:443592014519:function:UpdateWebsiteB:esARN:arn:aws:dynamodb:us-west-2:443592014519:table/image-proc-S/stream/2017-09-20T20:26:50.795:keys:id:op:INSERT
-        #us-west-2:443592014519:function:DBSyncPyB:esARN:arn:aws:dynamodb:us-west-2:443592014519:table/image-proc-B/stream/2017-10-05T21:42:44.663:es:ddb:keys:id:{"S": "imgProc/d1.jpg1428"}:op:INSERT
-        toks = pl.split(':')
-        retn['reg'] = toks[4] #region of both caller and callee
-        retn['name'] = toks[7] #region of both caller and callee
+        #pl:arn:aws:lambda:us-west-2:443592014519:function:DBSyncPyB:esARN:arn:aws:dynamodb:us-west-2:443592014519:table/image-proc-B/stream/2017-10-05T21:42:44.663:es:ddb:keys:id:{"S": "imgProc/d1.jpg1428"}:op:INSERT
 	#get tablename
         assert pl.find('esARN:') != -1
         tmp_tname = toks[14].split('/')
-        print(tmp_tname,pl)
-        retn['tname'] = tmp_tname[1]
-        retn['kn'] = toks[16]
-        retn['op'] = toks[18]
-        retn['rest'] = '{} {}'.format(toks[12],toks[14]) #table region, stream ID
+        retn['tname'] = tmp_tname[1] #table name
+        retn['kn'] = toks[20] #key name
+        retn['key'] = toks[22].strip(' "}') #key
+        retn['rest'] = '{}:{}:{}'.format(tmp_tname[3],toks[15],toks[16]) #stream ID
+        retn['op'] = 'DDB={}:{}'.format(toks[24],toks[12]) #triggering_op:source_region
+        print('here! {}'.format(retn))
     else:
         print(pl)
-        assert True
+        assert False
+        #for HTTP the source region must be the same as this functions region because APIGW can only invoke functions in its region
     return triggered,retn
 
 ##################### processPayload #######################
-def processPayload(pl,reqID):
-    #pl:PutItem:us-west-2:TableName:image-proc-B:Item:{"id": "imgProc/d1.jpg0b92", "labels": "[{"Name": "Animal", "Confidence": 96.52117156982422}, {"Name": "Gazelle", "Confidence": 96.52117156982422}, {"Name": "Impala", "Confidence": 96.52117156982422}, {"Name": "Mammal", "Confidence": 96.52117156982422}, {"Name": "Wildlife", "Confidence": 96.52117156982422}, {"Name": "Deer", "Confidence": 91.72703552246094}]"}
-    #GAMMATABLE = [ 'PutItem', 'UpdateItem', 'DeleteItem', 'BatchWriteItem', 'PutObject', 'DeleteObject', 'PostObject', 'Publish', 'Invoke' ]
-    #pl_str = pl_str.replace(' "[{"',' [{"')
-    #pl_str = pl_str.replace(']"}"',']}"}"')
+def processPayload(pl,reqID): #about to do something that can trigger a lambda function
+    ''' returns payload as dict:
+        	    # for different operations, order is: Fn, DDB, S3, SNS, HTTP with .amazonaws.com in url
+        retn['reg'] #region of operation target
+        retn['name'] #this fn's name
+        retn['tname'] #callee's name, table name, s3 bucket name, snstopic, url
+        retn['kn']  #unused for fn, keyname, s3 prefix, sns subject, unused for http
+        retn['op']' #triggering_operation:current_region
+        retn['key'] #unused for fn, key for ddb, filename for s3, unused for sns, unused for http
+    '''
+    #PutItem:us-west-2:TableName:image-proc-B:Item:{"id": "imgProc/d1.jpg0b92", "labels": "[{"Name": "Animal", "Confidence": 96.52117156982422}, {"Name": "Gazelle", "Confidence": 96.52117156982422}, {"Name": "Impala", "Confidence": 96.52117156982422}, {"Name": "Mammal", "Confidence": 96.52117156982422}, {"Name": "Wildlife", "Confidence": 96.52117156982422}, {"Name": "Deer", "Confidence": 91.72703552246094}]"}
+    #ops include [ 'PutItem', 'UpdateItem', 'DeleteItem', 'BatchWriteItem', 'PutObject', 'DeleteObject', 'PostObject', 'Publish', 'Invoke' ]
     pl = pl.strip('"}')
     if DEBUG: 
         print('ppayload: {}'.format(pl))
 
-    retn = {'rest':'empty', 'key':'none'}
+    #get the enclosing functions details
+    if reqID in REQS:
+        me = REQS[reqID]
+    else: 
+        me = SUBREQS[reqID]
+    toks = pl.split(':')
+    current_region = me['pl']['reg']
+    nm = me['pl']['name']
+    retn = {'name': nm, 'reg': toks[1], 'rest':'none', 'key':'none', 'kn':'none'} #potentially unused keys
+
     if pl.startswith('PutItem:'):
-        retn['op'] = 'DDB=PutItem'
+        retn['op'] = 'DDB=PutItem:{}'.format(current_region)
         rest = pl[8:]
-        idx = rest.find(':')
+        idx = rest.find(':TableName:')
         assert idx != -1
-        retn['reg'] = rest[:idx]
-        idx2 = rest.find(':TableName:')
+        idx2 = rest.find(':Item:')
         assert idx2 != -1
-        idx = rest.find(':Item:')
-        assert idx != -1
-        retn['tname'] = rest[idx2+11:idx]
-        data = rest[idx+7:] #7 to get past the {
+        retn['tname'] = rest[idx+11:idx2]
+        data = rest[idx2+7:] #7 to get past the {
         toks = data.split(': ')
         retn['kn'] = toks[0].strip('"')
         toks = toks[1].split(' ')
         retn['key'] = toks[0].strip('",')
+        #'rest' is unused
+
     elif pl.startswith('UpdateItem:'):
         retn['op'] = 'DDB=UpdateItem'
-        rest = pl[11:]
-        idx = rest.find(':')
-        retn['reg'] = rest[:idx]
-        print(rest)
+        print(pl)
         sys.exit(1)
+
     elif pl.startswith('DeleteItem:'):
         retn['op'] = 'DDB=DeleteItem'
-        rest = pl[11:]
-        retn['reg'] = rest[:idx]
-        print(rest)
+        print(pl)
+        sys.exit(1)
+
     elif pl.startswith('BatchWriteItem:'):
         retn['op'] = 'DDB=BatchWriteItem'
-        rest = pl[15:]
-        retn['reg'] = rest[:idx]
-        print(rest)
+        print(pl)
         sys.exit(1)
+
     elif pl.startswith('PutObject:'):
         retn['op'] = 'S3=PutObject'
-        rest = pl[10:]
-        retn['reg'] = rest[:idx]
-        print(rest)
+        print(pl)
         sys.exit(1)
+
     elif pl.startswith('DeleteObject:'):
         retn['op'] = 'S3=DeleteObject'
-        rest = pl[13:]
-        retn['reg'] = rest[:idx]
-        print(rest)
+        print(pl)
         sys.exit(1)
+
     elif pl.startswith('PostObject:'):
         retn['op'] = 'S3=PostObject'
-        rest = pl[11:]
-        retn['reg'] = rest[:idx]
-        print(rest)
+        print(pl)
         sys.exit(1)
+
     elif pl.startswith('Publish:'):
         retn['op'] = 'SNS=Publish'
-        rest = pl[8:]
-        retn['reg'] = rest[:idx]
-        print(rest)
+        print(pl)
         sys.exit(1)
+
     elif pl.startswith('Invoke:'):
         #Invoke:us-west-2:FunctionName:arn:aws:lambda:us-west-2:443592014519:function:emptyB:InvocationType:Event
-        retn['op'] = 'Invoke'
+        retn['op'] = 'Invoke:{}'.format(current_region)
         toks = pl.split(':')
         retn['reg'] = toks[1] #region of both
-        if reqID in REQS:
-            me = REQS[reqID]
-        else: 
-            me = SUBREQS[reqID]
-        print(me)
-        retn['name'] = toks[9] #callee name
-        retn['tname'] = me['pl']['name']  #caller name
+        retn['tname'] = toks[9]  #callee name
         retn['kn'] = reqID  #caller reqID
-        retn['rest'] = '{} {}'.format(toks[10],toks[11]) #invocationType, event/requestresponse
+        retn['rest'] = '{}'.format(toks[11]) #invocationType
         assert toks[1] == toks[6] #make sure they are in the same region
         #key 'key' not used
 
     elif pl.startswith('HTTP:'):
-        #pl:HTTP:us-west-2:POST:http://httpbin.org/post
-        retn['op'] = 'HTTP'
-        rest = pl[5:]
-        idx = rest.find(':')
-        assert idx != -1
-        retn['reg'] = rest[:idx]
-        idx2 = rest.find(':',idx+1)
-        assert idx2 != -1
-        retn['kn'] = rest[idx+1:idx2] #method
-        idx = rest.find('http://',idx2+1)
-        retn['tname'] = rest[idx+7:]
+        #HTTP:us-west-2:POST:http://httpbin.org/post
+        #API Gateway url: https://6w1s7kyypi.execute-api.us-west-2.amazonaws.com/beta
+        url = toks[3]
+        assert url.startswith('http')
+        incr = 7
+        if url.startswith('https://'):
+            incr += 1
+        if url.find('amazonaws.com') != -1 and url.find('execute_api') != -1:
+            #url is an api-gateway and thus potential trigger
+            url = url[incr:] 
+            urltoks = url.split('.')
+            retn['op'] = 'HTTP:{}'.format(current_region)
+            retn['reg'] = urltoks[2] #region (api gateway urls can only invoke functions in the same region)
+            retn['tname'] = url
+            retn['kn'] = toks[2] #method
+            #key 'key' not used
+        else:
+            #todo: turn this on once old logs are gone
+            #assert False
+            retn = None
     else:
-        assert True
+        assert False
 
     return retn
     
@@ -345,7 +420,7 @@ def processHybrid(fname):
                                         keyname = pl_str[2] #keyname
                                     else:
                                         print('Unhandled GammaRay payload: {}'.format(doc_dict))
-                                        assert True
+                                        assert False
                                 if name == 'Initialization':
                                     assert tname == 'unknown' and 'function_arn' in aws
                                     idx = fn.find(':',15)
@@ -423,24 +498,26 @@ def parseIt(fname,fxray=None):
                 ts = float(pldict['ts']['N'])
                 
                 rest_dict = processPayload(pltmp,reqID)
+                if not rest_dict:
+                    continue
                 print('SDK dict: {}'.format(rest_dict))
-                assert pl_str not in REPEATS
-                REPEATS.append(pl)
 
-                #make a child object
-                child = {TYPE:'sdk',REQ:reqID,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
+                #make a child object-- all are possible event sources at this point (B config)
+                child = {TYPE:'sdkT',REQ:reqID,SSID:myid,SSPID:pid,TRID:trid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
                 seqID += 1
-                #all children are possible event sources at this point
-                child[TYPE] = 'sdkT'
-                rest,retn = getName(child)
-                TRIGGERS[retn].append(child)
+                assert myid not in SUBSEGS
+                SUBSEGS[myid] = child
+
+                _,match = getName(child)
+                print('mch: {}'.format(match))
+                TRIGGERS[match].append(child)
                 #add the SDK as a child to its entry in REQS
                 if reqID in REQS:
                     parent = REQS[reqID]
                 else: 
                     parent = SUBREQS[reqID]
                 parent[CHILDREN].append(child)
-            
+                
             else: #entry
                 assert pl_str.startswith('{"payload": {"S": "pl:arn:aws:lambda:')
                 #entry that was triggered
@@ -459,24 +536,26 @@ def parseIt(fname,fxray=None):
                 #rest = '{{{}'.format(pl_str[idx+4:])
                 assert reqID not in REQS
                 trigger,payload = processEventSource(pl)
-                ele = {TYPE:'fn',REQ:reqID,PAYLOAD:payload,TS:ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
+                print('triggered: {}'.format(trigger))
+                ele = {TYPE:'fn',REQ:reqID,SSID:'none',SSPID:'none',TRID:'none',PAYLOAD:payload,TS:ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
                 seqID += 1
 #HERE CJK what should come back here and what should we store in triggers
                 print('(entry) retn: {}'.format(payload))
                 if trigger: #this lambda was triggered by an event source
-                    assert retn in TRIGGERS
-                    plist = TRIGGERS[retn]
+                    _,match = getName(ele)
+                    print(match)
+                    assert match in TRIGGERS
+                    plist = TRIGGERS[match]
                     if len(plist) == 1:
                         parent = plist[0]
                     else:
-                        assert True #multiple same events not handled yet
+                        assert False #multiple same events not handled yet
                     parent[CHILDREN].append(ele)
                     SUBREQS[reqID] = ele
                     print('\tadding {} to SUBREQS'.format(reqID))
                 else: 
                     print('\tadding {} to REQS'.format(reqID))
                     REQS[reqID] = ele
-        
 
  
 ##################### main #######################
