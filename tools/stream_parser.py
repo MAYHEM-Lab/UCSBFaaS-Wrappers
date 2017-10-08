@@ -62,24 +62,18 @@ def getName(reqObj,INST=False):
             match = '{}:{}'.format(pl['tname'],pl['name']) #triggered by a function caller:callee
         elif op == 'Invoke':
             match = '{}:{}'.format(pl['name'],pl['tname']) #triggered by a function caller:callee
-        #else use the default match above
+        #else use the default match and name above
     else: #sdk
         if op == 'Invoke':
             path = '{}'.format(pl['tname'])
             match = '{}:{}'.format(pl['tname'],pl['name']) #triggered by a function caller:callee
-            name='{} {} {} {}'.format(op,opreg,path,typ)
-        elif op.startswith('S3='):
-            path = '{}/{}/{}'.format(pl['tname'],pl['kn'],pl['key'])
-            name='{} {} {} {}'.format(op,opreg,path,typ)
-        elif op.startswith('DDB='):
-            path = '{} {}={}'.format(pl['tname'],pl['kn'],pl['key'])
-            name='{} {} {} {}'.format(op,opreg,path,typ)
-        elif op.startswith('SNS='):
+            name='{} {} {}'.format(op,opreg,path)
+        elif op.startswith('S3=') or op.startswith('DDB='): #use the default match
+            path = '\n{} {}/{}'.format(pl['tname'],pl['kn'],pl['key'])
+            name='{} {} {}'.format(op,opreg,path)
+        elif op.startswith('SNS=') or op.startswith('HTTP='): #use the default match
             path = '{} {}'.format(pl['tname'],pl['kn'])
-            name='{} {} {} {}'.format(op,opreg,path,typ)
-        elif op.startswith('HTTP='):
-            path = '{} {}'.format(pl['tname'],pl['kn'])
-            name='{} {} {} {}'.format(op,opreg,path,typ)
+            name='{} {} {}'.format(op,opreg,path)
         else:
             print(pl)
             assert False #we shouldn't be here
