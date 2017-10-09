@@ -19,9 +19,10 @@ TRID='traceId'
 DEBUG = True
 REQS = {}
 SUBREQS = {} #for functions triggered (in/)directly by other functions
-TRIGGERS = defaultdict(list)
+TRIGGERS = defaultdict(list) #potentially multiple eles in list per key
 SDKS = []
-SUBSEGS = {} #subsegment_id: object
+SUBSEGS = {} #(sub)segment_id: object
+SUBSEGS_XRAY = {} #(sub)segment_id: object
 eleID = 1
 seqID = 1
 NODES = {}
@@ -124,7 +125,20 @@ def makeDotAggregate():
     dot.node(agent_name,agent_name)
     agent_edges = []
 
-    #req = {TYPE:'fn,sdk,sdkT',REQ:reqID,PAYLOAD:pl,TS:ts,DUR:dur,CHILDREN:[]}
+    ''' 
+       reqObj = {TYPE:'sdkT',REQ:reqID,SSID:myid,SSPID:pid,TRID:trid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
+       pl = reqObj[PAYLOAD]
+       pl['reg'] #region of this function
+       pl['name'] #this fn's (callee) name
+       pl['tname'] #caller's name, table name, s3 bucket name, snstopic, url
+       pl['kn']  #caller reqID, keyname, s3 prefix, sns subject, http_method
+       pl['op']' #triggering_operation:source_region
+       pl['key'] #unused for fn, key for ddb, filename for s3, unused for sns, unused for http
+       pl['rest'] #other info only for event sources
+       REQS holds all of the gammaray nodes (each potentially having CHILDREN)
+       REQS holds all of the gammaray nodes (each potentially having CHILDREN)
+       SUBSEGS holds all nodes by SSID
+    '''
     for key in REQS:
         req = REQS[key]
         pl = req[PAYLOAD]
@@ -335,11 +349,11 @@ def processHybrid(fname):
             segs = trace['Segments']
             for seg in segs:
                 doc_dict = json.loads(seg['Document'])
+                print('parentid? {}'.format(doc_dict))
                 name = doc_dict['name']
                 myid = seg['Id']
                 if 'trace_id' in doc_dict:
                     trid = doc_dict['trace_id']
-                #print(myid,doc_dict)
                 start = doc_dict['start_time']
                 end = doc_dict['end_time']
                 if 'aws' in doc_dict:
@@ -348,7 +362,6 @@ def processHybrid(fname):
                     if 'operation' in aws:
                         op = aws['operation']
                     origin = doc_dict['origin']
-                    #if origin == 'AWS::DynamoDB::Table':  #just a repeat of what we get in the subsegments
                     if origin == 'AWS::Lambda' and 'resource_arn' in doc_dict:
                         print('{} LAMBDA:{}:{}:{}:{}'.format(myid,doc_dict['resource_arn'],aws['request_id'],start,end))
                         print('\ttrid: {}'.format(trid))
@@ -358,29 +371,29 @@ def processHybrid(fname):
                             print('\ttrid: {}'.format(trid))
                         else:
                             pass #can skip this as data is repeated
-                            #if name != 'DynamoDB': #data is repeated here
-                                #print('{} other_{}:{}:{}:{}'.format(myid,name,origin,start,end))
-                                #print(doc_dict)
     
                     if 'subsegments' in doc_dict:
                         for subs in doc_dict['subsegments']:
+                            xray_str = None
+                            trid=myid=tname=op=reg=key=keyname='unknown'
                             subid = subs['id']
                             name = subs['name']
                             if 'aws' in subs:
-                                #print('\t{}:{}:{}:{}:{}'.format(subs['name'],subs['aws']['operation'],subs['aws']['region'],subs['start_time'],subs['end_time']))
                                 aws = subs['aws']
-                                trid=myid=tname=op=reg='unknown'
                                 if 'function_arn' in aws:
                                     fn = aws['function_arn']
                                 if 'trace_id' in aws:
                                     trid = aws['trace_id']
                                 if 'operation' in aws:
                                     op = aws['operation']
+                                if 'request_id' in aws:
+                                    tname = aws['request_id']
                                 if 'table_name' in aws:
                                     tname = aws['table_name']
                                 if 'region' in aws:
                                     reg = aws['region']
-                                key=keyname='unknown'
+                                if 'http' in subs and 'response' in subs['http']:
+                                    keyname = subs['http']['response']['status']
                                 if 'gr_payload' in aws:
                                     pl = aws['gr_payload']
                                     idx = pl.find(':Item:{')
@@ -423,8 +436,7 @@ def processHybrid(fname):
                                     reg = fn[15:idx] #function's region
                                     idx = fn.find(':function:')
                                     tname = fn[idx+10:] #function name
-                                print('\t{} {}:{}:{}:{}:{}:{}:{}:{}'.format(subid,name,op,reg,tname,keyname,key,subs['start_time'],subs['end_time']))
-    
+                                xray_str = '{}:{}:{}:{}:{}:{}:{}:{}'.format(name,op,reg,tname,keyname,key,subs['start_time'],subs['end_time'])
                             else:
                                 if name == 'requests':
                                     assert 'http' in subs
@@ -432,12 +444,23 @@ def processHybrid(fname):
                                     url = http['request']['url'][7:] #trim off the http:// chars
                                     op = http['request']['method']
                                     status = http['response']['status']
-                                    print('\t{} {}:{}:{}:{}:{}:{}'.format(subid,name,op,url,status,subs['start_time'],subs['end_time']))
+                                    #API Gateway url: https://6w1s7kyypi.execute-api.us-west-2.amazonaws.com/beta
+                                    if 'amazonaws.com' in url:
+                                        toks = url.split('.')
+                                        assert toks[3] == 'amazonaws'
+                                        reg = toks[2]
+                                    
+                                    xray_str = '{}:{}:{}:{}:{}:{}:{}:{}'.format(name,op,reg,url,status,keyname,subs['start_time'],subs['end_time'])
                                 else:
-                                    print('\t{} UNKNOWN:{}:{}:{}'.format(subid,name,subs['start_time'],subs['end_time']))
+                                    xray_str = '{}:{}:{}:::::'.format(name,subs['start_time'],subs['end_time'])
+                            if xray_str: #valid if we set it above
+                                if DEBUG:
+                                    print('xray {} {}'.format(subid,xray_str))
+                                assert subid not in SUBSEGS_XRAY
+                                SUBSEGS_XRAY[subid] = xray_str
                 else:
                     pass #can skip this as they are repeats
-                    #print(doc_dict)
+                    #print(doc_dict) #for debugging
                     
     print('DONE')
             
@@ -513,6 +536,13 @@ def parseIt(fname,fxray=None):
                 else: 
                     parent = SUBREQS[reqID]
                 parent[CHILDREN].append(child)
+                #update the parent's SSID (we didn't know its SSID when it came in) and add it to SUBSEGS
+                pssid = parent[SSID]
+                if pssid == 'none':
+                    parent[SSID] = pid
+                    assert pid not in SUBSEGS
+                    SUBSEGS[pid] = parent
+                assert parent[SSID] == pid #sanity check
                 
             else: #entry
                 assert pl_str.startswith('{"payload": {"S": "pl:arn:aws:lambda:')
@@ -529,17 +559,12 @@ def parseIt(fname,fxray=None):
                 reqID = pldict['reqID']['S'][:reqidx]
                 ts = float(pldict['ts']['N'])
 
-                #rest = '{{{}'.format(pl_str[idx+4:])
                 assert reqID not in REQS
                 trigger,payload = processEventSource(pl)
-                print('triggered: {}'.format(trigger))
                 ele = {TYPE:'fn',REQ:reqID,SSID:'none',SSPID:'none',TRID:'none',PAYLOAD:payload,TS:ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
                 seqID += 1
-#HERE CJK what should come back here and what should we store in triggers
-                print('(entry) retn: {}'.format(payload))
                 if trigger: #this lambda was triggered by an event source
                     _,match = getName(ele)
-                    print(match)
                     assert match in TRIGGERS
                     plist = TRIGGERS[match]
                     if len(plist) == 1:
@@ -548,9 +573,7 @@ def parseIt(fname,fxray=None):
                         assert False #multiple same events not handled yet
                     parent[CHILDREN].append(ele)
                     SUBREQS[reqID] = ele
-                    print('\tadding {} to SUBREQS \n\tparent: {}'.format(ele,parent))
                 else: 
-                    print('\tadding {} to REQS'.format(reqID))
                     REQS[reqID] = ele
 
  
