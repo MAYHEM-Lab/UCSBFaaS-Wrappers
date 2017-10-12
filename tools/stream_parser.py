@@ -11,21 +11,18 @@ PAYLOAD='pl'
 TS='ts'
 SEQ='seqNo'
 DUR='dur'
+START='dur'
 CHILDREN='children'
 SSID='ssegId'
-SSPID='ssegPid'
-TRID='traceId'
 
 DEBUG = True
 REQS = {}
 SUBREQS = {} #for functions triggered (in/)directly by other functions
 TRIGGERS = defaultdict(list) #potentially multiple eles in list per key
-SDKS = []
-SUBSEGS = {} #(sub)segment_id: object
 
-#the only one that has a list is fn (len 9) which includes entry and invoke
-SUBSEGS_XRAY = defaultdict(list) #(sub)segment_id: object, length 9 (all but other), and 5 (other)
-INITS = {} #reqID:float_duration
+#the only one that has a list is fn (len 8) which includes entry and invoke
+SUBSEGS_XRAY = {} 
+XRAY_REQS = {} #(startup_duration,container_started,exec_duration) container_started is True/False, rest are floats
 eleID = 1
 seqID = 1
 NODES = {}
@@ -37,7 +34,7 @@ def getName(reqObj,INST=False):
 
        name cannot contain colons as graphviz doesn't handle them in a node name, 
        name can have newlines however
-       reqObj = {TYPE:'sdkT',REQ:reqID,SSID:myid,SSPID:pid,TRID:trid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
+       reqObj = {TYPE:'sdkT',REQ:reqID,SSID:myid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,START:0.0,SEQ:seqID,CHILDREN:[]}
        pl = reqObj[PAYLOAD]
        pl['reg'] #region of this function
        pl['name'] #this fn's (callee) name
@@ -58,19 +55,22 @@ def getName(reqObj,INST=False):
     opreg = pl['reg']
     ntoks = pl['op'].split(':')
     op = ntoks[0]
-    reg = ntoks[1]
+    if len(ntoks) > 1:
+        reg = ntoks[1]
+    else:
+        reg = 'unknown'
     path = 'ERR'
-    if typ == 'fn': 
+    if typ == 'fn': #function entry
         name='FN={} {}'.format(pl['name'],pl['reg'])
         if op == 'none':
-            match = '{}:{}'.format(pl['tname'],pl['name']) #triggered by a function caller:callee
+            match = '{}:{}'.format(pl['tname'],pl['name']) #unknown trigger
         elif op == 'Invoke':
-            match = '{}:{}'.format(pl['name'],pl['tname']) #triggered by a function caller:callee
+            match = '{}:{}:{}:{}'.format(pl['name'],reqObj['req'],pl['tname'],pl['kn']) #triggered by a function callee(this_fn):caller
         #else use the default match and name above
     else: #sdk
         if op == 'Invoke':
             path = '{}'.format(pl['tname'])
-            match = '{}:{}'.format(pl['tname'],pl['name']) #triggered by a function caller:callee
+            match = '{}:{}:{}:{}'.format(pl['tname'],pl['kn'],pl['name'],reqObj['req']) #triggered by a function callee:caller(this_fn)
             name='{} {} {}'.format(op,opreg,path)
         elif op.startswith('S3=') or op.startswith('DDB='): #use the default match
             path = '\n{} {}/{}'.format(pl['tname'],pl['kn'],pl['key'])
@@ -129,7 +129,7 @@ def makeDotAggregate():
     agent_edges = []
 
     ''' 
-       reqObj = {TYPE:'sdkT',REQ:reqID,SSID:myid,SSPID:pid,TRID:trid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
+       reqObj = {TYPE:'sdkT',REQ:reqID,SSID:myid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,START:0.0,SEQ:seqID,CHILDREN:[]}
        pl = reqObj[PAYLOAD]
        pl['reg'] #region of this function
        pl['name'] #this fn's (callee) name
@@ -207,7 +207,14 @@ def processEventSource(pl):
         retn['key'] = toks[22].strip(' "}') #key
         retn['rest'] = '{}:{}:{}'.format(tmp_tname[3],toks[15],toks[16]) #stream ID
         retn['op'] = 'DDB={}:{}'.format(toks[24],toks[12]) #triggering_op:source_region
-        print('here! {}'.format(retn))
+    elif ':s3:bkt:' in pl: #S3 Object trigger (same region as triggered fn)
+        triggered = True
+        #pl:arn:aws:lambda:us-west-2:443592014519:function:reducerCoordinatorB:es:s3:bkt:spot-mr-bkt-b:key:job8000/task/mapper/0:op:ObjectCreated:Put
+        toks = pl.split(':')
+        retn['tname'] = toks[11] #bucket name
+        retn['kn'] = toks[13] #full file name
+        retn['op'] = 'S3={}_{}:{}'.format(toks[15],toks[16],toks[4])
+        #key not used
     else:
         print(pl)
         assert False
@@ -224,12 +231,11 @@ def processPayload(pl,reqID): #about to do something that can trigger a lambda f
         retn['kn']  #unused for fn, keyname, s3 prefix, sns subject, unused for http
         retn['op']' #triggering_operation:current_region
         retn['key'] #unused for fn, key for ddb, filename for s3, unused for sns, unused for http
+        retn['rest'] #for errors, other if needed
     '''
     #PutItem:us-west-2:TableName:image-proc-B:Item:{"id": "imgProc/d1.jpg0b92", "labels": "[{"Name": "Animal", "Confidence": 96.52117156982422}, {"Name": "Gazelle", "Confidence": 96.52117156982422}, {"Name": "Impala", "Confidence": 96.52117156982422}, {"Name": "Mammal", "Confidence": 96.52117156982422}, {"Name": "Wildlife", "Confidence": 96.52117156982422}, {"Name": "Deer", "Confidence": 91.72703552246094}]"}
     #ops include [ 'PutItem', 'UpdateItem', 'DeleteItem', 'BatchWriteItem', 'PutObject', 'DeleteObject', 'PostObject', 'Publish', 'Invoke' ]
     pl = pl.strip('"}')
-    if DEBUG: 
-        print('ppayload: {}'.format(pl))
 
     #get the enclosing functions details
     if reqID in REQS:
@@ -258,37 +264,43 @@ def processPayload(pl,reqID): #about to do something that can trigger a lambda f
 
     elif pl.startswith('UpdateItem:'):
         retn['op'] = 'DDB=UpdateItem'
-        print(pl)
+        print('processPayload<unsupported op>',pl)
         sys.exit(1)
 
     elif pl.startswith('DeleteItem:'):
         retn['op'] = 'DDB=DeleteItem'
-        print(pl)
+        print('processPayload<unsupported op>',pl)
         sys.exit(1)
 
     elif pl.startswith('BatchWriteItem:'):
         retn['op'] = 'DDB=BatchWriteItem'
-        print(pl)
+        print('processPayload<unsupported op>',pl)
         sys.exit(1)
 
     elif pl.startswith('PutObject:'):
         retn['op'] = 'S3=PutObject'
-        print(pl)
-        sys.exit(1)
+        toks = pl.split(':')
+        retn['reg'] = toks[1] #region of both
+        retn['tname'] = toks[3]  #Bucket
+        retn['kn'] = toks[5]  #fname
 
     elif pl.startswith('DeleteObject:'):
         retn['op'] = 'S3=DeleteObject'
-        print(pl)
-        sys.exit(1)
+        toks = pl.split(':')
+        retn['reg'] = toks[1] #region of both
+        retn['tname'] = toks[3]  #Bucket
+        retn['kn'] = toks[5]  #fname
 
     elif pl.startswith('PostObject:'):
         retn['op'] = 'S3=PostObject'
-        print(pl)
-        sys.exit(1)
+        toks = pl.split(':')
+        retn['reg'] = toks[1] #region of both
+        retn['tname'] = toks[3]  #Bucket
+        retn['kn'] = toks[5]  #fname
 
     elif pl.startswith('Publish:'):
         retn['op'] = 'SNS=Publish'
-        print(pl)
+        print('processPayload<unsupported op>',pl)
         sys.exit(1)
 
     elif pl.startswith('Invoke:'):
@@ -296,10 +308,16 @@ def processPayload(pl,reqID): #about to do something that can trigger a lambda f
         retn['op'] = 'Invoke:{}'.format(current_region)
         toks = pl.split(':')
         retn['reg'] = toks[1] #region of both
-        retn['tname'] = toks[9]  #callee name
-        retn['kn'] = reqID  #caller reqID
-        retn['rest'] = '{}'.format(toks[11]) #invocationType
-        assert toks[1] == toks[6] #make sure they are in the same region
+        if len(toks) == 12:
+            retn['tname'] = toks[9]  #callee name
+            retn['rest'] = '{}'.format(toks[11]) #invocationType
+        elif len(toks) == 6:
+            retn['tname'] = toks[3]  #callee name
+            retn['rest'] = '{}'.format(toks[5]) #invocationType
+        else:
+            print(pl)
+            assert False
+        retn['kn'] = 'unknown'  #callee reqID
         #key 'key' not used
 
     elif pl.startswith('HTTP:'):
@@ -328,9 +346,8 @@ def processPayload(pl,reqID): #about to do something that can trigger a lambda f
 
     return retn
     
-##################### processHybrid  #######################
-def processHybrid(fname):
-    flist = []
+##################### setupParReqs  #######################
+def setupParReqs(fname, flist, XRAY_PAR_REQ):
     #get the json from the files
     if os.path.isfile(fname):
         flist.append(fname)
@@ -341,12 +358,16 @@ def processHybrid(fname):
             if os.path.isfile(fn) and fn.endswith('.xray'):
                 flist.append(fn)
 
+    #loop through segments to fill in XRAY_PAR_REQ first (with AWS::Lambda segments)
     for fname in flist:
         if DEBUG:
             print('processing xray file {}'.format(fname))
         with open(fname,'r') as f:
             json_dict = json.load(f)
 
+        #timings startup = AL:Dwell+AL:Attempt+ALFN:Initialization(if any)
+        #timings execution = ALFN duration
+        #timings for sdks are in subsegments under ALFN
         traces = json_dict['Traces']
         for trace in traces:
             segs = trace['Segments']
@@ -354,66 +375,132 @@ def processHybrid(fname):
                 xray_str = None
                 trid=myid=tname=op=reg=key=keyname=parent_reqID='unknown'
                 doc_dict = json.loads(seg['Document'])
-                print('parentid? {}'.format(doc_dict))
-                #timings startup = AL:Dwell+AL:Attempt+ALFN:Initialization(if any)
-                #timings execution = ALFN duration
-                #timings for sdks are in subsegments under ALFN
                 if 'origin' in doc_dict: #AWS::Lambda (parent of Dwell,Attempts)
                     name = doc_dict['name']
-                    myid = seg['Id']
+                    subid = doc_dict['id']
                     keyname = doc_dict['trace_id']
                     origin = doc_dict['origin']
-                    start = float(doc_dict['start_time'])
-                    end = float(doc_dict['end_time'])
                     aws = doc_dict['aws']
 
                     if origin == 'AWS::Lambda': #AWS::Lambda (parent of Dwell,Attempts)
-                        assert 'resource_arn' in aws
-                        parent_reqID = tname = aws['request_id']
+                        if 'resource_arn' not in doc_dict:
+                            continue #repeat instance of Lambda SDK call
                         myarn = doc_dict['resource_arn']
                         toks = myarn.split(':') #arn:aws:lambda:us-west-2:XXX:function:FnInvokerPyB
                         reg = toks[3] #region
                         name = toks[6] #function name
                         key = toks[4] #account number
-                        xray_str = '{}:AWS_Lambda:{}:{}:{}:{}:{}:{}:False'.format(name,reg,tname,keyname,key,start,end)
                         #step through subsegments (Dwell and Attempt)
+                        subs = doc_dict['subsegments']
+                        assert len(subs) <= 2
                         #record time spent in startup
+                        parent_reqID = tname = aws['request_id']
+                        parent_id = doc_dict['id']
+                        dursum = 0.0
+                        err = False
+                        Done = False
+                        for sub in subs:
+                            myid = sub['id']
+                            start = float(sub['start_time'])
+                            end = float(sub['end_time'])
+                            dursum += (end-start)
+                            status = 200
+                            if 'http' in sub and 'response' in sub['http'] and 'status' in sub['http']['response']:
+                                status = sub['http']['response']['status']
+                                #only Attempts will have a status 
+                                if status == 200 or status == 202:
+                                    XRAY_PAR_REQ[myid] = parent_reqID
+                                    Done = True
+                            if status != 200:
+                                err = True
                         #record tuple using dwell's ssid
+                        ################startup_sum, True if Init, fn_duration
+                        if Done:
+                            XRAY_REQS[parent_reqID] = (dursum,False,0.0)
+                        xray_str = '{}:AWS_Lambda:{}:{}:{}:{}:{}:{}'.format(name,reg,tname,keyname,key,dursum,err)
+                        if DEBUG:
+                            print('xray {} parent {} payload {}'.format(subid,parent_id,xray_str))
 
+##################### processHybrid  #######################
+def processHybrid(fname):
+    flist = []
+    XRAY_PAR_REQ = {}
 
-                    elif origin == 'AWS::Lambda:Function': #AWS::Lambda:Function (parent of Initialization,requests, and SDKs)
+    #process filenames and loop through segments to fill in XRAY_PAR_REQ first (with AWS::Lambda segments)
+    setupParReqs(fname, flist, XRAY_PAR_REQ)
+
+    #now loop thrugh again and capture the rest (AWS::Lambda::Function's and SDK subsegments)
+    for fname in flist:
+        with open(fname,'r') as f:
+            json_dict = json.load(f)
+
+        #timings startup = AL:Dwell+AL:Attempt+ALFN:Initialization(if any)
+        #timings execution = ALFN duration
+        #timings for sdks are in subsegments under ALFN
+        traces = json_dict['Traces']
+        for trace in traces:
+            segs = trace['Segments']
+            for seg in segs:
+                xray_str = None
+                trid=myid=tname=op=reg=key=keyname=parent_reqID='unknown'
+                doc_dict = json.loads(seg['Document'])
+                if 'origin' in doc_dict: #AWS::Lambda (parent of Dwell,Attempts)
+                    name = doc_dict['name']
+                    subid = doc_dict['id']
+                    keyname = doc_dict['trace_id']
+                    origin = doc_dict['origin']
+                    aws = doc_dict['aws']
+
+                    if origin == 'AWS::Lambda::Function': #AWS::Lambda:Function (parent of Initialization,requests, and SDKs)
+                        parent_id = doc_dict['parent_id'] #ID of Attempt event that spawned this FN
+                        if parent_id not in XRAY_PAR_REQ:
+                            print('ERR: {}'.format(XRAY_PAR_REQ))
+                        reqID = XRAY_PAR_REQ[parent_id] #reqID of the parent of Attempt (FN's reqID)
+
+                        #update tuple
+                        tpl = XRAY_REQS[reqID]  #(0:startup_sum, 1:True if Init, 2:fn_duration)
+                        assert tpl[2] == 0.0
+                        start = float(doc_dict['start_time'])
+                        end = float(doc_dict['end_time'])
+                        dursum = end-start
+                        err = False
+                        newtpl = (tpl[0],tpl[1],dursum)
+                        XRAY_REQS[reqID] = newtpl  #(0:startup_sum, 1:True if Init, 2:fn_duration)
                         myarn = aws['function_arn']
                         toks = myarn.split(':') #arn:aws:lambda:us-west-2:XXX:function:FnInvokerPyB
                         name = toks[6]
                         reg = toks[3]
                         #tname,key unused
-                        xray_str = '{}:AWS_Lambda_FN:{}:{}:{}:{}:{}:{}:False'.format(name,reg,tname,keyname,key,start,end)
-                        #update tuple
-                        #step through subsegments (requests, sdks) 
-                        #record time spent in requests+sdks
-                    else:
-                        pass #skip all others as they are repeats of SDKs and requests
-
-                    if xray_str: #valid if we set it above
+                        xray_str = '{}:AWS_Lambda_FN:{}:{}:{}:unknown:{}:{}'.format(name,reqID,reg,tname,keyname,key,dursum,err)
                         if DEBUG:
-                            print('xray {} {}'.format(myid,xray_str))
-                        assert myid not in SUBSEGS_XRAY
-                        SUBSEGS_XRAY[myid].append(xray_str) 
-    
-                    parent_id = myid #the parent of subsegments is this outer segment
-                    if 'subsegments' in doc_dict:
-                        for subs in doc_dict['subsegments']:
+                            print('xray {} parent {} payload {}'.format(subid,parent_id,xray_str))
+
+                        #step through subsegments (requests, sdks) 
+                        parent_id = subid #id of parent to the subsegments that follow
+                        subs = doc_dict['subsegments']
+                        for sub in subs:
+                            #record time spent in requests+sdks
+                            name = sub['name']
+                            start = float(sub['start_time'])
+                            end = float(sub['end_time'])
+                            duration = (end-start)
+                            print('SDKXRAY: {}'.format(sub))
+                            if name == 'Initialization':
+                                #container was started for this function, add it to the startup overhead and set flag
+                                tpl = XRAY_REQS[reqID]
+                                newtpl = (tpl[0]+duration,True,tpl[2])
+                                XRAY_REQS[reqID] = newtpl  #(0:startup_sum, 1:True if Init, 2:fn_duration)
+                                continue
+                        
+                            #process sdk or requests event
                             xray_str = None
                             trid=myid=tname=op=reg=key=keyname='unknown'
-                            subid = subs['id']
-                            name = subs['name']
                             err = 'False'
-                            if 'error' in subs:
-                                err = str(subs['error'])
-                            start = subs['start_time']
-                            end = subs['end_time']
-                            if 'aws' in subs:
-                                aws = subs['aws']
+                            myid = sub['id']
+                            if 'error' in sub:
+                                err = str(sub['error'])
+                            if 'aws' in sub:
+                                aws = sub['aws']
                                 if 'function_arn' in aws:
                                     fn = aws['function_arn']
                                 if 'trace_id' in aws:
@@ -422,33 +509,21 @@ def processHybrid(fname):
                                     op = aws['operation']
                                 if 'request_id' in aws:
                                     tname = aws['request_id'] #tname holds reqID (HTTP)
-                                if 'table_name' in aws:
+                                if 'table_name' in aws: 
                                     tname = aws['table_name'] #tname holds TableName (DDB)
                                 if 'region' in aws:
                                     reg = aws['region']
-                                if 'http' in subs and 'response' in subs['http']:
-                                    keyname = subs['http']['response']['status']
+                                if 'http' in sub and 'response' in sub['http']:
+                                    keyname = sub['http']['response']['status']
                                 skip = False
                                 if 'gr_payload' in aws:
                                     pl = aws['gr_payload']
                                     idx = pl.find(':Item:{')
-                                    #idx3 = pl.find(':FunctionName:')
                                     if idx != -1: #DDB 
                                         idx2 = pl.find(':',idx+7)
                                         keyname = pl[idx+7:idx2].strip('"\' ') #DDB keyname
                                         idx = pl.find(',',idx2+1)
                                         key = pl[idx2+1:idx].strip('"\' ') #DDB key
-                                    #elif idx3 != -1: #Lambda:Invoke handled outside (no gr_payload)
-                                        ##payload:arn:aws:lambda:us-west-2:XXX:function:FnInvokerPyB:FunctionName:arn:aws:lambda:us-west-2:XXX:function:DBModPyB:InvocationType:Event:Payload
-                                        #idx = pl.find(':',idx3+29)
-                                        #reg = pl[idx3+29:idx]
-                                        #idx = pl.find(':function:',idx3+29)
-                                        #idx2 = pl.find(':',idx+10)
-                                        #tname = pl[idx+10:idx2] #function name
-                                        #idx = pl.find(':InvocationType:')
-                                        #idx2 = pl.find(':',idx+16)
-                                        #keyname= pl[idx+16:idx2] #Event (Async) or RequestResponse (Sync)
-                                        #key = aws['request_id'] #request ID of invoke call
                                     elif ':TopicArn:arn:aws:sns:' in pl: #SNS
                                         idx = pl.find(':TopicArn:arn:aws:sns:')
                                         pl_str = pl[idx+22:].split(':')
@@ -467,35 +542,14 @@ def processHybrid(fname):
                                         assert False
                                         skip = True #this will handle it if asserts are removed
 
-                                elif name == 'Lambda': #Lambda:Invoke  //no gr_payload
-                                    print('SDK Invoke: {}'.format(pl))
-                                    key = aws['request_id']
-                                    keyname = str(subs['error'])
-                                    #HERE
-
-                                elif name == 'Initialization': #container setup time //no gr_payload
-                                    assert tname == 'unknown' and 'function_arn' in aws
-                                    toks = fn.split(':') #arn:aws:lambda:us-west-2:XXX:function:FnInvokerPyB
-                                    reg = toks[3] #function's region
-                                    tname = toks[6] #function name
-                                    assert parent_id in SUBSEGS_XRAY
-                                    dwell = SUBSEGS_XRAY[parent_id][0]
-                                    toks = dwell.split(':')
-                                    assert toks[1] not in INITS
-                                    INITS[toks[1]] = end-start #record duration to add to overhead of FN invocation
-                                    skip = True 
-                                else:
-                                    print('missed subsegment: {}'.format(subs))
-                                    assert False
-                                    skip = True #this will handle it if asserts are removed
 
                                 if not skip:
-                                    #length 9 = sdk subsegment
-                                    xray_str = '{}:{}:{}:{}:{}:{}:{}:{}:{}'.format(name,op,reg,tname,keyname,key,start,end,err)
+                                    #length 8 = sdk subsegment
+                                    xray_str = '{}:{}:{}:{}:{}:{}:{}:{}'.format(name,op,reg,tname,keyname,key,duration,err)
                             else:
                                 if name == 'requests':
-                                    assert 'http' in subs
-                                    http = subs['http']
+                                    assert 'http' in sub
+                                    http = sub['http']
                                     url = http['request']['url'][7:] #trim off the http:// chars
                                     op = http['request']['method']
                                     status = http['response']['status']
@@ -506,23 +560,20 @@ def processHybrid(fname):
                                         reg = toks[2]
                                     
                                     #length 9 = requests subsegment
-                                    xray_str = '{}:{}:{}:{}:{}:{}:{}:{}:{}'.format(name,op,reg,tname,url,status,start,end,err)
-                                elif 'Dwell Time' not in name: #Dwell time already in encapsulated in AWS::Lambda time
-                                    #however we need it to get to the parent's request id
-                                    assert parent_reqID != 'unknown'
-                                    xray_str = '{}:{}:{}:{}:{}'.format(name,parent_reqID,start,end,err)
-                                else:
+                                    xray_str = '{}:{}:{}:{}:{}:{}:{}:{}'.format(name,op,reg,tname,url,status,duration,err)
+                                elif 'Dwell Time' not in name and 'Attempt' not in name: #These are already in encapsulated in AWS::Lambda time
                                     #length 5 other subsegment
-                                    xray_str = '{}:{}:{}:{}:{}'.format(name,parent_id,start,end,err)
+                                    xray_str = '{}:{}:{}:{}'.format(name,parent_id,duration,err)
+
                             if xray_str: #valid if we set it above
                                 if DEBUG:
-                                    print('xray {} parent {} payload {}'.format(subid,parent_id,xray_str))
-                                assert subid not in SUBSEGS_XRAY
-                                SUBSEGS_XRAY[subid].append(xray_str) #length 9 (all but other), or 4 (other)
-                else:
-                    pass #can skip this as they are repeats
-                    #print(doc_dict) #for debugging
-                    
+                                    print('xray {} parent {} payload {}'.format(myid,parent_id,xray_str))
+                                assert myid not in SUBSEGS_XRAY
+                                SUBSEGS_XRAY[myid] = xray_str
+
+                    else:
+                        pass #skip all others as they are repeats of SDKs and requests
+
     print('DONE')
             
    
@@ -551,7 +602,7 @@ def parseIt(fname,fxray=None):
             pl_str = pl_str.replace('\\"','"')
             pl_str = pl_str.replace(' "{"',' {"')
             if DEBUG:
-                print(pl_str)
+                print('STREAM ENTRY: ',pl_str)
             idx = pl_str.find(', "gr_payload": "pl:')
             if idx != -1: #SDK
                 idx2 = pl_str.find(']"}"}"}, "reqID":')
@@ -577,27 +628,34 @@ def parseIt(fname,fxray=None):
                 reqID = pldict['reqID']['S'][:reqidx]
                 ts = float(pldict['ts']['N'])
                 
+                print('processing grpayload: {} {}\n\t{} {} {} {}'.format(reqID,pltmp,myid,pid,trid,ts))
                 rest_dict = processPayload(pltmp,reqID)
                 if not rest_dict:
                     continue
-                print('SDK dict: {}'.format(rest_dict))
+                print('SDK dict: {} {}'.format(reqID, rest_dict))
 
                 #make a child object-- all are possible event sources at this point (B config)
-                child = {TYPE:'sdkT',REQ:reqID,SSID:myid,SSPID:pid,TRID:trid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
+                child = {TYPE:'sdkT',REQ:reqID,SSID:myid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
                 seqID += 1
-                #assert myid not in SUBSEGS
-                #SUBSEGS[myid] = child
-                assert myid in SUBSEGS_XRAY
-                l_subsegs = SUBSEGS_XRAY[myid]
-                assert len(l_subsegs) == 1
-                xray_data = l_subsegs[0]
-                toks = xray_data.split(':') #length 9 for sdk, name:op:reg:name2:keyname:key:start:end:err
-                assert len(toks) == 9
-                print(xray_data)
-                child[DUR] = float(xray_data[7]) - float(xray_data[6])
+                calleeReq = 'none'
+                if myid in SUBSEGS_XRAY:
+                    xray_data = SUBSEGS_XRAY[myid]
+                    toks = xray_data.split(':') #length 8 for sdk: #name,op,reg,tname,keyname,key,duration,err
+                    assert len(toks) == 8
+                    print('xraydata: ',xray_data)
+                    if toks[1] == 'Invoke':
+                        child[PAYLOAD]['kn'] = toks[3]
+                    child[DUR] = float(toks[6])
+                    rest = ''
+                    if 'rest' in child[PAYLOAD]: 
+                        rest = child[PAYLOAD]['rest']
+                    child[PAYLOAD]['rest'] = '{}:error:{}'.format(rest,toks[7])
+                    print('Updated Child: {}'.format(child))
+                else:
+                    print('WARNING: {} not found in SUBSEGS_XRAY'.format(myid))
 
                 _,match = getName(child)
-                print('mch: {}'.format(match))
+                print('sdk match {}\n\t{}'.format(match,child))
                 TRIGGERS[match].append(child)
                 #add the SDK as a child to its entry in REQS
                 if reqID in REQS:
@@ -605,25 +663,6 @@ def parseIt(fname,fxray=None):
                 else: 
                     parent = SUBREQS[reqID]
                 parent[CHILDREN].append(child)
-                #update the parent's SSID (we didn't know its SSID when it came in) and add it to SUBSEGS
-                pssid = parent[SSID]
-                if pssid == 'none':
-                    parent[SSID] = pid
-                    #assert pid not in SUBSEGS
-                    #SUBSEGS[pid] = parent
-                    assert pid in SUBSEGS_XRAY
-                    l_subsegs = SUBSEGS_XRAY[pid]
-                    assert len(l_subsegs) == 2
-                    psum = 0.0
-                    for xray_data in l_subsegs:
-                        toks = xray_data.split(':') #length 9 for fn, name:AWS_Lambda|AWS_Lambda_FN:reg:name2:keyname:key:start:end:err
-                        assert len(toks) == 9
-                        psum += (float(xray_data[7]) - float(xray_data[6]))
-                        tname = xray_data[3]
-                        op = xray_data[1]
-                        if op == 'AWS_Lambda':
-                            assert tname == reqID
-                    parent[DUR] = psum
                 
             else: #entry
                 assert pl_str.startswith('{"payload": {"S": "pl:arn:aws:lambda:')
@@ -639,230 +678,43 @@ def parseIt(fname,fxray=None):
                 reqidx = pldict['reqID']['S'].rfind(':')
                 reqID = pldict['reqID']['S'][:reqidx]
                 ts = float(pldict['ts']['N'])
+                startup = 0.0
+                init = False
+                duration = 0.0
 
                 assert reqID not in REQS
                 trigger,payload = processEventSource(pl)
-                ele = {TYPE:'fn',REQ:reqID,SSID:'none',SSPID:'none',TRID:'none',PAYLOAD:payload,TS:ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
+                print('entry: {} {} {}'.format(reqID,trigger,payload))
+
+                if reqID in XRAY_REQS:
+                    tpl = XRAY_REQS[reqID]  #(0:startup_sum, 1:True if Init, 2:fn_duration)
+                    startup = tpl[0]
+                    init = tpl[1]
+                    duration = tpl[2]
+                else:
+                    #function triggered by an event not captured by XRay or not sampled by XRay
+                    print('WARNING: {} not found in XRAY_REQS\n\t{} {}'.format(reqID,trigger,payload))
+
+                ele = {TYPE:'fn',REQ:reqID,SSID:'none',PAYLOAD:payload,TS:ts,DUR:duration,START:startup,SEQ:seqID,CHILDREN:[]}
                 seqID += 1
                 if trigger: #this lambda was triggered by an event source
-                    _,match = getName(ele)
+                    print('calling2 getName for match {}'.format(ele))
+                    n,match = getName(ele)
                     assert match in TRIGGERS
                     plist = TRIGGERS[match]
-                    if len(plist) == 1:
-                        parent = plist[0]
-                    else:
-                        assert False #multiple same events not handled yet
+                    #grab the most recent sequence ID (ensure its smaller than ours (seqID-1))
+                    parent = None
+                    maxseqID = -1
+                    for p in plist:
+                        if p[SEQ] > maxseqID:
+                            maxseqID = p[SEQ]
+                            parent = p
+                    assert maxseqID != -1 and maxseqID < (seqID-1)
                     parent[CHILDREN].append(ele)
                     SUBREQS[reqID] = ele
                 else: 
                     REQS[reqID] = ele
 
-##################### processHybridOrig  #######################
-def processHybridOrig(fname):
-    flist = []
-    #get the json from the files
-    if os.path.isfile(fname):
-        flist.append(fname)
-    else:
-        path = os.path.abspath(fname)
-        for file in os.listdir(fname):
-            fn = os.path.join(path, file)
-            if os.path.isfile(fn) and fn.endswith('.xray'):
-                flist.append(fn)
-
-    for fname in flist:
-        if DEBUG:
-            print('processing xray file {}'.format(fname))
-        with open(fname,'r') as f:
-            json_dict = json.load(f)
-
-        traces = json_dict['Traces']
-        for trace in traces:
-            segs = trace['Segments']
-            for seg in segs:
-                xray_str = None
-                trid=myid=tname=op=reg=key=keyname=parent_reqID='unknown'
-                doc_dict = json.loads(seg['Document'])
-                print('parentid? {}'.format(doc_dict))
-                name = doc_dict['name']
-                myid = seg['Id']
-                if 'trace_id' in doc_dict:
-                    trid = doc_dict['trace_id']
-                start = doc_dict['start_time']
-                end = doc_dict['end_time']
-                #timings startup = AL:Dwell+AL:Attempt+ALFN:Initialization(if any)
-                #timings execution = ALFN duration
-                #timings for sdks are in subsegments under ALFN
-                if 'aws' in doc_dict:
-                    aws = doc_dict['aws']
-                    tname = op = reg = pl = 'unknown'
-                    if 'operation' in aws:
-                        op = aws['operation']
-                    origin = doc_dict['origin']
-                    if origin == 'AWS::Lambda' and 'resource_arn' in doc_dict: #AWS::Lambda (parent of Dwell,Attempts)
-                        keyname = trid #trace id
-                        if 'request_id' in aws:
-                            tname = aws['request_id']
-                            parent_reqID = tname
-                        myarn = doc_dict['resource_arn']
-                        toks = myarn.split(':') #arn:aws:lambda:us-west-2:XXX:function:FnInvokerPyB
-                        reg = toks[3] #region
-                        name = toks[6] #function name
-                        key = toks[4] #account number
-                        #startup time is given by start/end (it encapsulates Dwell subsegment so no 
-                        #need to record it below)
-                        xray_str = '{}:AWS_Lambda:{}:{}:{}:{}:{}:{}:False'.format(name,reg,tname,keyname,key,start,end)
-                        if DEBUG:
-                            print('\t',xray_str)
-                            print('\ttrid: {}'.format(trid))
-                    else:
-                        if 'function_arn' in aws: #AWS::Lambda::Function (won't have a resource_arn)
-                            keyname = trid #trace id
-                            myarn = aws['function_arn']
-                            toks = myarn.split(':') #arn:aws:lambda:us-west-2:XXX:function:FnInvokerPyB
-                            name = toks[6]
-                            reg = toks[3]
-                            #tname,key unused
-                            xray_str = '{}:AWS_Lambda_FN:{}:{}:{}:{}:{}:{}:False'.format(name,reg,tname,keyname,key,start,end)
-                            if DEBUG:
-                                print('\t',xray_str)
-                                print('\ttrid: {}'.format(trid))
-                        else:
-                            pass #can skip this as data is repeated
-
-                    if xray_str: #valid if we set it above
-                        if DEBUG:
-                            print('xray {} {}'.format(myid,xray_str))
-                        assert myid not in SUBSEGS_XRAY
-                        SUBSEGS_XRAY[myid].append(xray_str) 
-    
-                    parent_id = myid #the parent of subsegments is this outer segment
-                    if 'subsegments' in doc_dict:
-                        for subs in doc_dict['subsegments']:
-                            xray_str = None
-                            trid=myid=tname=op=reg=key=keyname='unknown'
-                            subid = subs['id']
-                            name = subs['name']
-                            err = 'False'
-                            if 'error' in subs:
-                                err = str(subs['error'])
-                            start = subs['start_time']
-                            end = subs['end_time']
-                            if 'aws' in subs:
-                                aws = subs['aws']
-                                if 'function_arn' in aws:
-                                    fn = aws['function_arn']
-                                if 'trace_id' in aws:
-                                    trid = aws['trace_id']
-                                if 'operation' in aws:
-                                    op = aws['operation']
-                                if 'request_id' in aws:
-                                    tname = aws['request_id'] #tname holds reqID (HTTP)
-                                if 'table_name' in aws:
-                                    tname = aws['table_name'] #tname holds TableName (DDB)
-                                if 'region' in aws:
-                                    reg = aws['region']
-                                if 'http' in subs and 'response' in subs['http']:
-                                    keyname = subs['http']['response']['status']
-                                skip = False
-                                if 'gr_payload' in aws:
-                                    pl = aws['gr_payload']
-                                    idx = pl.find(':Item:{')
-                                    #idx3 = pl.find(':FunctionName:')
-                                    if idx != -1: #DDB 
-                                        idx2 = pl.find(':',idx+7)
-                                        keyname = pl[idx+7:idx2].strip('"\' ') #DDB keyname
-                                        idx = pl.find(',',idx2+1)
-                                        key = pl[idx2+1:idx].strip('"\' ') #DDB key
-                                    #elif idx3 != -1: #Lambda:Invoke handled outside (no gr_payload)
-                                        ##payload:arn:aws:lambda:us-west-2:XXX:function:FnInvokerPyB:FunctionName:arn:aws:lambda:us-west-2:XXX:function:DBModPyB:InvocationType:Event:Payload
-                                        #idx = pl.find(':',idx3+29)
-                                        #reg = pl[idx3+29:idx]
-                                        #idx = pl.find(':function:',idx3+29)
-                                        #idx2 = pl.find(':',idx+10)
-                                        #tname = pl[idx+10:idx2] #function name
-                                        #idx = pl.find(':InvocationType:')
-                                        #idx2 = pl.find(':',idx+16)
-                                        #keyname= pl[idx+16:idx2] #Event (Async) or RequestResponse (Sync)
-                                        #key = aws['request_id'] #request ID of invoke call
-                                    elif ':TopicArn:arn:aws:sns:' in pl: #SNS
-                                        idx = pl.find(':TopicArn:arn:aws:sns:')
-                                        pl_str = pl[idx+22:].split(':')
-                                        reg = pl_str[0]
-                                        tname = pl_str[2]#topicARN
-                                        keyname = pl_str[4] #Subject
-                                        idx = pl.find(':Message:') 
-                                        key = pl[idx+9:idx+39] #first 30 chars after Message:
-                                    elif ':Bucket:' in pl: #S3
-                                        idx = pl.find(':Bucket:')
-                                        pl_str = pl[idx+8:].split(':')
-                                        tname = pl_str[0] #bucket name
-                                        keyname = pl_str[2] #keyname
-                                    else:
-                                        print('Unhandled GammaRay payload: {}'.format(doc_dict))
-                                        assert False
-                                        skip = True #this will handle it if asserts are removed
-
-                                elif name == 'Lambda': #Lambda:Invoke  //no gr_payload
-                                    print('SDK Invoke: {}'.format(pl))
-                                    key = aws['request_id']
-                                    keyname = str(subs['error'])
-                                    #HERE
-
-                                elif name == 'Initialization': #container setup time //no gr_payload
-                                    assert tname == 'unknown' and 'function_arn' in aws
-                                    toks = fn.split(':') #arn:aws:lambda:us-west-2:XXX:function:FnInvokerPyB
-                                    reg = toks[3] #function's region
-                                    tname = toks[6] #function name
-                                    assert parent_id in SUBSEGS_XRAY
-                                    dwell = SUBSEGS_XRAY[parent_id][0]
-                                    toks = dwell.split(':')
-                                    assert toks[1] not in INITS
-                                    INITS[toks[1]] = end-start #record duration to add to overhead of FN invocation
-                                    skip = True 
-                                else:
-                                    print('missed subsegment: {}'.format(subs))
-                                    assert False
-                                    skip = True #this will handle it if asserts are removed
-
-                                if not skip:
-                                    #length 9 = sdk subsegment
-                                    xray_str = '{}:{}:{}:{}:{}:{}:{}:{}:{}'.format(name,op,reg,tname,keyname,key,start,end,err)
-                            else:
-                                if name == 'requests':
-                                    assert 'http' in subs
-                                    http = subs['http']
-                                    url = http['request']['url'][7:] #trim off the http:// chars
-                                    op = http['request']['method']
-                                    status = http['response']['status']
-                                    #API Gateway url: https://6w1s7kyypi.execute-api.us-west-2.amazonaws.com/beta
-                                    if 'amazonaws.com' in url:
-                                        toks = url.split('.')
-                                        assert toks[3] == 'amazonaws'
-                                        reg = toks[2]
-                                    
-                                    #length 9 = requests subsegment
-                                    xray_str = '{}:{}:{}:{}:{}:{}:{}:{}:{}'.format(name,op,reg,tname,url,status,start,end,err)
-                                elif 'Dwell Time' not in name: #Dwell time already in encapsulated in AWS::Lambda time
-                                    #however we need it to get to the parent's request id
-                                    assert parent_reqID != 'unknown'
-                                    xray_str = '{}:{}:{}:{}:{}'.format(name,parent_reqID,start,end,err)
-                                else:
-                                    #length 5 other subsegment
-                                    xray_str = '{}:{}:{}:{}:{}'.format(name,parent_id,start,end,err)
-                            if xray_str: #valid if we set it above
-                                if DEBUG:
-                                    print('xray {} parent {} payload {}'.format(subid,parent_id,xray_str))
-                                assert subid not in SUBSEGS_XRAY
-                                SUBSEGS_XRAY[subid].append(xray_str) #length 9 (all but other), or 4 (other)
-                else:
-                    pass #can skip this as they are repeats
-                    #print(doc_dict) #for debugging
-                    
-    print('DONE')
-            
-   
- 
 ##################### main #######################
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='GammaRay Stream Parser')
@@ -877,9 +729,5 @@ if __name__ == "__main__":
 
     processHybrid(args.hybrid)
     parseIt(args.fname, args.hybrid)
-    if DEBUG:
-        for ele in SDKS:
-            print('SDK: ',ele)
-    assert SDKS == []
     makeDotAggregate()
 
