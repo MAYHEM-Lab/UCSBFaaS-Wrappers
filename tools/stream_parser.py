@@ -25,10 +25,12 @@ SUBSEGS_XRAY = {}
 XRAY_REQS = {} #(startup_duration,container_started,exec_duration) container_started is True/False, rest are floats
 seqID = 1
 NODES = {}
+dot_agg = False
+
 ##################### getName #######################
-def getName(reqObj,AGG=True):
+def getName(reqObj):
     '''Given an object (reqObj), return a unique name for the node
-       if AGG is False (instance has been requested), then add the request ID to the name so that 
+       if dot_agg is False (instance has been requested), then add the request ID to the name so that 
        its different from all others (non-aggregated)
 
        name cannot contain colons as graphviz doesn't handle them in a node name, 
@@ -66,18 +68,31 @@ def getName(reqObj,AGG=True):
     else:
         reg = 'unknown'
     path = 'ERR'
-    if typ == 'fn': #function entry
-        name='FN={} {}'.format(pl['name'],pl['reg'])
+    ############ function entries ##################
+    if typ == 'fn': 
+        #setup name for dot nodes
+        if dot_agg:
+            name='FN={}'.format(pl['name'])
+        else:
+            name='FN={} {}'.format(pl['name'],pl['reg'])
+
+        #now setup up match 
         if op == 'none':
             match = '{}:{}'.format(pl['tname'],pl['name']) #unknown trigger
         elif op == 'Invoke':
             match = '{}:{}:{}:{}'.format(pl['name'],reqObj['req'],pl['tname'],pl['kn']) #triggered by a function callee(this_fn):caller
         #else use the default match and name above
-    elif typ == 'sdkT': #sdk trigger
+
+    ############  SDK Triggers  ##################
+    elif typ == 'sdkT': 
         if op == 'Invoke':
-            path = '{} {}'.format(pl['tname'],pl['kn'])
             match = '{}:{}:{}:{}'.format(pl['tname'],pl['kn'],pl['name'],reqObj['req']) #triggered by a function callee:caller(this_fn)
+            if dot_agg:
+                path = '{}'.format(pl['tname'])
+            else:
+                path = '{} {}'.format(pl['tname'],pl['kn'])
             name='{} {} {}'.format(op,opreg,path)
+
         elif op.startswith('S3=') or op.startswith('DynamoDB='): #use the default match
             path = '\n{} {}'.format(pl['tname'],pl['kn'])
             name='{} {} {}'.format(op,opreg,path)
@@ -90,8 +105,9 @@ def getName(reqObj,AGG=True):
     else:  #sdk nontrigger
         color = 'gray'
 
-    if not AGG:
+    if not dot_agg:
         #name+='_{}'.format(str(uuid.uuid4())[:8]) #should this be requestID?
+        print('getname adding req')
         name+='\n{}'.format(reqObj['req']) #should this be requestID?
 
     if pl['rest'].find('NOXRAYDATA') != -1:
@@ -103,10 +119,10 @@ def getName(reqObj,AGG=True):
     return name,match,color
 
 ##################### processDotChild #######################
-def processDotChild(dot,req,dot_agg=False):
+def processDotChild(dot,req,EDGES):
     global NODES
     dur = req[DUR]
-    name,_,color= getName(req,dot_agg)
+    name,_,color= getName(req)
     totsum = dur
     count = 1
     if name in NODES:
@@ -115,26 +131,26 @@ def processDotChild(dot,req,dot_agg=False):
         count += c
     NODES[name] = (totsum,count)
     avg = totsum/count 
-    nodename='{}\navg: {:0.1f}ms'.format(name,avg)
+    nodename='{}\navg: {:0.2f}ms'.format(name,avg)
     if color == 'gray': #non-sdk
         dot.node(name,nodename,fillcolor=color,style='filled')
     else:
         dot.node(name,nodename,color=color,shape='octagon')
     for child in req[CHILDREN]:
-        child_name = processDotChild(dot,child)
-        dot.edge(name,child_name)
+        child_name = processDotChild(dot,child,EDGES)
+        if (name,child_name) not in EDGES:
+            EDGES.append((name,child_name))
+            dot.edge(name,child_name)
     return name
 
 ##################### makeDot #######################
-def makeDot(dot_agg=False,dot_include_nontriggers=False):
+def makeDot(dot_include_nontriggers=False):
     global NODES
     mystr = ''
-    if dot_agg:
-        mystr = '.agg' 
-    dot = Digraph(comment='gammaRayGraph{}'.format(mystr),format='pdf')
+    dot = Digraph(comment='gammaRayGraph',format='pdf')
     agent_name = "Clients"
     dot.node(agent_name,agent_name)
-    agent_edges = []
+    EDGES = []
 
     ''' 
        reqObj = {TYPE:'sdkT',REQ:reqID,SSID:myid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,START:0.0,SEQ:seqID,CHILDREN:[]}
@@ -153,7 +169,7 @@ def makeDot(dot_agg=False,dot_include_nontriggers=False):
     for key in REQS:
         req = REQS[key]
         pl = req[PAYLOAD]
-        name,_,color = getName(req,dot_agg)
+        name,_,color = getName(req)
         dur = req[DUR]
         totsum = dur
         count = 1
@@ -163,29 +179,34 @@ def makeDot(dot_agg=False,dot_include_nontriggers=False):
             count += c
         NODES[name] = (totsum,count)
         avg = totsum/count 
-        nodename='{}\navg: {:0.1f}ms'.format(name,avg)
+        nodename='{}\navg: {:0.2f}ms'.format(name,avg)
         if color == 'gray': #non-sdk
             dot.node(name,nodename,fillcolor=color,style='filled')
         else:
             dot.node(name,nodename,color=color,shape='octagon')
-        if name not in agent_edges: 
+        if (agent_name,name) not in EDGES: 
+            EDGES.append((agent_name,name))
             dot.edge(agent_name,name)
-            agent_edges.append(name)
 
         for child in req[CHILDREN]:
-            child_name = processDotChild(dot,child,dot_agg)
-            dot.edge(name,child_name)
+            child_name = processDotChild(dot,child,EDGES)
+            if (name,child_name) not in EDGES: 
+                EDGES.append((name,child_name))
+                dot.edge(name,child_name)
 
     if dot_include_nontriggers:
-        processReads(dot,dot_agg)
+        processReads(dot)
 
-    dot.render('gragggraph', view=True)
+    if dot_agg:
+        mystr = '.agg' 
+    dot.render('gragggraph{}'.format(mystr), view=True)
     return
 
 ##################### processEventSource #######################
-def processReads(dot,dot_agg):
-    global NODES
+def processReads(dot):
     '''include xray reads in dot graph (non-event-sources)'''
+    global NODES
+    EDGES = []#used only locally
     #trigger ops to skip [ 'PutItem', 'UpdateItem', 'DeleteItem', 'BatchWriteItem', 'PutObject', 'DeleteObject', 'PostObject', 'Publish', 'Invoke' ]
     for ele in SUBSEGS_XRAY:
         if ':PutItem:' in SUBSEGS_XRAY[ele]:
@@ -210,17 +231,20 @@ def processReads(dot,dot_agg):
             if '.amazonaws.com' in SUBSEGS_XRAY[ele]:
                 continue
         xray = SUBSEGS_XRAY[ele]
+        if DEBUG:
+            print('NONTRIGGER: {}'.format(xray))
         toks = xray.split(':')
         toklen = len(toks)
         reqID = toks[toklen-1] #last component is requestID
         if reqID in REQS:
             parent = REQS[reqID]
-        else: 
+        elif reqID not in SUBREQS: 
+            continue
+        else:
             parent = SUBREQS[reqID]
 
         myid = ele
-        parentname,_,_= getName(parent,dot_agg)
-        parentname,_,_= getName(parent,dot_agg)
+        parentname,_,_= getName(parent)
 
         #name is 2 lines: svc=op region\nother other
         dur = float(toks[6])
@@ -237,27 +261,29 @@ def processReads(dot,dot_agg):
             if toks[4] != '200':
                 ERR = True
             name = '{}={} {}\n{}'.format(toks[0],toks[1],toks[2],toks[3])
-            if toks[0] == 'S3' and dot_agg:
-                ##S3:GetObject:us-west-2:B36DBE0CEA80DDA5:200:unknown:0.03930234909057617:False:b97b3871-ac79-11e7-83ab-d1249a09b700
-                name = '{}={} {}'.format(toks[0],toks[1],toks[2])
+            if toks[0] == 'S3' and not dot_agg:
+                ##S3:GetObject:us-west-2:bkt:200:REQID:0.03930234909057617:False:b97b3871-ac79-11e7-83ab-d1249a09b700
+                name = '{}={} {}\n{} {}'.format(toks[0],toks[1],toks[2],toks[3],toks[5])
 
         #aggregate the timings
         totsum = dur
-        count = 1
+        count = 1.0
         if name in NODES:
             (t,c) = NODES[name]
             totsum+=t
             count += c
         NODES[name] = (totsum,count)
         avg = totsum/count 
-        nodename='{}\navg: {:0.1f}ms'.format(name,avg)
+        nodename='{}\navg: {:0.2f}ms'.format(name,avg)
 
         if ERR:
             print('WARNING, node error: {}'.format(nodename))
             dot.node(name,nodename,color='red',fillcolor='gray',style='filled')
         else:
             dot.node(name,nodename,fillcolor='gray',style='filled')
-        dot.edge(parentname,name)
+        if name not in EDGES:
+            EDGES.append(name)
+            dot.edge(parentname,name)
         
 ##################### processEventSource #######################
 def processEventSource(pl):
@@ -607,6 +633,8 @@ def processHybrid(fname):
                                 err = str(sub['error'])
                             if 'aws' in sub:
                                 aws = sub['aws']
+                                if DEBUG:
+                                    print('XRAYSUBSEG: {}'.format(sub))
                                 if 'function_arn' in aws:
                                     fn = aws['function_arn']
                                 if 'trace_id' in aws:
@@ -617,6 +645,9 @@ def processHybrid(fname):
                                     tname = aws['request_id'] #tname holds reqID (HTTP)
                                 if 'table_name' in aws: 
                                     tname = aws['table_name'] #tname holds TableName (DDB)
+                                if name == 'S3' and 'bucket_name' in aws:
+                                    tname = aws['bucket_name'] #tname holds Bucket (S2)
+                                    key = aws['request_id'] #holds unique read ID
                                 if 'region' in aws:
                                     reg = aws['region']
                                 if 'http' in sub and 'response' in sub['http']:
@@ -759,7 +790,7 @@ def parseIt(fname,fxray=None):
                 else:
                     print('WARNING: {} not found in SUBSEGS_XRAY'.format(myid))
                     print('\tUnable to update duration for SDK\n\t{}'.format(child))
-                    child[PAYLOAD]['rest'] = '{}:NOXRAYDATA'.format(rest)
+                    child[PAYLOAD]['rest'] = '{}:NOXRAYDATA'.format(child[PAYLOAD]['rest'])
 
                 _,match,_ = getName(child)
                 TRIGGERS[match].append(child)
@@ -836,7 +867,8 @@ if __name__ == "__main__":
         print('\nError: hybrid argument must be a file or a directory containing files ending in .xray')
         sys.exit(1)
 
+    dot_agg = args.aggregate
     processHybrid(args.hybrid)
     parseIt(args.fname, args.hybrid)
-    makeDot(args.aggregate,args.include_all_sdks)
+    makeDot(args.include_all_sdks)
 
