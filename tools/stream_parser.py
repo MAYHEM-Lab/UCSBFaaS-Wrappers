@@ -53,7 +53,6 @@ def getName(reqObj,AGG=True):
        IT CAUSES DOT/GRAPHVIZ PROBLEMS WHEN USED IN THE NODE NAME (EDGES WILL NOT BE CREATED CORRECTLY)
 
     '''
-
     
     pl = reqObj[PAYLOAD]
     match = '{}:{}:{}'.format(pl['tname'],pl['kn'],pl['key']) #key is none if unused
@@ -79,7 +78,7 @@ def getName(reqObj,AGG=True):
             path = '{} {}'.format(pl['tname'],pl['kn'])
             match = '{}:{}:{}:{}'.format(pl['tname'],pl['kn'],pl['name'],reqObj['req']) #triggered by a function callee:caller(this_fn)
             name='{} {} {}'.format(op,opreg,path)
-        elif op.startswith('S3=') or op.startswith('DDB='): #use the default match
+        elif op.startswith('S3=') or op.startswith('DynamoDB='): #use the default match
             path = '\n{} {}'.format(pl['tname'],pl['kn'])
             name='{} {} {}'.format(op,opreg,path)
         elif op.startswith('SNS=') or op.startswith('HTTP='): #use the default match
@@ -98,12 +97,14 @@ def getName(reqObj,AGG=True):
     if pl['rest'].find('NOXRAYDATA') != -1:
         color = 'yellow'
     elif pl['rest'].find(':error:True') != -1:
+        print('WARNING, node error: {}'.format(reqObj))
         color = 'red'
 
     return name,match,color
 
 ##################### processDotChild #######################
 def processDotChild(dot,req,dot_agg=False):
+    global NODES
     dur = req[DUR]
     name,_,color= getName(req,dot_agg)
     totsum = dur
@@ -126,6 +127,7 @@ def processDotChild(dot,req,dot_agg=False):
 
 ##################### makeDot #######################
 def makeDot(dot_agg=False,dot_include_nontriggers=False):
+    global NODES
     mystr = ''
     if dot_agg:
         mystr = '.agg' 
@@ -175,16 +177,88 @@ def makeDot(dot_agg=False,dot_include_nontriggers=False):
             dot.edge(name,child_name)
 
     if dot_include_nontriggers:
-        processReads(dot)
+        processReads(dot,dot_agg)
 
     dot.render('gragggraph', view=True)
     return
 
 ##################### processEventSource #######################
-def processReads(dot):
+def processReads(dot,dot_agg):
+    global NODES
     '''include xray reads in dot graph (non-event-sources)'''
-    pass
+    #trigger ops to skip [ 'PutItem', 'UpdateItem', 'DeleteItem', 'BatchWriteItem', 'PutObject', 'DeleteObject', 'PostObject', 'Publish', 'Invoke' ]
+    for ele in SUBSEGS_XRAY:
+        if ':PutItem:' in SUBSEGS_XRAY[ele]:
+            continue
+        if ':UpdateItem:' in SUBSEGS_XRAY[ele]:
+            continue
+        if ':DeleteItem:' in SUBSEGS_XRAY[ele]:
+            continue
+        if ':BatchWriteItem:' in SUBSEGS_XRAY[ele]:
+            continue
+        if ':PutObject:' in SUBSEGS_XRAY[ele]:
+            continue
+        if ':DeleteObject:' in SUBSEGS_XRAY[ele]:
+            continue
+        if ':PostObject:' in SUBSEGS_XRAY[ele]:
+            continue
+        if ':Publish:' in SUBSEGS_XRAY[ele]:
+            continue
+        if ':Invoke:' in SUBSEGS_XRAY[ele]:
+            continue
+        if SUBSEGS_XRAY[ele].startswith('requests:'):
+            if '.amazonaws.com' in SUBSEGS_XRAY[ele]:
+                continue
+        xray = SUBSEGS_XRAY[ele]
+        toks = xray.split(':')
+        toklen = len(toks)
+        reqID = toks[toklen-1] #last component is requestID
+        if reqID in REQS:
+            parent = REQS[reqID]
+        else: 
+            parent = SUBREQS[reqID]
 
+        myid = ele
+        parentname,_,_= getName(parent,dot_agg)
+        parentname,_,_= getName(parent,dot_agg)
+
+        #name is 2 lines: svc=op region\nother other
+        dur = float(toks[6])
+        ERR = False
+
+        if toks[0] == 'requests':
+            #290026a7b3874e8d requests:POST:unknown:unknown:httpbin.org/post:200:0.41441774368286133:False:ff12e189-ab9a-11e7-84e2-6758c617c45d
+            if toks[5] != '200':
+                ERR = True
+            name = '{}={} {}'.format(toks[0],toks[1],toks[4])
+
+        else:
+            #9cf56c565aa0431d DynamoDB:GetItem:us-west-2:image-proc-B:200:unknown:0.6778364181518555:False:d8599d60-85c4-47c0-8684-f589accc0dab
+            if toks[4] != '200':
+                ERR = True
+            name = '{}={} {}\n{}'.format(toks[0],toks[1],toks[2],toks[3])
+            if toks[0] == 'S3' and dot_agg:
+                ##S3:GetObject:us-west-2:B36DBE0CEA80DDA5:200:unknown:0.03930234909057617:False:b97b3871-ac79-11e7-83ab-d1249a09b700
+                name = '{}={} {}'.format(toks[0],toks[1],toks[2])
+
+        #aggregate the timings
+        totsum = dur
+        count = 1
+        if name in NODES:
+            (t,c) = NODES[name]
+            totsum+=t
+            count += c
+        NODES[name] = (totsum,count)
+        avg = totsum/count 
+        nodename='{}\navg: {:0.1f}ms'.format(name,avg)
+
+        if ERR:
+            print('WARNING, node error: {}'.format(nodename))
+            dot.node(name,nodename,color='red',fillcolor='gray',style='filled')
+        else:
+            dot.node(name,nodename,fillcolor='gray',style='filled')
+        dot.edge(parentname,name)
+        
 ##################### processEventSource #######################
 def processEventSource(pl):
     ''' returns True/False, payload as dict:
@@ -222,7 +296,7 @@ def processEventSource(pl):
         retn['kn'] = toks[20] #key name
         retn['key'] = toks[22].strip(' "}') #key
         retn['rest'] = '{}:{}:{}'.format(tmp_tname[3],toks[15],toks[16]) #stream ID
-        retn['op'] = 'DDB={}:{}'.format(toks[24],toks[12]) #triggering_op:source_region
+        retn['op'] = 'DynamoDB={}:{}'.format(toks[24],toks[12]) #triggering_op:source_region
     elif ':s3:bkt:' in pl: #S3 Object trigger (same region as triggered fn)
         triggered = True
         #pl:arn:aws:lambda:us-west-2:443592014519:function:reducerCoordinatorB:es:s3:bkt:spot-mr-bkt-b:key:job8000/task/mapper/0:op:ObjectCreated:Put
@@ -273,7 +347,7 @@ def processPayload(pl,reqID): #about to do something that can trigger a lambda f
     retn = {'name': nm, 'reg': toks[1], 'rest':'none', 'key':'none', 'kn':'none'} #potentially unused keys
 
     if pl.startswith('PutItem:'):
-        retn['op'] = 'DDB=PutItem:{}'.format(current_region)
+        retn['op'] = 'DynamoDB=PutItem:{}'.format(current_region)
         rest = pl[8:]
         idx = rest.find(':TableName:')
         assert idx != -1
@@ -288,17 +362,17 @@ def processPayload(pl,reqID): #about to do something that can trigger a lambda f
         #'rest' is unused
 
     elif pl.startswith('UpdateItem:'):
-        retn['op'] = 'DDB=UpdateItem'
+        retn['op'] = 'DynamoDB=UpdateItem'
         print('processPayload<unsupported op>',pl)
         sys.exit(1)
 
     elif pl.startswith('DeleteItem:'):
-        retn['op'] = 'DDB=DeleteItem'
+        retn['op'] = 'DynamoDB=DeleteItem'
         print('processPayload<unsupported op>',pl)
         sys.exit(1)
 
     elif pl.startswith('BatchWriteItem:'):
-        retn['op'] = 'DDB=BatchWriteItem'
+        retn['op'] = 'DynamoDB=BatchWriteItem'
         print('processPayload<unsupported op>',pl)
         sys.exit(1)
 
@@ -508,6 +582,7 @@ def processHybrid(fname):
                             print('xray {} parent {} payload {}'.format(subid,parent_id,xray_str))
 
                         #step through subsegments (requests, sdks) 
+                        parent_reqID = reqID #reqID of parent to the subsegments that follow
                         parent_id = subid #id of parent to the subsegments that follow
                         subs = doc_dict['subsegments']
                         for sub in subs:
@@ -524,7 +599,6 @@ def processHybrid(fname):
                                 continue
                         
                             #process sdk or requests event
-                            print('XRAY sub: {}'.format(sub))
                             xray_str = None
                             trid=myid=tname=op=reg=key=keyname='unknown'
                             err = 'False'
@@ -576,8 +650,8 @@ def processHybrid(fname):
 
 
                                 if not skip:
-                                    #length 8 = sdk subsegment
-                                    xray_str = '{}:{}:{}:{}:{}:{}:{}:{}'.format(name,op,reg,tname,keyname,key,duration,err)
+                                    #length 9 = sdk subsegment
+                                    xray_str = '{}:{}:{}:{}:{}:{}:{}:{}:{}'.format(name,op,reg,tname,keyname,key,duration,err,reqID)
                             else:
                                 if name == 'requests':
                                     assert 'http' in sub
@@ -592,10 +666,10 @@ def processHybrid(fname):
                                         reg = toks[2]
                                     
                                     #length 9 = requests subsegment
-                                    xray_str = '{}:{}:{}:{}:{}:{}:{}:{}'.format(name,op,reg,tname,url,status,duration,err)
+                                    xray_str = '{}:{}:{}:{}:{}:{}:{}:{}:{}'.format(name,op,reg,tname,url,status,duration,err,parent_reqID)
                                 elif 'Dwell Time' not in name and 'Attempt' not in name: #These are already in encapsulated in AWS::Lambda time
                                     #length 5 other subsegment
-                                    xray_str = '{}:{}:{}:{}'.format(name,parent_id,duration,err)
+                                    xray_str = '{}:{}:{}:{}:{}'.format(name,parent_id,duration,err,parent_reqID)
 
                             if xray_str: #valid if we set it above
                                 if DEBUG:
@@ -674,7 +748,7 @@ def parseIt(fname,fxray=None):
                 if myid in SUBSEGS_XRAY:
                     xray_data = SUBSEGS_XRAY[myid]
                     toks = xray_data.split(':') #length 8 for sdk: #name,op,reg,tname,keyname,key,duration,err
-                    assert len(toks) == 8
+                    assert len(toks) == 9
                     if toks[1] == 'Invoke':
                         child[PAYLOAD]['kn'] = toks[3]
                     child[DUR] = float(toks[6])
