@@ -1,4 +1,4 @@
-import json,time,os,sys,argparse,statistics,ast
+import json,time,os,sys,argparse,statistics,ast,uuid
 from pprint import pprint
 from graphviz import Digraph
 from enum import Enum
@@ -15,7 +15,7 @@ START='dur'
 CHILDREN='children'
 SSID='ssegId'
 
-DEBUG = True
+DEBUG = False
 REQS = {}
 SUBREQS = {} #for functions triggered (in/)directly by other functions
 TRIGGERS = defaultdict(list) #potentially multiple eles in list per key
@@ -23,11 +23,10 @@ TRIGGERS = defaultdict(list) #potentially multiple eles in list per key
 #the only one that has a list is fn (len 8) which includes entry and invoke
 SUBSEGS_XRAY = {} 
 XRAY_REQS = {} #(startup_duration,container_started,exec_duration) container_started is True/False, rest are floats
-eleID = 1
 seqID = 1
 NODES = {}
 ##################### getName #######################
-def getName(reqObj,INST=False):
+def getName(reqObj,INST=True):
     '''Given an object (reqObj), return a unique name for the node
        if INST is True, then add an 8 digit uuid to end of name so that 
        its different from all others (non-aggregated)
@@ -46,11 +45,19 @@ def getName(reqObj,INST=False):
 
        match is the subportion of name that lets us match SDK calls to triggers
 
+       NONTRIGGER in name = nonSDK => gray
+       NOXRAYDATA in name = 'NOXRAYDATA' in rest => blue
+       ERR in name = error in 'rest' => red
+
+       PLEASE NOTE, DO NOT! PUT A COLON IN THE NAME STRING THAT IS RETURNED
+       IT CAUSES DOT/GRAPHVIZ PROBLEMS WHEN USED IN THE NODE NAME (EDGES WILL NOT BE CREATED CORRECTLY)
+
     '''
+
     
     pl = reqObj[PAYLOAD]
     match = '{}:{}:{}'.format(pl['tname'],pl['kn'],pl['key']) #key is none if unused
-
+    color = 'black'
     typ = reqObj[TYPE]
     opreg = pl['reg']
     ntoks = pl['op'].split(':')
@@ -67,13 +74,13 @@ def getName(reqObj,INST=False):
         elif op == 'Invoke':
             match = '{}:{}:{}:{}'.format(pl['name'],reqObj['req'],pl['tname'],pl['kn']) #triggered by a function callee(this_fn):caller
         #else use the default match and name above
-    else: #sdk
+    elif typ == 'sdkT': #sdk trigger
         if op == 'Invoke':
-            path = '{}'.format(pl['tname'])
+            path = '{} {}'.format(pl['tname'],pl['kn'])
             match = '{}:{}:{}:{}'.format(pl['tname'],pl['kn'],pl['name'],reqObj['req']) #triggered by a function callee:caller(this_fn)
             name='{} {} {}'.format(op,opreg,path)
         elif op.startswith('S3=') or op.startswith('DDB='): #use the default match
-            path = '\n{} {}/{}'.format(pl['tname'],pl['kn'],pl['key'])
+            path = '\n{} {}'.format(pl['tname'],pl['kn'])
             name='{} {} {}'.format(op,opreg,path)
         elif op.startswith('SNS=') or op.startswith('HTTP='): #use the default match
             path = '{} {}'.format(pl['tname'],pl['kn'])
@@ -81,40 +88,37 @@ def getName(reqObj,INST=False):
         else:
             print(pl)
             assert False #we shouldn't be here
+    else:  #sdk nontrigger
+        color = 'gray'
 
     if INST:
-        name+='_{}'.format(str(uuid.uuid4())[:8]) #should this be requestID?
-    return name,match
+        #name+='_{}'.format(str(uuid.uuid4())[:8]) #should this be requestID?
+        name+='\n{}'.format(reqObj['req']) #should this be requestID?
+
+    if pl['rest'].find('NOXRAYDATA') != -1:
+        color = 'yellow'
+    elif pl['rest'].find(':error:True') != -1:
+        color = 'red'
+
+    return name,match,color
 
 ##################### processDotChild #######################
 def processDotChild(dot,req):
-    global eleID
     dur = req[DUR]
-    name,_ = getName(req)
-    if name.startswith('NONTRIGGER:'):
-        name = name[11:]
-        totsum = dur
-        count = 1
-        if name in NODES:
-            (t,c) = NODES[name]
-            totsum+=t
-            count += c
-        NODES[name] = (totsum,count)
-        avg = totsum/count 
-        nodename = '{}\navg: {:0.1f}ms'.format(name,avg)
-        dot.node(name,nodename,fillcolor='gray',style='filled')
+    name,_,color= getName(req)
+    totsum = dur
+    count = 1
+    if name in NODES:
+        (t,c) = NODES[name]
+        totsum+=t
+        count += c
+    NODES[name] = (totsum,count)
+    avg = totsum/count 
+    nodename='{}\navg: {:0.1f}ms'.format(name,avg)
+    if color == 'gray': #non-sdk
+        dot.node(name,nodename,fillcolor=color,style='filled')
     else:
-        totsum = dur
-        count = 1
-        if name in NODES:
-            (t,c) = NODES[name]
-            totsum+=t
-            count += c
-        NODES[name] = (totsum,count)
-        avg = totsum/count 
-        nodename='{}\navg: {:0.1f}ms'.format(name,avg)
-        dot.node(name,nodename)
-    eleID += 1
+        dot.node(name,nodename,color=color,shape='octagon')
     for child in req[CHILDREN]:
         child_name = processDotChild(dot,child)
         dot.edge(name,child_name)
@@ -122,7 +126,6 @@ def processDotChild(dot,req):
 
 ##################### makeDotAggregate #######################
 def makeDotAggregate():
-    global eleID
     dot = Digraph(comment='GRAggregate',format='pdf')
     agent_name = "Clients"
     dot.node(agent_name,agent_name)
@@ -145,7 +148,7 @@ def makeDotAggregate():
     for key in REQS:
         req = REQS[key]
         pl = req[PAYLOAD]
-        name,_ = getName(req)
+        name,_,color = getName(req)
         dur = req[DUR]
         totsum = dur
         count = 1
@@ -156,11 +159,13 @@ def makeDotAggregate():
         NODES[name] = (totsum,count)
         avg = totsum/count 
         nodename='{}\navg: {:0.1f}ms'.format(name,avg)
-        dot.node(name,nodename)
+        if color == 'gray': #non-sdk
+            dot.node(name,nodename,fillcolor=color,style='filled')
+        else:
+            dot.node(name,nodename,color=color,shape='octagon')
         if name not in agent_edges: 
             dot.edge(agent_name,name)
             agent_edges.append(name)
-        eleID += 1
 
         for child in req[CHILDREN]:
             child_name = processDotChild(dot,child)
@@ -216,7 +221,7 @@ def processEventSource(pl):
         retn['op'] = 'S3={}_{}:{}'.format(toks[15],toks[16],toks[4])
         #key not used
     else:
-        print(pl)
+        print('processEventSource<unsupported op>',pl)
         assert False
         #for HTTP the source region must be the same as this functions region because APIGW can only invoke functions in its region
     return triggered,retn
@@ -315,7 +320,7 @@ def processPayload(pl,reqID): #about to do something that can trigger a lambda f
             retn['tname'] = toks[3]  #callee name
             retn['rest'] = '{}'.format(toks[5]) #invocationType
         else:
-            print(pl)
+            print('processPayload<unsupported Invoke op>',pl)
             assert False
         retn['kn'] = 'unknown'  #callee reqID
         #key 'key' not used
@@ -454,7 +459,8 @@ def processHybrid(fname):
                     if origin == 'AWS::Lambda::Function': #AWS::Lambda:Function (parent of Initialization,requests, and SDKs)
                         parent_id = doc_dict['parent_id'] #ID of Attempt event that spawned this FN
                         if parent_id not in XRAY_PAR_REQ:
-                            print('ERR: {}'.format(XRAY_PAR_REQ))
+                            print('ERROR: {} not in {}'.format(parent_id,XRAY_PAR_REQ))
+                            assert False
                         reqID = XRAY_PAR_REQ[parent_id] #reqID of the parent of Attempt (FN's reqID)
 
                         #update tuple
@@ -484,7 +490,6 @@ def processHybrid(fname):
                             start = float(sub['start_time'])
                             end = float(sub['end_time'])
                             duration = (end-start)
-                            print('SDKXRAY: {}'.format(sub))
                             if name == 'Initialization':
                                 #container was started for this function, add it to the startup overhead and set flag
                                 tpl = XRAY_REQS[reqID]
@@ -574,7 +579,8 @@ def processHybrid(fname):
                     else:
                         pass #skip all others as they are repeats of SDKs and requests
 
-    print('DONE')
+    if DEBUG:
+        print('DONE')
             
    
 
@@ -628,11 +634,11 @@ def parseIt(fname,fxray=None):
                 reqID = pldict['reqID']['S'][:reqidx]
                 ts = float(pldict['ts']['N'])
                 
-                print('processing grpayload: {} {}\n\t{} {} {} {}'.format(reqID,pltmp,myid,pid,trid,ts))
                 rest_dict = processPayload(pltmp,reqID)
                 if not rest_dict:
                     continue
-                print('SDK dict: {} {}'.format(reqID, rest_dict))
+                if DEBUG:
+                    print('SDK dict: {} {}'.format(reqID, rest_dict))
 
                 #make a child object-- all are possible event sources at this point (B config)
                 child = {TYPE:'sdkT',REQ:reqID,SSID:myid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
@@ -642,7 +648,6 @@ def parseIt(fname,fxray=None):
                     xray_data = SUBSEGS_XRAY[myid]
                     toks = xray_data.split(':') #length 8 for sdk: #name,op,reg,tname,keyname,key,duration,err
                     assert len(toks) == 8
-                    print('xraydata: ',xray_data)
                     if toks[1] == 'Invoke':
                         child[PAYLOAD]['kn'] = toks[3]
                     child[DUR] = float(toks[6])
@@ -650,12 +655,12 @@ def parseIt(fname,fxray=None):
                     if 'rest' in child[PAYLOAD]: 
                         rest = child[PAYLOAD]['rest']
                     child[PAYLOAD]['rest'] = '{}:error:{}'.format(rest,toks[7])
-                    print('Updated Child: {}'.format(child))
                 else:
                     print('WARNING: {} not found in SUBSEGS_XRAY'.format(myid))
+                    print('\tUnable to update duration for SDK\n\t{}'.format(child))
+                    child[PAYLOAD]['rest'] = '{}:NOXRAYDATA'.format(rest)
 
-                _,match = getName(child)
-                print('sdk match {}\n\t{}'.format(match,child))
+                _,match,_ = getName(child)
                 TRIGGERS[match].append(child)
                 #add the SDK as a child to its entry in REQS
                 if reqID in REQS:
@@ -684,7 +689,8 @@ def parseIt(fname,fxray=None):
 
                 assert reqID not in REQS
                 trigger,payload = processEventSource(pl)
-                print('entry: {} {} {}'.format(reqID,trigger,payload))
+                if DEBUG:
+                    print('entry: {} {} {}'.format(reqID,trigger,payload))
 
                 if reqID in XRAY_REQS:
                     tpl = XRAY_REQS[reqID]  #(0:startup_sum, 1:True if Init, 2:fn_duration)
@@ -694,12 +700,12 @@ def parseIt(fname,fxray=None):
                 else:
                     #function triggered by an event not captured by XRay or not sampled by XRay
                     print('WARNING: {} not found in XRAY_REQS\n\t{} {}'.format(reqID,trigger,payload))
+                    payload['rest'] = '{}:NOXRAYDATA'.format(payload['rest'])
 
                 ele = {TYPE:'fn',REQ:reqID,SSID:'none',PAYLOAD:payload,TS:ts,DUR:duration,START:startup,SEQ:seqID,CHILDREN:[]}
                 seqID += 1
                 if trigger: #this lambda was triggered by an event source
-                    print('calling2 getName for match {}'.format(ele))
-                    n,match = getName(ele)
+                    n,match,_ = getName(ele)
                     assert match in TRIGGERS
                     plist = TRIGGERS[match]
                     #grab the most recent sequence ID (ensure its smaller than ours (seqID-1))
