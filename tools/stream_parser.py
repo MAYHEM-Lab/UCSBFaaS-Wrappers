@@ -106,8 +106,6 @@ def getName(reqObj):
         color = 'gray'
 
     if not dot_agg:
-        #name+='_{}'.format(str(uuid.uuid4())[:8]) #should this be requestID?
-        print('getname adding req')
         name+='\n{}'.format(reqObj['req']) #should this be requestID?
 
     if pl['rest'].find('NOXRAYDATA') != -1:
