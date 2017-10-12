@@ -60,9 +60,14 @@ aws --profile ${PROF} xray get-trace-summaries --start-time ${DSTART} --end-time
 TIDS=`python getEleFromJson.py TraceSummaries:Id ${TMPFILE} --multiple`
 #echo ${TIDS}
 
+#a better way to do this:
 #example for XRay download service: download between 1 and 2 minutes in the past
-#EPOCH=$(date +%s)
+#EPOCH=$(date -u +%s)
 #aws xray get-trace-summaries --start-time $(($EPOCH-120)) --end-time $(($EPOCH-60))
+#Example Script to get full traces for a one minute period
+#EPOCH=$(date -u +%s)
+#TRACEIDS=$(aws xray get-trace-summaries --start-time $(($EPOCH-120)) --end-time $(($EPOCH-60)) --query 'TraceSummaries[*].Id' --output text)
+#aws xray batch-get-traces --trace-ids $TRACEIDS --query 'Traces[*]'
 
 for TID in ${TIDS}  #one per trace ID, only request it if we dont yet have it
 do
