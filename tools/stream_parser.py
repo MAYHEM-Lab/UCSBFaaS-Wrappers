@@ -26,9 +26,9 @@ XRAY_REQS = {} #(startup_duration,container_started,exec_duration) container_sta
 seqID = 1
 NODES = {}
 ##################### getName #######################
-def getName(reqObj,INST=True):
+def getName(reqObj,AGG=True):
     '''Given an object (reqObj), return a unique name for the node
-       if INST is True, then add an 8 digit uuid to end of name so that 
+       if AGG is False (instance has been requested), then add the request ID to the name so that 
        its different from all others (non-aggregated)
 
        name cannot contain colons as graphviz doesn't handle them in a node name, 
@@ -91,7 +91,7 @@ def getName(reqObj,INST=True):
     else:  #sdk nontrigger
         color = 'gray'
 
-    if INST:
+    if not AGG:
         #name+='_{}'.format(str(uuid.uuid4())[:8]) #should this be requestID?
         name+='\n{}'.format(reqObj['req']) #should this be requestID?
 
@@ -103,9 +103,9 @@ def getName(reqObj,INST=True):
     return name,match,color
 
 ##################### processDotChild #######################
-def processDotChild(dot,req):
+def processDotChild(dot,req,dot_agg=False):
     dur = req[DUR]
-    name,_,color= getName(req)
+    name,_,color= getName(req,dot_agg)
     totsum = dur
     count = 1
     if name in NODES:
@@ -124,9 +124,12 @@ def processDotChild(dot,req):
         dot.edge(name,child_name)
     return name
 
-##################### makeDotAggregate #######################
-def makeDotAggregate():
-    dot = Digraph(comment='GRAggregate',format='pdf')
+##################### makeDot #######################
+def makeDot(dot_agg=False,dot_include_nontriggers=False):
+    mystr = ''
+    if dot_agg:
+        mystr = '.agg' 
+    dot = Digraph(comment='gammaRayGraph{}'.format(mystr),format='pdf')
     agent_name = "Clients"
     dot.node(agent_name,agent_name)
     agent_edges = []
@@ -148,7 +151,7 @@ def makeDotAggregate():
     for key in REQS:
         req = REQS[key]
         pl = req[PAYLOAD]
-        name,_,color = getName(req)
+        name,_,color = getName(req,dot_agg)
         dur = req[DUR]
         totsum = dur
         count = 1
@@ -168,11 +171,19 @@ def makeDotAggregate():
             agent_edges.append(name)
 
         for child in req[CHILDREN]:
-            child_name = processDotChild(dot,child)
+            child_name = processDotChild(dot,child,dot_agg)
             dot.edge(name,child_name)
+
+    if dot_include_nontriggers:
+        processReads(dot)
 
     dot.render('gragggraph', view=True)
     return
+
+##################### processEventSource #######################
+def processReads(dot):
+    '''include xray reads in dot graph (non-event-sources)'''
+    pass
 
 ##################### processEventSource #######################
 def processEventSource(pl):
@@ -219,6 +230,15 @@ def processEventSource(pl):
         retn['tname'] = toks[11] #bucket name
         retn['kn'] = toks[13] #full file name
         retn['op'] = 'S3={}_{}:{}'.format(toks[15],toks[16],toks[4])
+        #key not used
+    elif ':es:sns:' in pl: #SNS Object trigger (same region as triggered fn)
+        triggered = True
+        #pl:arn:aws:lambda:us-west-2:443592014519:function:S3ModPyB:es:sns:sub:sub1:op:arn:aws:sns:us-west-2:443592014519:topicB
+        toks = pl.split(':')
+        retn['reg'] = toks[16] #region of topic
+        retn['tname'] = toks[18] #topic
+        retn['kn'] = toks[11] #subject
+        retn['op'] = 'SNS={}:{}'.format(toks[15],toks[16])
         #key not used
     else:
         print('processEventSource<unsupported op>',pl)
@@ -304,9 +324,15 @@ def processPayload(pl,reqID): #about to do something that can trigger a lambda f
         retn['kn'] = toks[5]  #fname
 
     elif pl.startswith('Publish:'):
+        #Publish:us-west-2:TopicArn:arn:aws:sns:us-west-2:443592014519:topicB:Subject:sub1:Message:fname:testfile.txt:prefix:prefB:bkt:cjk-fninvtrigger-b:xxx
         retn['op'] = 'SNS=Publish'
-        print('processPayload<unsupported op>',pl)
-        sys.exit(1)
+        toks = pl.split(':')
+        retn['reg'] = toks[6] #region of topic
+        retn['tname'] = toks[8] #topic
+        retn['kn'] = toks[10] #subject
+        idx = pl.find(':Message:')
+        if idx != -1:
+            retn['rest'] = pl[idx+9:] #message
 
     elif pl.startswith('Invoke:'):
         #Invoke:us-west-2:FunctionName:arn:aws:lambda:us-west-2:XXX:function:emptyB:InvocationType:Event
@@ -498,6 +524,7 @@ def processHybrid(fname):
                                 continue
                         
                             #process sdk or requests event
+                            print('XRAY sub: {}'.format(sub))
                             xray_str = None
                             trid=myid=tname=op=reg=key=keyname='unknown'
                             err = 'False'
@@ -726,6 +753,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='GammaRay Stream Parser')
     parser.add_argument('fname',action='store',help='filename containing stream data')
     parser.add_argument('hybrid',action='store',help='filename containing xray data')
+    parser.add_argument('--include_all_sdks',action='store_true',default=False,help='set if you want to display non-triggering sdk operations in the graph')
+    parser.add_argument('--aggregate',action='store_true',default=False,help='set if you want to display the aggregate graph instead of the instance')
     args = parser.parse_args()
 
     if not os.path.isfile(args.hybrid) and not os.path.isdir(args.hybrid): 
@@ -735,5 +764,5 @@ if __name__ == "__main__":
 
     processHybrid(args.hybrid)
     parseIt(args.fname, args.hybrid)
-    makeDotAggregate()
+    makeDot(args.aggregate,args.include_all_sdks)
 
