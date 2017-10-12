@@ -11,7 +11,8 @@ PAYLOAD='pl'
 TS='ts'
 SEQ='seqNo'
 DUR='dur'
-START='dur'
+ST='st'
+SDK='sdk'
 CHILDREN='children'
 SSID='ssegId'
 
@@ -22,7 +23,7 @@ TRIGGERS = defaultdict(list) #potentially multiple eles in list per key
 
 #the only one that has a list is fn (len 8) which includes entry and invoke
 SUBSEGS_XRAY = {} 
-XRAY_REQS = {} #(startup_duration,container_started,exec_duration) container_started is True/False, rest are floats
+XRAY_REQS = {} #(startup_duration,container_started,exec_duration,sdk_duration) container_started is True/False, rest are floats
 seqID = 1
 NODES = {}
 dot_agg = False
@@ -35,7 +36,7 @@ def getName(reqObj):
 
        name cannot contain colons as graphviz doesn't handle them in a node name, 
        name can have newlines however
-       reqObj = {TYPE:'sdkT',REQ:reqID,SSID:myid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,START:0.0,SEQ:seqID,CHILDREN:[]}
+       reqObj = {TYPE:'sdkT',REQ:reqID,SSID:myid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,ST:0.0,SDK:0.0,SEQ:seqID,CHILDREN:[]}
        pl = reqObj[PAYLOAD]
        pl['reg'] #region of this function
        pl['name'] #this fn's (callee) name
@@ -123,13 +124,30 @@ def processDotChild(dot,req,EDGES):
     name,_,color= getName(req)
     totsum = dur
     count = 1
+    start = req[ST]
+    sdk = req[SDK]
     if name in NODES:
-        (t,c) = NODES[name]
-        totsum+=t
+        (t,c,s,s2) = NODES[name]
+        sdk += s2
+        start += s
+        totsum += t
         count += c
-    NODES[name] = (totsum,count)
+    NODES[name] = (totsum,count,start,sdk)
     avg = totsum/count 
-    nodename='{}\navg: {:0.2f}ms'.format(name,avg)
+    #compute the startup time for entry nodes
+    if req[TYPE] == 'fn':
+        startavg = start/count 
+        tot = startavg+avg #init+fn time
+        sdkavg = sdk/count 
+        pct = pctsdks = 0.0
+        if tot != 0:
+            pct = (start/tot)*100
+            pctsdks = (sdkavg/tot)*100
+        #nodename='{}\nFN: {:0.2f}ms INIT: {:0.2f}ms TOT: {:0.2f} InitPct {:0.2f}%'.format(name,avg,startavg,tot,pct)
+        nodename='{}\nFN: {:0.2f}ms INIT: {:0.2f}ms TOT: {:0.2f}ms\nSDKS: {:0.2f}ms PCTSDKs {:0.2f}%'.format(name,avg,startavg,tot,sdkavg,pctsdks)
+    else: #nonentry node
+        nodename='{}\navg: {:0.2f}ms'.format(name,avg)
+
     if color == 'gray': #non-sdk
         dot.node(name,nodename,fillcolor=color,style='filled')
     else:
@@ -151,18 +169,7 @@ def makeDot(dot_include_nontriggers=False):
     EDGES = []
 
     ''' 
-       reqObj = {TYPE:'sdkT',REQ:reqID,SSID:myid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,START:0.0,SEQ:seqID,CHILDREN:[]}
-       pl = reqObj[PAYLOAD]
-       pl['reg'] #region of this function
-       pl['name'] #this fn's (callee) name
-       pl['tname'] #caller's name, table name, s3 bucket name, snstopic, url
-       pl['kn']  #caller reqID, keyname, s3 prefix, sns subject, http_method
-       pl['op']' #triggering_operation:source_region
-       pl['key'] #unused for fn, key for ddb, filename for s3, unused for sns, unused for http
-       pl['rest'] #other info only for event sources
-       REQS holds all of the gammaray nodes (each potentially having CHILDREN)
-       REQS holds all of the gammaray nodes (each potentially having CHILDREN)
-       SUBSEGS holds all nodes by SSID
+       req = {TYPE:'sdkT'|'fn',REQ:reqID,SSID:myid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,ST:0.0,SDK:0.0,SEQ:seqID,CHILDREN:[]}
     '''
     for key in REQS:
         req = REQS[key]
@@ -171,13 +178,31 @@ def makeDot(dot_include_nontriggers=False):
         dur = req[DUR]
         totsum = dur
         count = 1
+        start = req[ST] #will be 0 if sdk
+        sdk = req[SDK] #will be 0 if sdk
         if name in NODES:
-            (t,c) = NODES[name]
-            totsum+=t
+            (t,c,s,s2) = NODES[name]
+            sdk += s2 
+            start += s 
+            totsum += t
             count += c
-        NODES[name] = (totsum,count)
+        NODES[name] = (totsum,count,start,sdk)
         avg = totsum/count 
-        nodename='{}\navg: {:0.2f}ms'.format(name,avg)
+
+        #compute the startup time for entry nodes
+        if req[TYPE] == 'fn':
+            startavg = start/count 
+            tot = startavg+avg #init+fn time
+            sdkavg = sdk/count
+            pct = pctsdks = 0.0
+            if tot != 0:
+                pct = (start/tot)*100
+                pctsdks = (sdkavg/tot)*100
+            #nodename='{}\nFN: {:0.2f}ms INIT: {:0.2f}ms TOT: {:0.2f} InitPct {:0.2f}%'.format(name,avg,startavg,tot,pct)
+            nodename='{}\nFN: {:0.2f}ms INIT: {:0.2f}ms TOT: {:0.2f}ms\nSDKS: {:0.2f}ms PCTSDKs {:0.2f}%'.format(name,avg,startavg,tot,sdkavg,pctsdks)
+        else: #nonentry node
+            nodename='{}\navg: {:0.2f}ms'.format(name,avg)
+
         if color == 'gray': #non-sdk
             dot.node(name,nodename,fillcolor=color,style='filled')
         else:
@@ -266,11 +291,15 @@ def processReads(dot):
         #aggregate the timings
         totsum = dur
         count = 1.0
+        start = 0.0
+        sdk = 0.0
         if name in NODES:
-            (t,c) = NODES[name]
-            totsum+=t
+            (t,c,s,s2) = NODES[name]
+            sdk += s2
+            start += s
+            totsum += t
             count += c
-        NODES[name] = (totsum,count)
+        NODES[name] = (totsum,count,start,sdk)
         avg = totsum/count 
         nodename='{}\navg: {:0.2f}ms'.format(name,avg)
 
@@ -545,7 +574,7 @@ def setupParReqs(fname, flist, XRAY_PAR_REQ):
                         #record tuple using dwell's ssid
                         ################startup_sum, True if Init, fn_duration
                         if Done:
-                            XRAY_REQS[parent_reqID] = (dursum,False,0.0)
+                            XRAY_REQS[parent_reqID] = (dursum,False,0.0,0.0)
                         xray_str = '{}:AWS_Lambda:{}:{}:{}:{}:{}:{}'.format(name,reg,tname,keyname,key,dursum,err)
                         if DEBUG:
                             print('xray {} parent {} payload {}'.format(subid,parent_id,xray_str))
@@ -588,20 +617,22 @@ def processHybrid(fname):
                         reqID = XRAY_PAR_REQ[parent_id] #reqID of the parent of Attempt (FN's reqID)
 
                         #update tuple
-                        tpl = XRAY_REQS[reqID]  #(0:startup_sum, 1:True if Init, 2:fn_duration)
+                        tpl = XRAY_REQS[reqID]  #(0:startup_sum, 1:True if Init, 2:fn_duration, 3: sdks_duration)
                         assert tpl[2] == 0.0
+                        assert tpl[3] == 0.0
+                        startup= tpl[0]
+                        initFlag = tpl[1]
                         start = float(doc_dict['start_time'])
                         end = float(doc_dict['end_time'])
                         dursum = end-start
                         err = False
-                        newtpl = (tpl[0],tpl[1],dursum)
-                        XRAY_REQS[reqID] = newtpl  #(0:startup_sum, 1:True if Init, 2:fn_duration)
+
                         myarn = aws['function_arn']
                         toks = myarn.split(':') #arn:aws:lambda:us-west-2:XXX:function:FnInvokerPyB
                         name = toks[6]
                         reg = toks[3]
                         #tname,key unused
-                        xray_str = '{}:AWS_Lambda_FN:{}:{}:{}:unknown:{}:{}'.format(name,reqID,reg,tname,keyname,key,dursum,err)
+
                         if DEBUG:
                             print('xray {} parent {} payload {}'.format(subid,parent_id,xray_str))
 
@@ -609,6 +640,7 @@ def processHybrid(fname):
                         parent_reqID = reqID #reqID of parent to the subsegments that follow
                         parent_id = subid #id of parent to the subsegments that follow
                         subs = doc_dict['subsegments']
+                        sdksum = 0.0
                         for sub in subs:
                             #record time spent in requests+sdks
                             name = sub['name']
@@ -618,10 +650,11 @@ def processHybrid(fname):
                             if name == 'Initialization':
                                 #container was started for this function, add it to the startup overhead and set flag
                                 tpl = XRAY_REQS[reqID]
-                                newtpl = (tpl[0]+duration,True,tpl[2])
-                                XRAY_REQS[reqID] = newtpl  #(0:startup_sum, 1:True if Init, 2:fn_duration)
+                                newtpl = (tpl[0]+duration,True,tpl[2],tpl[3])
+                                XRAY_REQS[reqID] = newtpl  #(0:startup_sum, 1:True if Init, 2:fn_duration, 3:sdks_duration)
                                 continue
                         
+                            sdksum += duration
                             #process sdk or requests event
                             xray_str = None
                             trid=myid=tname=op=reg=key=keyname='unknown'
@@ -699,12 +732,20 @@ def processHybrid(fname):
                                 elif 'Dwell Time' not in name and 'Attempt' not in name: #These are already in encapsulated in AWS::Lambda time
                                     #length 5 other subsegment
                                     xray_str = '{}:{}:{}:{}:{}'.format(name,parent_id,duration,err,parent_reqID)
+                                else:
+                                    #remove the dwell and attempt time from the sdksum as it is counted in startup
+                                    sdksum = sdksum - duration
 
                             if xray_str: #valid if we set it above
                                 if DEBUG:
                                     print('xray {} parent {} payload {}'.format(myid,parent_id,xray_str))
                                 assert myid not in SUBSEGS_XRAY
                                 SUBSEGS_XRAY[myid] = xray_str
+
+                        #back outside in parent
+                        newtpl = (startup,initFlag,dursum,sdksum)
+                        XRAY_REQS[reqID] = newtpl  #(0:startup_sum, 1:True if Init, 2:fn_duration, 3:sdk_tot_duration)
+                        xray_str = '{}:AWS_Lambda_FN:{}:{}:{}:{}:{}:{}'.format(name,reqID,reg,tname,keyname,key,sdksum,dursum,err)
 
                     else:
                         pass #skip all others as they are repeats of SDKs and requests
@@ -771,7 +812,7 @@ def parseIt(fname,fxray=None):
                     print('SDK dict: {} {}'.format(reqID, rest_dict))
 
                 #make a child object-- all are possible event sources at this point (B config)
-                child = {TYPE:'sdkT',REQ:reqID,SSID:myid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,SEQ:seqID,CHILDREN:[]}
+                child = {TYPE:'sdkT',REQ:reqID,SSID:myid,PAYLOAD:rest_dict,TS:start_ts,DUR:0.0,ST:0.0,SDK:0.0,SEQ:seqID,CHILDREN:[]}
                 seqID += 1
                 calleeReq = 'none'
                 if myid in SUBSEGS_XRAY:
@@ -823,16 +864,17 @@ def parseIt(fname,fxray=None):
                     print('entry: {} {} {}'.format(reqID,trigger,payload))
 
                 if reqID in XRAY_REQS:
-                    tpl = XRAY_REQS[reqID]  #(0:startup_sum, 1:True if Init, 2:fn_duration)
+                    tpl = XRAY_REQS[reqID]  #(0:startup_sum, 1:True if Init, 2:fn_duration, 3:sdk_duration)
                     startup = tpl[0]
                     init = tpl[1]
                     duration = tpl[2]
+                    sdks = tpl[3]
                 else:
                     #function triggered by an event not captured by XRay or not sampled by XRay
                     print('WARNING: {} not found in XRAY_REQS\n\t{} {}'.format(reqID,trigger,payload))
                     payload['rest'] = '{}:NOXRAYDATA'.format(payload['rest'])
 
-                ele = {TYPE:'fn',REQ:reqID,SSID:'none',PAYLOAD:payload,TS:ts,DUR:duration,START:startup,SEQ:seqID,CHILDREN:[]}
+                ele = {TYPE:'fn',REQ:reqID,SSID:'none',PAYLOAD:payload,TS:ts,DUR:duration,ST:startup,SDK:sdks,SEQ:seqID,CHILDREN:[]}
                 seqID += 1
                 if trigger: #this lambda was triggered by an event source
                     n,match,_ = getName(ele)
