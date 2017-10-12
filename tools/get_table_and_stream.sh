@@ -56,7 +56,7 @@ cat ${APP1}D.stream >> streamD.base
 
 DSTART=`date "+%Y-%m-%dT%H:%M:%S"` #not utc so 7 hours earlier
 DEND=`date -u "+%Y-%m-%dT%H:%M:%S"` #utc
-aws --profile ${PROF} xray get-trace-summaries --start-time ${DSTART} --end-time ${DEND}  > ${TMPFILE}
+aws --profile ${PROF} xray get-trace-summaries --no-sampling --start-time ${DSTART} --end-time ${DEND}  > ${TMPFILE}
 TIDS=`python getEleFromJson.py TraceSummaries:Id ${TMPFILE} --multiple`
 #echo ${TIDS}
 
