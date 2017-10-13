@@ -16,7 +16,7 @@ SDK='sdk'
 CHILDREN='children'
 SSID='ssegId'
 
-DEBUG = False
+DEBUG = True
 REQS = {}
 SUBREQS = {} #for functions triggered (in/)directly by other functions
 TRIGGERS = defaultdict(list) #potentially multiple eles in list per key
@@ -137,16 +137,16 @@ def processDotChild(dot,req,EDGES):
     #compute the startup time for entry nodes
     if req[TYPE] == 'fn':
         startavg = start/count 
-        tot = startavg+avg #init+fn time
+        tot = startavg+avg #init+fn time -- AWS only bills for fn time
         sdkavg = sdk/count 
         pct = pctsdks = 0.0
         if tot != 0:
             pct = (start/tot)*100
-            pctsdks = (sdkavg/tot)*100
-        #nodename='{}\nFN: {:0.2f}ms INIT: {:0.2f}ms TOT: {:0.2f} InitPct {:0.2f}%'.format(name,avg,startavg,tot,pct)
-        nodename='{}\nFN: {:0.2f}ms INIT: {:0.2f}ms TOT: {:0.2f}ms\nSDKS: {:0.2f}ms PCTSDKs {:0.2f}%'.format(name,avg,startavg,tot,sdkavg,pctsdks)
+            pctsdks = (sdkavg/avg)*100 #pct of function time spent in sdks
+        #nodename='{}\nFN: {:0.2f}s INIT: {:0.2f}s InitPct {:0.2f}%'.format(name,avg,startavg,tot,pct)
+        nodename='{}\nFN: {:0.2f}s INIT: {:0.2f}s \nSDKS: {:0.2f}s PCTSDKs {:0.2f}%'.format(name,avg,startavg,tot,sdkavg,pctsdks)
     else: #nonentry node
-        nodename='{}\navg: {:0.2f}ms'.format(name,avg)
+        nodename='{}\navg: {:0.2f}s'.format(name,avg)
 
     if color == 'gray': #non-sdk
         dot.node(name,nodename,fillcolor=color,style='filled')
@@ -192,16 +192,16 @@ def makeDot(dot_include_nontriggers=False):
         #compute the startup time for entry nodes
         if req[TYPE] == 'fn':
             startavg = start/count 
-            tot = startavg+avg #init+fn time
+            tot = startavg+avg #init+fn time - AWS only bills for fn time
             sdkavg = sdk/count
             pct = pctsdks = 0.0
             if tot != 0:
                 pct = (start/tot)*100
-                pctsdks = (sdkavg/tot)*100
-            #nodename='{}\nFN: {:0.2f}ms INIT: {:0.2f}ms TOT: {:0.2f} InitPct {:0.2f}%'.format(name,avg,startavg,tot,pct)
-            nodename='{}\nFN: {:0.2f}ms INIT: {:0.2f}ms TOT: {:0.2f}ms\nSDKS: {:0.2f}ms PCTSDKs {:0.2f}%'.format(name,avg,startavg,tot,sdkavg,pctsdks)
+                pctsdks = (sdkavg/avg)*100 #pct of function time spent in sdks
+            #nodename='{}\nFN: {:0.2f}s INIT: {:0.2f}s InitPct {:0.2f}%'.format(name,avg,startavg,tot,pct)
+            nodename='{}\nFN: {:0.2f}s INIT: {:0.2f}s \nSDKS: {:0.2f}s PCTSDKs {:0.2f}%'.format(name,avg,startavg,tot,sdkavg,pctsdks)
         else: #nonentry node
-            nodename='{}\navg: {:0.2f}ms'.format(name,avg)
+            nodename='{}\navg: {:0.2f}s'.format(name,avg)
 
         if color == 'gray': #non-sdk
             dot.node(name,nodename,fillcolor=color,style='filled')
@@ -301,7 +301,7 @@ def processReads(dot):
             count += c
         NODES[name] = (totsum,count,start,sdk)
         avg = totsum/count 
-        nodename='{}\navg: {:0.2f}ms'.format(name,avg)
+        nodename='{}\navg: {:0.2f}s'.format(name,avg)
 
         if ERR:
             print('WARNING, node error: {}'.format(nodename))
@@ -832,6 +832,8 @@ def parseIt(fname,fxray=None):
                     child[PAYLOAD]['rest'] = '{}:NOXRAYDATA'.format(child[PAYLOAD]['rest'])
 
                 _,match,_ = getName(child)
+                if DEBUG:
+                    print('adding trigger to match: {}'.format(match))
                 TRIGGERS[match].append(child)
                 #add the SDK as a child to its entry in REQS
                 if reqID in REQS:
@@ -857,6 +859,7 @@ def parseIt(fname,fxray=None):
                 startup = 0.0
                 init = False
                 duration = 0.0
+                sdks = 0.0
 
                 assert reqID not in REQS
                 trigger,payload = processEventSource(pl)
@@ -878,6 +881,8 @@ def parseIt(fname,fxray=None):
                 seqID += 1
                 if trigger: #this lambda was triggered by an event source
                     n,match,_ = getName(ele)
+                    if DEBUG:
+                        print('looking up trigger, match: {}'.format(match))
                     assert match in TRIGGERS
                     plist = TRIGGERS[match]
                     #grab the most recent sequence ID (ensure its smaller than ours (seqID-1))
