@@ -333,10 +333,17 @@ deactivate
 ./mr.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MR_TRIGGERBKTC} ${MR_TRIGGERBKTD} ${MR_TRIGGERBKTF} ${MR_TRIGGERBKTS} ${MR_TRIGGERBKTT} ${MR_TRIGGERBKTB} ${REG} 
 
 #save off the streams for processing and cleanup the tables
+#do this immediately after running job else xray data will disappear
 export APP1=mr
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
-./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
+./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${XREG} ${GAMMATABLE} ${SPOTTABLE} ${APP1}
+        #second APP1 is the output dir
 	#output files are in dynamodb/dump.${APP1} (if uncommented in script), cloudwatch/[1-$COUNT]/APP/MRASYNC/[CSTFD]/*.log
+	#and in the local directory (${PREFIX}/tools/*.xray)
+#to download the xray data alone, use: 
+./get_xray_data.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${APP1}
+#data is put in ${APP1} dir (last arg)
+
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
 #wait 1 min then recreate them:
@@ -352,8 +359,14 @@ deactivate
 #save off the streams for processing and cleanup the tables
 export APP1=webapp
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
-./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
-	#output files are in dynamodb/dump.${APP1} (if uncommented in script), cloudwatch/[1-$COUNT]/APP/WEBAPP/[CSTFD]/*.log
+./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${XREG} ${GAMMATABLE} ${SPOTTABLE} ${APP1}
+        #second APP1 is the output dir
+	#output files are in dynamodb/dump.${APP1} (if uncommented in script), cloudwatch/[1-$COUNT]/APP/MRASYNC/[CSTFD]/*.log
+	#and in the local directory (${PREFIX}/tools/*.xray)
+#to download the xray data alone, use: 
+./get_xray_data.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${APP1}
+#data is put in ${APP1} dir (last arg)
+
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
 #wait 1 min then recreate them:
@@ -369,8 +382,13 @@ deactivate
 #save off the streams for processing and cleanup the tables
 export APP1=imageproc
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
-./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
-	#output files are in dynamodb/dump.${APP1} (if uncommented in script), cloudwatch/[1-$COUNT]/APP/IMGPROC/[CSTFD]/*.log
+./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${XREG} ${GAMMATABLE} ${SPOTTABLE} ${APP1}
+        #second APP1 is the output dir
+	#output files are in dynamodb/dump.${APP1} (if uncommented in script), cloudwatch/[1-$COUNT]/APP/MRASYNC/[CSTFD]/*.log
+#to download the xray data alone, use: 
+./get_xray_data.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${APP1}
+#data is put in ${APP1} dir (last arg)
+
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
 #wait 1 mins then recreate them:
@@ -409,9 +427,14 @@ deactivate
 #save off the streams for processing and cleanup the tables
 export APP1=mrsync
 cd ${PREFIX}/tools  #download the stream data and append it to stream base (save both)
-./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE}
-	#output files are in dynamodb/dump.${APP1} (if uncommented in script), cloudwatch/[1-$COUNT]/APP/MRSYNC/[CSTFD]/*.log
+./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${XREG} ${GAMMATABLE} ${SPOTTABLE} ${APP1}
+        #second APP1 is the output dir
+	#output files are in dynamodb/dump.${APP1} (if uncommented in script), cloudwatch/[1-$COUNT]/APP/MRASYNC/[CSTFD]/*.log
 	#and in the local directory (${PREFIX}/tools/*.xray)
+#to download the xray data alone, use: 
+./get_xray_data.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${APP1}
+#data is put in ${APP1} dir (last arg)
+
 #clean out the tables (do it this way as it the tables from MR jobs are big)
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}

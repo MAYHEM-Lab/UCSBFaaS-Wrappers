@@ -1,9 +1,10 @@
 #! /bin/bash
-NUM_ARGS=7
+NUM_ARGS=8
 display_usage() { 
-    echo "./get_table_and_stream.sh APPNAME PREFIX awsprofile region accountNo DTABLE STABLE"
+    echo "./get_table_and_stream.sh APPNAME PREFIX awsprofile region1 region2 DTABLE STABLE output_dir"
     echo "If your GammaRay environment is set you can export APP1 as APPNAME and use"
-    echo "./get_table_and_stream.sh \${APP1} \${PREFIX} \${AWSPROFILE} \${REG} \${GAMMATABLE} \${SPOTTABLE} output_dir"
+    echo "If you only want one region put its name in for both region1 and region2"
+    echo "./get_table_and_stream.sh \${APP1} \${PREFIX} \${AWSPROFILE} \${REG} \${XREG} \${GAMMATABLE} \${SPOTTABLE} output_dir"
 } 
 if [  $# -ne ${NUM_ARGS} ] 
 then 
@@ -14,9 +15,10 @@ APP1=$1
 PREFIX=$2
 PROF=$3
 REG=$4
-DTABLE=$5
-STABLE=$6
-OUT=$7
+XREG=$5
+DTABLE=$6
+STABLE=$7
+OUT=$8
 GRDIR=${PREFIX}/gammaRay
 TOOLSDIR=${PREFIX}/tools
 
@@ -54,27 +56,7 @@ diff -b -B streamD.base streamD.new | awk -F"> " '{print $2}' > ${APP1}D.stream
 cp streamD.new ${OUT}/${APP1}D.new
 cat ${APP1}D.stream >> streamD.base
 
-DSTART=`date "+%Y-%m-%dT%H:%M:%S"` #not utc so 7 hours earlier
-DEND=`date -u "+%Y-%m-%dT%H:%M:%S"` #utc
-aws --profile ${PROF} xray get-trace-summaries --no-sampling --start-time ${DSTART} --end-time ${DEND}  > ${TMPFILE}
-TIDS=`python getEleFromJson.py TraceSummaries:Id ${TMPFILE} --multiple`
-#echo ${TIDS}
+#get xray data for the two regions and put it in $OUT, only files not yet downloaded are downloaded
+./get_xray_data.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${OUT}
+./get_xray_data.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${XREG} ${OUT}
 
-#a better way to do this:
-#example for XRay download service: download between 1 and 2 minutes in the past
-#EPOCH=$(date -u +%s)
-#aws xray get-trace-summaries --start-time $(($EPOCH-120)) --end-time $(($EPOCH-60))
-#Example Script to get full traces for a one minute period
-#EPOCH=$(date -u +%s)
-#TRACEIDS=$(aws xray get-trace-summaries --start-time $(($EPOCH-120)) --end-time $(($EPOCH-60)) --query 'TraceSummaries[*].Id' --output text)
-#aws xray batch-get-traces --trace-ids $TRACEIDS --query 'Traces[*]'
-
-for TID in ${TIDS}  #one per trace ID, only request it if we dont yet have it
-do
-    FNAME=${APP1}B_${TID}.xray
-    if [ ! -f ${FNAME} ]; then
-        aws --profile ${PROF} xray batch-get-traces --trace-ids ${TID} > ${FNAME}
-        cp ${FNAME} ${OUT}
-    fi
-done
-rm -f ${TMPFILE}
