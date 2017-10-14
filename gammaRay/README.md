@@ -99,7 +99,6 @@ deactivate
 * Cleanup everything 
 ```
 #GammaRay tables if any
-aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
 
 #Cloudwatch logs
