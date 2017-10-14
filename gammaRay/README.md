@@ -10,7 +10,7 @@ This document details the steps to perform a simple GammaRay demo.
 ```
 git clone git@github.com:MAYHEM-Lab/UCSBFaaS-Wrappers.git
 cd UCSBFaaS-Wrappers
-cp GammaRay.env GammaRay.env
+cp GammaRay.env.template GammaRay.env
 #edit GammaRay.env and update all entries with XXX in them
 source GammaRay.env  
 
@@ -116,6 +116,7 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/logs/; done
 
 #local app files
 cd ${PREFIX}/tools/timings
+export APP1=imageproc
 rm -rf ${APP1}*
 
 #Optional: all lambdas
