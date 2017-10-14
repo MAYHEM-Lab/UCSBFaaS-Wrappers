@@ -4,7 +4,7 @@ GammaRay is an extension to AWS Lambda and Xray to extract causal order relation
 
 The file RUN\_README walks you through all of the steps necessary for setting up multiple applications and microbenchmarks with GammaRay. 
 
-This document details the steps to perform a simple GammaRay demo.
+This document details the steps to perform a simple GammaRay demo.  The symbol B used in the scripts and below indicates the GammaRay version.  When referring to the GammaRay tables we use the symbol D in some scripts.
 
 * First time only setup
 ```
