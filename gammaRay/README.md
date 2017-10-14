@@ -1,10 +1,10 @@
 ## GammaRay Demo
 
-GammaRay is an extension to AWS Lambda and Xray to extract causal order relationships and performance data from multifunction AWS Lambda applications.
+GammaRay is an extension to AWS Lambda and Xray to extract causal order relationships and performance data from multifunction AWS Lambda applications.  GammaRay is described in this paper (LINK TO BE PROVIDED UPON PUBLICATION).
 
 The file RUN\_README walks you through all of the steps necessary for setting up multiple applications and microbenchmarks with GammaRay. 
 
-This document details the steps to perform a simple GammaRay demo.  The symbol B used in the scripts and below indicates the GammaRay version.  When referring to the GammaRay tables we use the symbol D in some scripts.
+This document details the steps to perform a simple GammaRay demo.  The symbol B (for both or hybrid configuration described in the paper) used in the scripts and below indicates the GammaRay version.  When referring to the GammaRay tables and streams we use the symbol D (for dynamic monitor table data) in some scripts.
 
 * First time only setup
 ```
