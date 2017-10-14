@@ -28,8 +28,8 @@ LLIST=(
 #/aws/lambda/SNSPyB \
 #/aws/lambda/S3ModPyB \
 #/aws/lambda/DBModPyB \
+#/aws/lambda/FnInvokerPyB \
 /aws/lambda/DBSyncPyB \
-/aws/lambda/FnInvokerPyB \
 /aws/lambda/ImageProcPyB \
 #/aws/lambda/mapperC \
 #/aws/lambda/reducerC \
