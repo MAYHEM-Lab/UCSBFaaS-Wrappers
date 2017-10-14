@@ -138,6 +138,7 @@ python cleanupEventSources.py ${AWSPROFILE} ${XREG} "UpdateWebsiteD"
 python cleanupEventSources.py ${AWSPROFILE} ${REG} "DBSyncPyD:FnInvokerPyD"
 deactivate
 #Optional: delete all lambdas
+cd ${PREFIX}/tools/timings
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
 ```
 
