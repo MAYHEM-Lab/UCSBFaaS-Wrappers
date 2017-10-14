@@ -17,7 +17,7 @@ MRDIR=${PREFIX}/lambda-python/mr
 cd ${GRMDIR}
 . venv/bin/activate
 
-for i in `ls configs/*.json`; 
+for i in `ls configs/*.json *.json`; 
 do
     python setupApps.py -p ${PROF} --deleteAll -f $i
 done
