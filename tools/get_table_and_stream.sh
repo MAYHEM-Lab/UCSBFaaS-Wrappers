@@ -46,6 +46,7 @@ SARN=`python getEleFromJson.py Table:LatestStreamArn ${TMPFILE}`
 rm -f ${TMPFILE}
 
 mkdir -p ${OUT}
+rm -rf ${OUT}/*
 touch streamS.base streamD.base
 python get_stream_data.py ${SARN} -p ${PROF} > streamS.new
 python get_stream_data.py ${DARN} -p ${PROF} >  streamD.new
