@@ -86,6 +86,7 @@ aws --profile ${AWSPROFILE} s3 cp d1.jpg s3://${SPOTBKTWEST}/imgProc/
 ```
 #download the latest stream (so that we can diff it to only consider this app) into streamD.base (this filename is hardcoded and used in get\_table\_and\_stream.sh below)"
 cd ${PREFIX}/tools 
+deactivate
 ./get_base_stream.sh ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE}
 
 cd ${PREFIX}/tools/timings
