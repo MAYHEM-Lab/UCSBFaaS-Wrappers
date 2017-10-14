@@ -20,7 +20,7 @@ cd ${TOOLSDIR}
 
 DSTART=`date "+%Y-%m-%dT%H:%M:%S"` #not utc so 7 hours earlier
 DEND=`date -u "+%Y-%m-%dT%H:%M:%S"` #utc
-echo $REG
+#echo $REG
 TIDS=$(aws xray get-trace-summaries --no-sampling --region ${REG} --profile ${PROF} --start-time ${DSTART} --end-time ${DEND} --query 'TraceSummaries[*].Id' --output text)
 #echo $TIDS
 
