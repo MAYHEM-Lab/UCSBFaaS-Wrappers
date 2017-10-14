@@ -24,9 +24,9 @@ SUFFIXES=(
 )
 #uncomment the following 3 lines to implement the demo
 #comment them out to run all of the options
-#SUFFIXES=( 
-    #B 
-#)
+SUFFIXES=( 
+    B 
+)
 cd ${GRDIR}
 . ./venv/bin/activate
 cd ${TOOLSDIR}
