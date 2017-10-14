@@ -129,6 +129,7 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/logs/; done
 cd ${PREFIX}/tools
 export APP1=imageproc
 rm -rf ${APP1}*
+aws --profile ${AWSPROFILE} s3 rm s3://${SPOTBKTWEST}/imgProc/d1.jpg
 
 #Optional: delete all triggers
 cd ${PREFIX}/gammaRay
