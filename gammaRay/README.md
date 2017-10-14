@@ -92,7 +92,7 @@ source venv/bin/activate
 cd ${PREFIX}/tools
 python stream_parser.py imageproc/imageprocD.new imageproc >& imageproc.out
 python stream_parser.py --include_all_sdks imageproc/imageprocD.new imageproc >& imageproc.out
-python stream_parser.py --aggregate  imageproc/imageprocD.new imageproc >& imageproc.out
+python stream_parser.py --aggregate --include_all_sdks imageproc/imageprocD.new imageproc >& imageproc.out
 deactivate
 ```
 
