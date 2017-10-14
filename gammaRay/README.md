@@ -129,7 +129,15 @@ cd ${PREFIX}/tools/timings
 export APP1=imageproc
 rm -rf ${APP1}*
 
-#Optional: all lambdas
+#Optional: delete all triggers
+cd ${PREFIX}/gammaRay
+deactivate
+source venv/bin/activate
+cd ${PREFIX}/tools
+python cleanupEventSources.py ${AWSPROFILE} ${XREG} "UpdateWebsiteD"
+python cleanupEventSources.py ${AWSPROFILE} ${REG} "DBSyncPyD:FnInvokerPyD"
+deactivate
+#Optional: delete all lambdas
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
 ```
 
