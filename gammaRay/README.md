@@ -42,8 +42,14 @@ source GammaRay.env
 
 #[Optional] clean out/refresh the database table that GammaRay uses
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
+#run this until it says gammaRays not found:
+aws --profile ${AWSPROFILE} dynamodb describe-table --region ${REG} --table-name ${GAMMATABLE}
+
 #wait 30 seconds then recreate it:
 aws --profile ${AWSPROFILE} dynamodb create-table --region ${REG} --table-name ${GAMMATABLE} --attribute-definitions AttributeName=reqID,AttributeType=S --key-schema AttributeName=reqID,KeyType=HASH --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=20 --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES
+#run this until the JSON returned has a field "TableStatus" that says "ACTIVE":
+aws --profile ${AWSPROFILE} dynamodb describe-table --region ${REG} --table-name ${GAMMATABLE}
+#Do not continue until the JSON returned has a field "TableStatus" that says "ACTIVE"!
 ```
 
 * Create (or update) the lambdas
@@ -73,10 +79,15 @@ export EASTSYNC_FUNCTION_NAME_PREFIX=UpdateWebsite
 
 #Next, upload a jpg image (any picture of something) to the $SPOTBKTWEST bucket in AWS S3 in a folder called imgProc with a file name d1.jpg
 aws --profile ${AWSPROFILE} s3 cp d1.jpg s3://${SPOTBKTWEST}/imgProc/
+
 ```
 
 * Run the app and gather the data
 ```
+#download the latest stream (so that we can diff it to only consider this app) into streamD.base (this filename is hardcoded and used in get\_table\_and\_stream.sh below)"
+cd ${PREFIX}/tools 
+./get_base_stream.sh ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE}
+
 cd ${PREFIX}/tools/timings
 deactivate
 export COUNT=2
