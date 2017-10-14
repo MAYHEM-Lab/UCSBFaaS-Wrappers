@@ -95,7 +95,8 @@ cd ${PREFIX}/tools/timings
 #clean out the DB
 deactivate
 cd ${PREFIX}/tools/timings
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX} ${GAMMATABLE}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX} ${SPOTTABLE}
 
 
 ########### TRIGGER_CLEANUP ####################
@@ -301,7 +302,8 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/logs/*; done
 #when you get new stuff
 deactivate
 cd ${PREFIX}/tools/timings
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX} ${GAMMATABLE}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX} ${SPOTTABLE}
 cd ${PREFIX}/tools
 rm -f streamS.base streamD.base
 touch streamS.base streamD.base
@@ -316,8 +318,8 @@ cd ${PREFIX}/tools/timings
 deactivate
 export COUNT=50
 ./micro.sh ${AWSPROFILE} ${COUNT} ${PREFIX}
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX} ${GAMMATABLE}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX} ${SPOTTABLE}
 #if the above does not say "is empty" for both the second time, then delete and remake the table:
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
@@ -411,7 +413,8 @@ output = json
 region = us-west-2
 
 nohup ./overheadMR.sh ${AWSPROFILE} ${COUNT} ${BDBENCH} ${PREFIX} ${JOBID} ${MR_TRIGGERBKTC} ${MR_TRIGGERBKTD} ${MR_TRIGGERBKTF} ${MR_TRIGGERBKTS} ${MR_TRIGGERBKTT} ${MR_TRIGGERBKTB}&
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX} ${GAMMATABLE}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX} ${SPOTTABLE}
 
 as an example:
 ./overheadMR.sh cjk1 1 cjk-gammaray-bdbenchmark /Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers job8000 spot-mr-bkt-ns spot-mr-bkt-gr spot-mr-bkt-f pot-mr-bkt spot-mr-bkt-t spot-mr-bkt-b
@@ -499,8 +502,8 @@ cd ${PREFIX}/tools/timings
 #depending on where your lambdas are
 ./cleanupAWS.sh ${AWSPROFILE} ${REG} ${XREG}
 
-#you can/should run cleanupDB.sh repeatedly until it says that the table is empty! this can take awhile
-./cleanupDB.sh ${AWSPROFILE} ${PREFIX}    #you may have to temporarily increased provisioned writes if this hangs or takes a long time until you get to empty!
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX} ${GAMMATABLE}
+./cleanupDB.sh ${AWSPROFILE} ${PREFIX} ${SPOTTABLE}
 #if there are too many entries, the above will stop working. In this case just delete and remake the table:
 aws dynamodb delete-table --table-name ${SPOTTABLE} --profile ${AWSPROFILE}
 aws dynamodb delete-table --table-name ${GAMMATABLE} --profile ${AWSPROFILE}
