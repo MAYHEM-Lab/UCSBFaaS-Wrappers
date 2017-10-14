@@ -72,10 +72,7 @@ def getName(reqObj):
     ############ function entries ##################
     if typ == 'fn': 
         #setup name for dot nodes
-        if dot_agg:
-            name='FN={}'.format(pl['name'])
-        else:
-            name='FN={} {}'.format(pl['name'],pl['reg'])
+        name='FN={} {}'.format(pl['name'],pl['reg'])
 
         #now setup up match 
         if op == 'none':
@@ -222,7 +219,7 @@ def makeDot(dot_include_nontriggers=False):
 
     if dot_agg:
         mystr = '.agg' 
-    dot.render('gragggraph{}'.format(mystr), view=True)
+    dot.render('gray_graph{}'.format(mystr), view=True)
     return
 
 ##################### processEventSource #######################
@@ -268,25 +265,35 @@ def processReads(dot):
 
         myid = ele
         parentname,_,_= getName(parent)
+        if DEBUG:
+            print('\tparent: {}'.format(parentname))
 
         #name is 2 lines: svc=op region\nother other
         dur = float(toks[6])
         ERR = False
 
+        nodename = ''
         if toks[0] == 'requests':
             #290026a7b3874e8d requests:POST:unknown:unknown:httpbin.org/post:200:0.41441774368286133:False:ff12e189-ab9a-11e7-84e2-6758c617c45d
             if toks[5] != '200':
                 ERR = True
-            name = '{}={} {}'.format(toks[0],toks[1],toks[4])
+            name = '{}={} {} {}'.format(toks[0],toks[1],toks[4],toks[8]) #add reqID to make them unique
+            nodename = '{}={} {}'.format(toks[0],toks[1],toks[4])
+            if dot_agg:
+                name = nodename #remote the reqID
 
         else:
             #9cf56c565aa0431d DynamoDB:GetItem:us-west-2:image-proc-B:200:unknown:0.6778364181518555:False:d8599d60-85c4-47c0-8684-f589accc0dab
             if toks[4] != '200':
                 ERR = True
-            name = '{}={} {}\n{}'.format(toks[0],toks[1],toks[2],toks[3])
+            name = '{}={} {}\n{} {}'.format(toks[0],toks[1],toks[2],toks[3],toks[8])
+            nodename = '{}={} {}\n{}'.format(toks[0],toks[1],toks[2],toks[3])
+            if dot_agg:
+                name = nodename
             if toks[0] == 'S3' and not dot_agg:
                 ##S3:GetObject:us-west-2:bkt:200:REQID:0.03930234909057617:False:b97b3871-ac79-11e7-83ab-d1249a09b700
                 name = '{}={} {}\n{} {}'.format(toks[0],toks[1],toks[2],toks[3],toks[5])
+                nodename = name
 
         #aggregate the timings
         totsum = dur
@@ -301,16 +308,21 @@ def processReads(dot):
             count += c
         NODES[name] = (totsum,count,start,sdk)
         avg = totsum/count 
-        nodename='{}\navg: {:0.2f}s'.format(name,avg)
+        nodename +='\navg: {:0.2f}s'.format(avg)
 
         if ERR:
             print('WARNING, node error: {}'.format(nodename))
             dot.node(name,nodename,color='red',fillcolor='gray',style='filled')
         else:
             dot.node(name,nodename,fillcolor='gray',style='filled')
-        if name not in EDGES:
-            EDGES.append(name)
+        if (parentname,name) not in EDGES:
+            EDGES.append((parentname,name))
             dot.edge(parentname,name)
+            if DEBUG:
+                print('\tadding edge: {}->{}'.format(parentname,name))
+        else:
+            if DEBUG:
+                print('\tNOT adding edge: {}->{}'.format(parentname,name))
         
 ##################### processEventSource #######################
 def processEventSource(pl):
