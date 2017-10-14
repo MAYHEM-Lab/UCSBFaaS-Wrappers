@@ -16,7 +16,7 @@ SDK='sdk'
 CHILDREN='children'
 SSID='ssegId'
 
-DEBUG = True
+DEBUG = False
 REQS = {}
 SUBREQS = {} #for functions triggered (in/)directly by other functions
 TRIGGERS = defaultdict(list) #potentially multiple eles in list per key
