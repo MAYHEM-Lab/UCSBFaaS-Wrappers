@@ -21,157 +21,51 @@ aws s3 rm s3://${MRBKTT}/ --recursive --profile ${PROF}
 
 #delete log groups for all lambdas, errors can be ignored
 LLIST=(
-/aws/lambda/mapper \
-/aws/lambda/reducer \
-/aws/lambda/driver \
-/aws/lambda/reducerCoordinator \
-/aws/lambda/mapperNS \
-/aws/lambda/reducerNS \
-/aws/lambda/driverNS \
-/aws/lambda/reducerCoordinatorNS \
-/aws/lambda/mapperGR \
-/aws/lambda/reducerGR \
-/aws/lambda/driverGR \
-/aws/lambda/reducerCoordinatorGR \
-/aws/lambda/mapperF \
-/aws/lambda/reducerF \
-/aws/lambda/driverF \
-/aws/lambda/reducerCoordinatorF \
-/aws/lambda/SNSPy \
-/aws/lambda/S3ModPy \
-/aws/lambda/DBModPy \
-/aws/lambda/DBSync \
-/aws/lambda/DBSyncPy \
-/aws/lambda/FnInvokerPy \
-/aws/lambda/SpotTemplatePy \
-/aws/lambda/SNSPyNS \
-/aws/lambda/S3ModPyNS \
-/aws/lambda/DBModPyNS \
-/aws/lambda/FnInvokerPyNS \
-/aws/lambda/SpotTemplatePyNS \
-/aws/lambda/ImageProcPy \
-/aws/lambda/ImageProcPyNDB \
-/aws/lambda/ImageProc_F_Py \
-/aws/lambda/ImageProc_NGR_Py \
-/aws/lambda/ImageProc_S_Py \
-/aws/lambda/mapperD \
-/aws/lambda/reducerD \
-/aws/lambda/driverD \
-/aws/lambda/reducerCoordinatorD \
-/aws/lambda/SNSPyD \
-/aws/lambda/S3ModPyD \
-/aws/lambda/DBModPyD \
-/aws/lambda/DBSyncPyD \
-/aws/lambda/FnInvokerPyD \
-/aws/lambda/ImageProcPyD \
-/aws/lambda/mapperB \
-/aws/lambda/reducerB \
-/aws/lambda/driverB \
-/aws/lambda/reducerCoordinatorB \
-/aws/lambda/SNSPyB \
-/aws/lambda/S3ModPyB \
-/aws/lambda/DBModPyB \
+#/aws/lambda/mapperB \
+#/aws/lambda/reducerB \
+#/aws/lambda/driverB \
+#/aws/lambda/reducerCoordinatorB \
+#/aws/lambda/SNSPyB \
+#/aws/lambda/S3ModPyB \
+#/aws/lambda/DBModPyB \
 /aws/lambda/DBSyncPyB \
 /aws/lambda/FnInvokerPyB \
 /aws/lambda/ImageProcPyB \
-/aws/lambda/SNSPyF \
-/aws/lambda/S3ModPyF \
-/aws/lambda/DBModPyF \
-/aws/lambda/DBSyncPyF \
-/aws/lambda/FnInvokerPyF \
-/aws/lambda/ImageProcPyF \
-/aws/lambda/mapperT \
-/aws/lambda/reducerT \
-/aws/lambda/driverT \
-/aws/lambda/reducerCoordinatorT \
-/aws/lambda/SNSPyT \
-/aws/lambda/S3ModPyT \
-/aws/lambda/DBModPyT \
-/aws/lambda/DBSyncPyT \
-/aws/lambda/FnInvokerPyT \
-/aws/lambda/ImageProcPyT \
-/aws/lambda/mapperS \
-/aws/lambda/reducerS \
-/aws/lambda/driverS \
-/aws/lambda/reducerCoordinatorS \
-/aws/lambda/SNSPyS \
-/aws/lambda/S3ModPyS \
-/aws/lambda/DBModPyS \
-/aws/lambda/DBSyncPyS \
-/aws/lambda/FnInvokerPyS \
-/aws/lambda/ImageProcPyS \
-/aws/lambda/mapperD \
-/aws/lambda/reducerD \
-/aws/lambda/driverD \
-/aws/lambda/reducerCoordinatorD \
-/aws/lambda/SNSPyD \
-/aws/lambda/S3ModPyD \
-/aws/lambda/DBModPyD \
-/aws/lambda/DBSyncPyD \
-/aws/lambda/mapperC \
-/aws/lambda/reducerC \
-/aws/lambda/driverC \
-/aws/lambda/reducerCoordinatorC \
-/aws/lambda/SNSPyC \
-/aws/lambda/S3ModPyC \
-/aws/lambda/DBModPyC \
-/aws/lambda/DBSyncPyC \
-/aws/lambda/FnInvokerPyC \
-/aws/lambda/ImageProcPyC \
-/aws/lambda/UpdateWebsiteC \
-/aws/lambda/UpdateWebsiteT \
-/aws/lambda/UpdateWebsiteF \
-/aws/lambda/UpdateWebsiteS \
-/aws/lambda/UpdateWebsiteD \
+#/aws/lambda/mapperC \
+#/aws/lambda/reducerC \
+#/aws/lambda/driverC \
+#/aws/lambda/reducerCoordinatorC \
+#/aws/lambda/SNSPyC \
+#/aws/lambda/S3ModPyC \
+#/aws/lambda/DBModPyC \
+#/aws/lambda/DBSyncPyC \
+#/aws/lambda/FnInvokerPyC \
+#/aws/lambda/ImageProcPyC \
+#/aws/lambda/UpdateWebsiteC \
 /aws/lambda/UpdateWebsiteB \
-/aws/lambda/dbreadC \
-/aws/lambda/dbreadT \
-/aws/lambda/dbreadF \
-/aws/lambda/dbreadS \
-/aws/lambda/dbreadD \
-/aws/lambda/dbreadB \
-/aws/lambda/dbwriteC \
-/aws/lambda/dbwriteT \
-/aws/lambda/dbwriteF \
-/aws/lambda/dbwriteS \
-/aws/lambda/dbwriteD \
-/aws/lambda/dbwriteB \
-/aws/lambda/emptyC \
-/aws/lambda/emptyT \
-/aws/lambda/emptyF \
-/aws/lambda/emptyS \
-/aws/lambda/emptyD \
-/aws/lambda/emptyB \
-/aws/lambda/emptySbig \
-/aws/lambda/pubsnsC \
-/aws/lambda/pubsnsT \
-/aws/lambda/pubsnsF \
-/aws/lambda/pubsnsS \
-/aws/lambda/pubsnsD \
-/aws/lambda/pubsnsB \
-/aws/lambda/s3readC \
-/aws/lambda/s3readT \
-/aws/lambda/s3readF \
-/aws/lambda/s3readS \
-/aws/lambda/s3readD \
-/aws/lambda/s3readB \
-/aws/lambda/s3writeC \
-/aws/lambda/s3writeT \
-/aws/lambda/s3writeF \
-/aws/lambda/s3writeS \
-/aws/lambda/s3writeD \
-/aws/lambda/s3writeB \
-/aws/lambda/S3EventProcessor \
-/aws/lambda/UploadObjectToS3 \
+#/aws/lambda/dbreadC \
+#/aws/lambda/dbreadB \
+#/aws/lambda/dbwriteC \
+#/aws/lambda/dbwriteB \
+#/aws/lambda/emptyC \
+#/aws/lambda/emptyB \
+#/aws/lambda/emptySbig \
+#/aws/lambda/pubsnsC \
+#/aws/lambda/pubsnsB \
+#/aws/lambda/s3readC \
+#/aws/lambda/s3readB \
+#/aws/lambda/s3writeC \
+#/aws/lambda/s3writeB \
 )
 
-for f in "${LLIST[@]}"
+for lambda in "${LLIST[@]}"
 do
-    echo "processing ${f}"
-    if [[ ${lambda} == UpdateWeb* ]] ;
+    if [[ ${lambda} == *"UpdateWeb"* ]] ;
     then
-        aws logs delete-log-group --region ${XREG} --profile ${PROF} --log-group-name ${f}
+        echo "processing region ${XREG} ${lambda}"
+        aws logs delete-log-group --region ${XREG} --profile ${PROF} --log-group-name ${lambda}
     else
-        aws logs delete-log-group --region ${REG} --profile ${PROF} --log-group-name ${f}
+        echo "processing region ${REG} ${lambda}"
+        aws logs delete-log-group --region ${REG} --profile ${PROF} --log-group-name ${lambda}
     fi
 done
