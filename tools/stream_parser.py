@@ -16,7 +16,7 @@ SDK='sdk'
 CHILDREN='children'
 SSID='ssegId'
 
-DEBUG = False
+DEBUG = True
 REQS = {}
 SUBREQS = {} #for functions triggered (in/)directly by other functions
 TRIGGERS = defaultdict(list) #potentially multiple eles in list per key
@@ -141,7 +141,7 @@ def processDotChild(dot,req,EDGES):
             pct = (start/tot)*100
             pctsdks = (sdkavg/avg)*100 #pct of function time spent in sdks
         #nodename='{}\nFN: {:0.2f}s INIT: {:0.2f}s InitPct {:0.2f}%'.format(name,avg,startavg,tot,pct)
-        nodename='{}\nFN: {:0.2f}s INIT: {:0.2f}s \nSDKS: {:0.2f}s PCTSDKs {:0.2f}%'.format(name,avg,startavg,tot,sdkavg,pctsdks)
+        nodename='{}\nFN: {:0.2f}s INIT: {:0.2f}s \nSDKS: {:0.2f}s PCTSDKs {:0.2f}%'.format(name,avg,startavg,sdkavg,pctsdks)
     else: #nonentry node
         nodename='{}\navg: {:0.2f}s'.format(name,avg)
 
@@ -196,7 +196,7 @@ def makeDot(dot_include_nontriggers=False):
                 pct = (start/tot)*100
                 pctsdks = (sdkavg/avg)*100 #pct of function time spent in sdks
             #nodename='{}\nFN: {:0.2f}s INIT: {:0.2f}s InitPct {:0.2f}%'.format(name,avg,startavg,tot,pct)
-            nodename='{}\nFN: {:0.2f}s INIT: {:0.2f}s \nSDKS: {:0.2f}s PCTSDKs {:0.2f}%'.format(name,avg,startavg,tot,sdkavg,pctsdks)
+            nodename='{}\nFN: {:0.2f}s INIT: {:0.2f}s \nSDKS: {:0.2f}s PCTSDKs {:0.2f}%'.format(name,avg,startavg,sdkavg,pctsdks)
         else: #nonentry node
             nodename='{}\navg: {:0.2f}s'.format(name,avg)
 
@@ -890,6 +890,8 @@ def parseIt(fname,fxray=None):
                     payload['rest'] = '{}:NOXRAYDATA'.format(payload['rest'])
 
                 ele = {TYPE:'fn',REQ:reqID,SSID:'none',PAYLOAD:payload,TS:ts,DUR:duration,ST:startup,SDK:sdks,SEQ:seqID,CHILDREN:[]}
+                if DEBUG:
+                    print('updating SDK: {}'.format(ele))
                 seqID += 1
                 if trigger: #this lambda was triggered by an event source
                     n,match,_ = getName(ele)
