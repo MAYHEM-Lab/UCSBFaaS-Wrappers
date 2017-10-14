@@ -1,6 +1,6 @@
 #! /bin/bash
 if [ "$#" -ne 12 ]; then
-    echo "USAGE: ./overhead.sh aws_profile num_runs data_bucket_name prefix jobid C_job_bkt D_job_bkt F_job_bkt  S_job_bkt  T_job_bkt B_job_bkt REGION"
+    echo "USAGE: ./mr.sh aws_profile num_runs data_bucket_name prefix jobid C_job_bkt D_job_bkt F_job_bkt  S_job_bkt  T_job_bkt B_job_bkt REGION"
     exit 1
 fi
 PROF=$1
@@ -30,7 +30,8 @@ BKTLIST=(
 )
 SUFFIXES=( C D F S T B )
 #for testing or re-running, put the suffixes in here that you want to run
-RUNTHESE=( C D F S T B )
+RUNTHESE=( F B )
+RUNTHESE=( B )
 
 #update the below (must match lambda function names in configWestC.json
 FMAP="/aws/lambda/mapper"

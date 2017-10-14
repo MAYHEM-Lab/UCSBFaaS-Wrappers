@@ -20,6 +20,7 @@ TOOLSDIR=${PREFIX}/tools/timings
 TS=1401861965497 #some early date
 
 SUFFIXES=( C S D F T B )
+SUFFIXES=( B )
 cd ${GRDIR}
 . ./venv/bin/activate
 cd ${CWDIR}
@@ -57,8 +58,10 @@ do
         do
             if [[ ${lambda} == UpdateWeb* ]] ;
             then
+                echo downloading logs from ${lambda} to ${CWDIR}/${i}/APP/IMGPROC/${suf}/${lambda}.log
                 python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} --region us-east-1 > ${i}/APP/IMGPROC/${suf}/${lambda}.log
             else
+                echo downloading logs from ${lambda} to ${CWDIR}/${i}/APP/IMGPROC/${suf}/${lambda}.log
                 python downloadLogs.py "/aws/lambda/${lambda}" ${TS} -p ${PROF} > ${i}/APP/IMGPROC/${suf}/${lambda}.log
             fi
         done

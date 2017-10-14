@@ -15,16 +15,17 @@ REG=us-west-2
 
 S3TESTBKT=cjk-spotwraptest0831
 FILELIST=( 
-    emptyB dbreadB dbwriteB s3readB s3writeB pubsnsB  \
-    emptyC dbreadC dbwriteC s3readC s3writeC pubsnsC \
-    emptyF dbreadF dbwriteF s3readF s3writeF pubsnsF \
-    emptyS dbreadS dbwriteS s3readS s3writeS pubsnsS \
-    emptyT dbreadT dbwriteT s3readT s3writeT pubsnsT  \
-    emptyD dbreadD dbwriteD s3readD s3writeD pubsnsD \
+    s3setupB emptyB dbreadB dbsetupB dbwriteB s3readB s3writeB pubsnsB  \
+    s3setupC emptyC dbreadC dbsetupC dbwriteC s3readC s3writeC pubsnsC \
+    s3setupF emptyF dbreadF dbsetupF dbwriteF s3readF s3writeF pubsnsF \
+    s3setupS emptyS dbreadS dbsetupS dbwriteS s3readS s3writeS pubsnsS \
+    s3setupT emptyT dbreadT dbsetupT dbwriteT s3readT s3writeT pubsnsT  \
+    s3setupD emptyD dbreadD dbsetupD dbwriteD s3readD s3writeD pubsnsD \
 )
-#FILELIST=( 
-    #emptyD dbreadD dbwriteD s3readD s3writeD pubsnsD  \
-#)
+FILELIST=( 
+    s3setupF emptyF dbreadF dbsetupF dbwriteF s3readF s3writeF pubsnsF \
+    s3setupB emptyB dbreadB dbsetupB dbwriteB s3readB s3writeB pubsnsB  \
+)
 
 cd ${GRDIR}
 . ./venv/bin/activate
