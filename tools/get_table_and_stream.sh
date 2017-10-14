@@ -58,12 +58,15 @@ rm -rf ${OUT}/*
 #python get_stream_data.py ${SARN} -p ${PROF} > streamS.new
 #diff -b -B streamS.base streamS.new | awk -F"> " '{print $2}' > ${APP1}S.stream
 #cp streamS.new ${OUT}/${APP1}S.new
+#awk 'NF' ${TMPFILE} > ${APP1}S.stream  #remove blank lines
+#cp ${APP1}S.stream ${OUT}/${APP1}S.new
 #cat ${APP1}S.stream >> streamS.base
 
 touch streamD.base
 python get_stream_data.py ${DARN} -p ${PROF} >  streamD.new
-diff -b -B streamD.base streamD.new | awk -F"> " '{print $2}' > ${APP1}D.stream
-cp streamD.new ${OUT}/${APP1}D.new
+diff -b -B streamD.base streamD.new | awk -F"> " '{print $2}' > ${TMPFILE}
+awk 'NF' ${TMPFILE} > ${APP1}D.stream  #remove blank lines
+cp ${APP1}D.stream ${OUT}/${APP1}D.new
 cat ${APP1}D.stream >> streamD.base
 
 #get xray data for the two regions and put it in $OUT, only files not yet downloaded are downloaded
