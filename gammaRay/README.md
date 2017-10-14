@@ -79,7 +79,7 @@ aws --profile ${AWSPROFILE} s3 cp d1.jpg s3://${SPOTBKTWEST}/imgProc/
 ```
 cd ${PREFIX}/tools/timings
 deactivate
-export COUNT=1
+export COUNT=2
 ./imageProc.sh ${AWSPROFILE} ${COUNT} ${PREFIX} ${REG} ${XREG} ${SPOTBKTWEST} ${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} #IMG_DBSYNC_TRIGGER_TABLE_PREFIX without suffix
 
 #process the stream data (happens offline in the background by a cloud platform service) but you can run it directly after running the app
@@ -90,7 +90,9 @@ cd ${PREFIX}/tools
 cd ${LOCALLIBDIR}  
 source venv/bin/activate
 cd ${PREFIX}/tools
-python stream_parser.py demo/imageprocD.new --hybrid demo
+python stream_parser.py imageproc/imageprocD.new imageproc >& imageproc.out
+python stream_parser.py --include_all_sdks imageproc/imageprocD.new imageproc >& imageproc.out
+python stream_parser.py --aggregate  imageproc/imageprocD.new imageproc >& imageproc.out
 deactivate
 ```
 
