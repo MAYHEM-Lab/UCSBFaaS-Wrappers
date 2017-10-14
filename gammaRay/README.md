@@ -126,7 +126,7 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/logs/; done
 
 #local app files
-cd ${PREFIX}/tools/timings
+cd ${PREFIX}/tools
 export APP1=imageproc
 rm -rf ${APP1}*
 
