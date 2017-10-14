@@ -85,7 +85,7 @@ export COUNT=1
 #process the stream data (happens offline in the background by a cloud platform service) but you can run it directly after running the app
 export APP1=imageproc
 cd ${PREFIX}/tools 
-./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${GAMMATABLE} ${SPOTTABLE} ${APP1}
+./get_table_and_stream.sh ${APP1} ${PREFIX} ${AWSPROFILE} ${REG} ${XREG} ${GAMMATABLE} ${SPOTTABLE} ${APP1}
 
 cd ${LOCALLIBDIR}  
 source venv/bin/activate
