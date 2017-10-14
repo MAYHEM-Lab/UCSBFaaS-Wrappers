@@ -1,8 +1,10 @@
 #! /bin/bash
 if [ -z ${1+x} ]; then echo 'Unset aws_profile (arg1). Set and rerun. Exiting...!'; exit 1; fi
 if [ -z ${2+x} ]; then echo 'Unset prefix as arg2 (full path to/including UCSBFaaS-Wrappers). Set and rerun. Exiting...!'; exit 1; fi
+if [ -z ${3+x} ]; then echo 'Unset prefix as arg3 (dbname). Set and rerun. Exiting...!'; exit 1; fi
 PROF=$1
 PREFIX=$2
+DDB=$3
 GRDIR=${PREFIX}/gammaRay
 DYNDBDIR=${PREFIX}/tools/dynamodb
 SPOTTABLE=spotFns #must match tablename used by SpotWrap.py.template
@@ -12,5 +14,4 @@ GAMMATABLE=gammaRays #must match tablename used by SpotWrap.py.template
 cd ${GRDIR}
 . venv/bin/activate
 cd ${DYNDBDIR}
-python dynamodelete.py -p ${PROF} ${SPOTTABLE}
-python dynamodelete.py -p ${PROF} ${GAMMATABLE}
+python dynamodelete.py -p ${PROF} ${DDB}

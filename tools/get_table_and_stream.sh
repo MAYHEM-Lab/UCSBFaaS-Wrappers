@@ -32,7 +32,9 @@ TOOLSDIR=${PREFIX}/tools
 #deactivate
 
 cd ${TOOLSDIR}/timings
-./cleanupDB.sh ${PROF} ${PREFIX}
+./cleanupDB.sh ${PROF} ${PREFIX} ${DTABLE}
+#process spot table (no longer used/generated, but here for legacy reasons)
+#./cleanupDB.sh ${PROF} ${PREFIX} ${STABLE}
 
 cd ${GRDIR}
 source venv/bin/activate
@@ -41,18 +43,25 @@ cd ${TOOLSDIR}
 TMPFILE=tmp_file.out
 aws dynamodb describe-table --region ${REG} --table-name ${DTABLE} --profile ${PROF} > ${TMPFILE}
 DARN=`python getEleFromJson.py Table:LatestStreamArn ${TMPFILE}`
-aws dynamodb describe-table --region ${REG} --table-name ${STABLE} --profile ${PROF} > ${TMPFILE}
-SARN=`python getEleFromJson.py Table:LatestStreamArn ${TMPFILE}`
-rm -f ${TMPFILE}
 
+#process spot table (no longer used/generated, but here for legacy reasons)
+#aws dynamodb describe-table --region ${REG} --table-name ${STABLE} --profile ${PROF} > ${TMPFILE}
+#SARN=`python getEleFromJson.py Table:LatestStreamArn ${TMPFILE}`
+
+
+rm -f ${TMPFILE}
 mkdir -p ${OUT}
 rm -rf ${OUT}/*
-touch streamS.base streamD.base
-python get_stream_data.py ${SARN} -p ${PROF} > streamS.new
+
+#process spot table (no longer used/generated, but here for legacy reasons)
+#touch streamS.bas
+#python get_stream_data.py ${SARN} -p ${PROF} > streamS.new
+#diff -b -B streamS.base streamS.new | awk -F"> " '{print $2}' > ${APP1}S.stream
+#cp streamS.new ${OUT}/${APP1}S.new
+#cat ${APP1}S.stream >> streamS.base
+
+touch streamD.base
 python get_stream_data.py ${DARN} -p ${PROF} >  streamD.new
-diff -b -B streamS.base streamS.new | awk -F"> " '{print $2}' > ${APP1}S.stream
-cp streamS.new ${OUT}/${APP1}S.new
-cat ${APP1}S.stream >> streamS.base
 diff -b -B streamD.base streamD.new | awk -F"> " '{print $2}' > ${APP1}D.stream
 cp streamD.new ${OUT}/${APP1}D.new
 cat ${APP1}D.stream >> streamD.base
