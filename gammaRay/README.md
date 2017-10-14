@@ -114,6 +114,10 @@ for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/dynamodb/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/${i}; done
 for i in $(seq 1 $END); do rm -rf ${PREFIX}/tools/cloudwatch/logs/; done
 
+#local app files
+cd ${PREFIX}/tools/timings
+rm -rf ${APP1}*
+
 #Optional: all lambdas
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
 ```
