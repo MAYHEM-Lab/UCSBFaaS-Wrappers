@@ -16,7 +16,7 @@ SDK='sdk'
 CHILDREN='children'
 SSID='ssegId'
 
-DEBUG = True
+DEBUG = False
 REQS = {}
 SUBREQS = {} #for functions triggered (in/)directly by other functions
 TRIGGERS = defaultdict(list) #potentially multiple eles in list per key
@@ -620,6 +620,8 @@ def processHybrid(fname):
                     keyname = doc_dict['trace_id']
                     origin = doc_dict['origin']
                     aws = doc_dict['aws']
+                    if DEBUG:
+                        print("XRAYDD:", doc_dict)
 
                     if origin == 'AWS::Lambda::Function': #AWS::Lambda:Function (parent of Initialization,requests, and SDKs)
                         parent_id = doc_dict['parent_id'] #ID of Attempt event that spawned this FN
@@ -640,9 +642,12 @@ def processHybrid(fname):
                         err = False
 
                         myarn = aws['function_arn']
-                        toks = myarn.split(':') #arn:aws:lambda:us-west-2:XXX:function:FnInvokerPyB
-                        name = toks[6]
-                        reg = toks[3]
+                        if myarn == '':
+                            name = reg = 'unknown'
+                        else:
+                            toks = myarn.split(':') #arn:aws:lambda:us-west-2:XXX:function:FnInvokerPyB
+                            name = toks[6]
+                            reg = toks[3]
                         #tname,key unused
 
                         if DEBUG:
