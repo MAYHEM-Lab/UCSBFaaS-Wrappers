@@ -8,16 +8,16 @@
             "zip": "package.zip",
             "files_and_dirs": [
                 "apps/DBSync.py",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/fleece0.13.0lite/venv/lib/python3.6/site-packages/fleece",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/requests",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/urllib3",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/chardet",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/certifi",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/idna",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/structlog",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/wrapt"
+                "../fleece0.13.0lite/venv/lib/python3.6/site-packages/fleece",
+                "venv/lib/python3.6/site-packages/requests",
+                "venv/lib/python3.6/site-packages/urllib3",
+                "venv/lib/python3.6/site-packages/chardet",
+                "venv/lib/python3.6/site-packages/certifi",
+                "venv/lib/python3.6/site-packages/idna",
+                "venv/lib/python3.6/site-packages/structlog",
+                "venv/lib/python3.6/site-packages/wrapt"
             ],
-            "patched_botocore_dir": "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/boto144/venv/lib/python3.6/site-packages/botocore",
+            "patched_botocore_dir": "../boto144/venv/lib/python3.6/site-packages/botocore",
             "s3bucket": "cjktestbkt"
         },
         {
@@ -27,16 +27,16 @@
             "zip": "package.zip",
             "files_and_dirs": [
                 "apps/imageProc.py",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/fleece0.13.0lite/venv/lib/python3.6/site-packages/fleece",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/requests",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/urllib3",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/chardet",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/certifi",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/idna",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/structlog",
-                "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/gammaRay/venv/lib/python3.6/site-packages/wrapt"
+                "../fleece0.13.0lite/venv/lib/python3.6/site-packages/fleece",
+                "venv/lib/python3.6/site-packages/requests",
+                "venv/lib/python3.6/site-packages/urllib3",
+                "venv/lib/python3.6/site-packages/chardet",
+                "venv/lib/python3.6/site-packages/certifi",
+                "venv/lib/python3.6/site-packages/idna",
+                "venv/lib/python3.6/site-packages/structlog",
+                "venv/lib/python3.6/site-packages/wrapt"
             ],
-            "patched_botocore_dir": "/Users/ckrintz/RESEARCH/lambda/UCSBFaaS-Wrappers/boto144/venv/lib/python3.6/site-packages/botocore",
+            "patched_botocore_dir": "../boto144/venv/lib/python3.6/site-packages/botocore",
             "s3bucket": "cjktestbkt",
             "permission": "image-proc-b",
             "job_id": "imageProc"
