@@ -32,6 +32,7 @@ source venv/bin/activate
 pip install 'fleece==0.13.0' --force-reinstall 
 pip install 'boto3==1.4.7' --force-reinstall #used by apps/map-reduce/driver.py
 pip install graphviz
+pip install requests
 deactivate
 ```
 
