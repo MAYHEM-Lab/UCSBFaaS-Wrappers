@@ -79,6 +79,9 @@ export EASTSYNC_FUNCTION_NAME_PREFIX=UpdateWebsite
 ./make_imgproc_tables.sh ${EASTSYNC_TRIGGER_TABLE_PREFIX} ${EASTSYNC_FUNCTION_NAME_PREFIX} ${AWSPROFILE} ${XREG} ${PREFIX}
 
 #Next, upload a jpg image (any picture of something) to the $SPOTBKTWEST bucket in AWS S3 in a folder called imgProc with a file name d1.jpg
+#make the bucket if you have not already:
+aws --profile ${AWSPROFILE} s3 mb s3://${SPOTBKTWEST}
+#cp the file
 aws --profile ${AWSPROFILE} s3 cp d1.jpg s3://${SPOTBKTWEST}/imgProc/
 
 ```

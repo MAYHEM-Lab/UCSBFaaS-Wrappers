@@ -16,9 +16,7 @@
                 "venv/lib/python3.6/site-packages/idna",
                 "venv/lib/python3.6/site-packages/structlog",
                 "venv/lib/python3.6/site-packages/wrapt"
-            ],
-            "patched_botocore_dir": "../boto144/venv/lib/python3.6/site-packages/botocore",
-            "s3bucket": "cjktestbkteast"
+            ]
         }
     ]
 }
