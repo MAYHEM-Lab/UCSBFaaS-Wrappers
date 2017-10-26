@@ -154,8 +154,9 @@ cd ${PREFIX}/tools/timings
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
 ```
 
-#Other Setup Help
-##Setup an IAM group, user, and role with AdministratorAccess via the IAM console
+* Other Setup Help   
+Setup an IAM group, user, and role with AdministratorAccess via the IAM console
+
 ```
 1) Create an IAM group
 https://console.aws.amazon.com/iam/home?region=us-west-2#/groups/lamdagroup
