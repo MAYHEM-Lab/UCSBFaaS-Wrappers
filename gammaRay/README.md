@@ -193,7 +193,12 @@ Select AdministratorAccess
 <Next>
 Name: testlambda
 
-4) update Gammaray.env with the new names (testlambda and testuser)
+4) update Gammaray.env with the new names (testlambda and testuser) and source file
+
+cd UCSBFaaS-Wrappers
+#edit GammaRay.env and update
 export ROLE=testlambda
 export AWSPROFILE=testuser
+
+source GammaRay.env  
 ```
