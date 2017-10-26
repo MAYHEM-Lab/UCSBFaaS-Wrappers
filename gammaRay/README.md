@@ -195,5 +195,4 @@ Name: testlambda
 4) update Gammaray.env with the new names (testlambda and testuser)
 export ROLE=testlambda
 export AWSPROFILE=testuser
-export PROF=testuser
 ```
