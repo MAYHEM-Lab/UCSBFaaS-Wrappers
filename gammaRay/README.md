@@ -8,6 +8,11 @@ This document details the steps to perform a simple GammaRay demo.  The symbol B
 
 * First time only setup
 ```
+#setup an IAM group, user, and role with AdministratorAccess via the IAM console
+#steps to do this are at the bottom of this document if needed
+https://console.aws.amazon.com/iam/
+
+#clone the repo
 git clone git@github.com:MAYHEM-Lab/UCSBFaaS-Wrappers.git
 cd UCSBFaaS-Wrappers
 cp GammaRay.env.template GammaRay.env
@@ -149,3 +154,46 @@ cd ${PREFIX}/tools/timings
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
 ```
 
+#Other Setup Help
+##Setup an IAM group, user, and role with AdministratorAccess via the IAM console
+```
+1) Create an IAM group
+https://console.aws.amazon.com/iam/home?region=us-west-2#/groups/lamdagroup
+Name: testgroup
+<Create New Group>
+Select AdministratorAccess
+<Create Group>
+
+2) Create a IAM user
+https://console.aws.amazon.com/iam/home?region=us-west-2#/home
+User name: testuser
+Access type: select Programmatic access
+Select group: testgroup
+<Next>
+<Create user>
+<Download CSV>
+extract access key and secret key and login url
+
+add the creds for AWS CLI use (~/.aws/credentials)
+[testuser]
+aws_access_key_id = XXX
+aws_secret_access_key = YYY
+
+add config (~/.aws/config) for AWS CLI use #change the region to your default region
+[profile testuser]
+output = json
+region = us-west-2 
+
+3) Create a role
+https://console.aws.amazon.com/iam/home?region=us-west-2#/roles
+AWS Service = Lambda
+<Next>
+Select AdministratorAccess
+<Next>
+Name: testlambda
+
+4) update Gammaray.env with the new names (testlambda and testuser)
+export ROLE=testlambda
+export AWSPROFILE=testuser
+export PROF=testuser
+```
