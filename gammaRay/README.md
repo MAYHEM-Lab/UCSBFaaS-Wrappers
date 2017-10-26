@@ -149,6 +149,9 @@ python cleanupEventSources.py ${AWSPROFILE} ${XREG} "UpdateWebsiteD"
 python cleanupEventSources.py ${AWSPROFILE} ${REG} "DBSyncPyD:FnInvokerPyD"
 deactivate
 
+#Optional: remove the bucket you created
+aws --profile ${AWSPROFILE} s3 rb s3://${SPOTBKTWEST}
+
 #Optional: delete all lambdas
 cd ${PREFIX}/tools/timings
 ./cleanupLambdas.sh ${AWSPROFILE} ${AWSROLE} ${PREFIX}
