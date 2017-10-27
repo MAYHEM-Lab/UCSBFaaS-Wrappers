@@ -26,6 +26,7 @@ virtualenv venv --python=python3
 source venv/bin/activate
 pip install --upgrade pip setuptools wheel
 pip install 'fleece==0.13.0' --force-reinstall
+pip install 'botocore==1.5.85' --force-reinstall
 cd ${BFLEECE}
 patch -b < ${PREFIX}/gammaRay/xray0130lite.patch
 deactivate
@@ -36,6 +37,7 @@ virtualenv venv --python=python3
 source venv/bin/activate
 pip install 'fleece==0.13.0' --force-reinstall 
 pip install 'boto3==1.4.7' --force-reinstall #used by apps/map-reduce/driver.py
+pip install 'botocore==1.5.85' --force-reinstall
 pip install graphviz
 pip install requests
 deactivate
@@ -73,14 +75,10 @@ deactivate
 ```
 deactivate
 cd ${PREFIX}/tools
-export IMG_DBSYNC_TRIGGER_TABLE_PREFIX=image-proc- 
-export IMG_DBSYNC_FUNCTION_NAME_PREFIX=DBSyncPy
 ./make_imgproc_tables.sh ${IMG_DBSYNC_TRIGGER_TABLE_PREFIX} ${IMG_DBSYNC_FUNCTION_NAME_PREFIX} ${AWSPROFILE} ${REG} ${PREFIX}
 
 deactivate
 cd ${PREFIX}/tools
-export EASTSYNC_TRIGGER_TABLE_PREFIX=eastSyncTable-
-export EASTSYNC_FUNCTION_NAME_PREFIX=UpdateWebsite
 ./make_imgproc_tables.sh ${EASTSYNC_TRIGGER_TABLE_PREFIX} ${EASTSYNC_FUNCTION_NAME_PREFIX} ${AWSPROFILE} ${XREG} ${PREFIX}
 
 #Next, upload a jpg image (any picture of something) to the $SPOTBKTWEST bucket in AWS S3 in a folder called imgProc with a file name d1.jpg
